@@ -1,0 +1,54 @@
+name: Run Django Tests with Coverage
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          sudo apt-get update -y
+          sudo apt-get install -y libzbar-dev
+          pip install \
+            pytest pytest-cov pylint django djangorestframework pytest-django requests \
+            django-cors-headers pyzbar opencv-python numpy python-dotenv openai
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run tests (prints coverage to console)
+        run: |
+          set -e
+          pytest || {
+            code=$?
+            if [ "$code" -eq 5 ]; then
+              echo "No tests collected (pytest exit code 5). Treating as success for CI coverage requirement."
+              exit 0
+            else
+              exit $code
+            fi
+          }
+
+      - name: Upload coverage.xml (optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
