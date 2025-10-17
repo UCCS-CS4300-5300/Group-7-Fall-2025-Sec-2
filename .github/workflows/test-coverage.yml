@@ -25,10 +25,16 @@ jobs:
           pip install pytest pytest-cov
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage and check for no tests
+        id: pytest
         run: |
-          pytest --cov=./ --cov-report=term-missing --cov-report=xml
+          set -o pipefail
+          pytest --cov=./ --cov-report=term-missing --cov-report=xml | tee pytest-output.log
+          if grep -q "collected 0 items" pytest-output.log; then
+            echo "::warning::No tests were run! Please add tests to your project."
+          fi
 
       - name: Display coverage report
+        if: always()
         run: |
-          pytest --cov=./ --cov-report=term-missing
+          cat pytest-output.log || echo "No pytest output log found."
