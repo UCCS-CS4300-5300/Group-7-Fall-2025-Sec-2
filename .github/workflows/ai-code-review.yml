@@ -1,0 +1,55 @@
+name: AI Code Review with ChatGPT
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            **/*.py
+            **/*.html
+            **/*.css
+            **/*.sh
+            **/*.yml
+            **/*.yaml
+
+      - name: AI Code Review
+        uses: anc95/ChatGPT-CodeReview@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        with:
+          model: gpt-4o # or gpt-4, gpt-3.5-turbo
+          review_comment_lgtm: false
+          language: en-US
+          prompt: |
+            You are an expert code reviewer for a Django web application project. Review the code changes and provide CONCISE, actionable feedback.
+
+            Keep all comments brief and to the point. Focus on:
+            - Code quality and best practices for Python/Django
+            - Potential bugs or security issues
+            - Performance improvements
+            - Code maintainability and readability
+            - Adherence to Django conventions and patterns
+            - Proper use of Django templates and static files
+            - Database model design and migrations
+
+            Provide specific feedback with code examples only when necessary. Be direct and concise.
