@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5">
+	<div class="text-center mb-5">
+		<h1 class="fw-bold">Plan Your Perfect Group Trip</h1>
+		<p class="lead">Discover amazing destinations, create itineraries, and travel with friends and family.</p>
+		{% if not user.is_authenticated %}
+			<a href="{% url 'accounts:signup' %}" class="btn btn-primary me-2">Get Started</a>
+			<a href="{% url 'accounts:login' %}" class="btn btn-outline-secondary">Login</a>
+		{% else %}
+			<a href="{% url 'accounts:dashboard' %}" class="btn btn-primary">Go to Dashboard</a>
+		{% endif %}
+	</div>
+
+	<div class="row g-4">
+		<div class="col-md-4">
+			<div class="card h-100 text-center p-4">
+				<div class="card-body">
+					<i class="fas fa-route fa-2x text-primary mb-3"></i>
+					<h5 class="card-title">Plan Itineraries</h5>
+					<p class="card-text">Create detailed travel plans with destinations, dates, and activities.</p>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-4">
+			<div class="card h-100 text-center p-4">
+				<div class="card-body">
+					<i class="fas fa-users fa-2x text-primary mb-3"></i>
+					<h5 class="card-title">Group Collaboration</h5>
+					<p class="card-text">Share plans with your travel group and collaborate on trip details.</p>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-4">
+			<div class="card h-100 text-center p-4">
+				<div class="card-body">
+					<i class="fas fa-bookmark fa-2x text-primary mb-3"></i>
+					<h5 class="card-title">Save & Organize</h5>
+					<p class="card-text">Keep track of your favorite destinations and past trips.</p>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}
