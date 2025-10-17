@@ -1,0 +1,16 @@
+services:
+  - type: web
+    plan: free
+
+    name: cs4300-groupgo
+    repo: https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2.git
+    branch: main
+
+    buildCommand: "pip install -r requirements.txt && python manage.py migrate"
+    startCommand: "gunicorn groupgo.wsgi:application"
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: DJANGO_SETTINGS_MODULE
+        value: groupgo.settings
