@@ -2,58 +2,58 @@ name: AI Code Review with ChatGPT
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    paths:
+      - "**/*.py"
+      - "**/*.html"
+      - "**/*.css"
+      - "**/*.sh"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - ".github/workflows/ai-code-review.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: write
 
-jobs:
-  ai-code-review:
-    runs-on: ubuntu-latest
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  review:
+    name: Review changes with OpenAI
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v41
-        with:
-          files: |
-            **/*.py
-            **/*.html
-            **/*.css
-            **/*.sh
-            **/*.yml
-            **/*.yaml
+      # Optional: show basic diff stats in the run log
+      - name: Show changed files
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=1 || true
+          git diff --name-status origin/${{ github.base_ref }}... | sed -e 's/^/  /' || true
 
+      # Main review
       - name: AI Code Review
         uses: anc95/ChatGPT-CodeReview@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
-          MODEL: gpt-4o-mini
+
+          MODEL: "gpt-4o-mini"
           PROMPT: |
-            You are an expert code reviewer for a Django web application project. Review the code changes and provide CONCISE, actionable feedback.
+            Please review the Python/Django code changes and provide feedback on:
+              1) Code quality and Django best practices
+              2) Potential bugs/issues
+              3) Security concerns 
+              4) Performance considerations
+              5) Suggestions for improvement
+              Keep comments concise and reference line numbers where useful.
 
-            Keep all comments brief and to the point. Focus on:
-            - Code quality and best practices for Python/Django
-            - Potential bugs or security issues
-            - Performance improvements
-            - Code maintainability and readability
-            - Adherence to Django conventions and patterns
-            - Proper use of Django templates and static files
-            - Database model design and migrations
-
-            Provide specific feedback with code examples only when necessary. Be direct and concise.
-
-          max_completion_tokens: 8000
-          top_p: 1
-          temperature: 0.7
-            
+          max_completion_tokens: "8000"
+          top_p: "1"
+          temperature: "0.7"
