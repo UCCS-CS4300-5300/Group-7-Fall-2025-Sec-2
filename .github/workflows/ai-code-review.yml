@@ -36,11 +36,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        with:
-          model: gpt-4o # or gpt-4, gpt-3.5-turbo
-          review_comment_lgtm: false
-          language: en-US
-          prompt: |
+
+          MODEL: gpt-4o-mini
+          PROMPT: |
             You are an expert code reviewer for a Django web application project. Review the code changes and provide CONCISE, actionable feedback.
 
             Keep all comments brief and to the point. Focus on:
@@ -53,3 +51,8 @@ jobs:
             - Database model design and migrations
 
             Provide specific feedback with code examples only when necessary. Be direct and concise.
+
+          max_completion_tokens: 8000
+          top_p: 1
+          temperature: 0.7
+            
