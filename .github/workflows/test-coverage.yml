@@ -31,7 +31,7 @@ jobs:
       - name: Run tests (prints coverage to console)
         run: |
           set -e
-          pytest || {
+          pytest --cov=. --cov-report xml:coverage.xml || {
             code=$?
             if [ "$code" -eq 5 ]; then
               echo "No tests collected (pytest exit code 5). Treating as success for CI coverage requirement."
