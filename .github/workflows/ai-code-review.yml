@@ -36,7 +36,4 @@ jobs:
 
       # Main review
       - name: AI Code Review
-        uses: villesau/ai-codereviewer@v2.7.0
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        uses: sturdy-dev/codeball-action@v2  
