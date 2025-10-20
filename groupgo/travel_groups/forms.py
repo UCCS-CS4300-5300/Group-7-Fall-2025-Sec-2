@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from .models import TravelGroup, GroupMember, TravelPreference
+from .models import TravelGroup, GroupMember, TravelPreference, TripPreference
 
 class CreateGroupForm(forms.ModelForm):
     """Form for creating a new travel group"""
@@ -98,3 +98,37 @@ class GroupSettingsForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'max_members': forms.NumberInput(attrs={'class': 'form-control', 'min': 2, 'max': 50}),
         }
+
+class TripPreferenceForm(forms.ModelForm):
+    """Form for trip preferences input"""
+    class Meta:
+        model = TripPreference
+        fields = [
+            'start_date', 'end_date', 'destination', 'budget', 'travel_method', 
+            'rental_car', 'accommodation_preference', 'activity_preferences',
+            'dietary_restrictions', 'accessibility_needs', 'additional_notes'
+        ]
+        widgets = {
+            'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'destination': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter destination'}),
+            'budget': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., $1700'}),
+            'travel_method': forms.Select(attrs={'class': 'form-control'}),
+            'rental_car': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'accommodation_preference': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Hotel, Airbnb, etc.'}),
+            'activity_preferences': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'What activities do you want to do?'}),
+            'dietary_restrictions': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Any dietary restrictions?'}),
+            'accessibility_needs': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Any accessibility requirements?'}),
+            'additional_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Any additional notes or preferences?'}),
+        }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        
+        if start_date and end_date:
+            if start_date >= end_date:
+                raise forms.ValidationError("End date must be after start date.")
+        
+        return cleaned_data

@@ -80,10 +80,15 @@ def dashboard_view(request):
     saved_itineraries = Itinerary.objects.filter(user=request.user, is_active=False)
     active_trips = Itinerary.objects.filter(user=request.user, is_active=True)
     
+    # Get user's groups for trip planning
+    from travel_groups.models import GroupMember
+    user_groups = GroupMember.objects.filter(user=request.user).select_related('group')
+    
     context = {
         'user_profile': user_profile,
         'saved_itineraries': saved_itineraries,
         'active_trips': active_trips,
+        'user_groups': user_groups,
     }
     return render(request, 'accounts/dashboard.html', context)
 

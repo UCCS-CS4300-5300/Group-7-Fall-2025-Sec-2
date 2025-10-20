@@ -99,3 +99,39 @@ class TravelPreference(models.Model):
     
     def __str__(self):
         return f"Preferences for {self.member.user.username} in {self.member.group.name}"
+
+class TripPreference(models.Model):
+    """Model for storing specific trip preferences for a group"""
+    TRAVEL_METHOD_CHOICES = [
+        ('flight', 'Flight'),
+        ('car', 'Car'),
+        ('train', 'Train'),
+        ('bus', 'Bus'),
+        ('other', 'Other'),
+    ]
+    
+    group = models.ForeignKey(TravelGroup, on_delete=models.CASCADE, related_name='trip_preferences')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='trip_preferences')
+    start_date = models.DateField(help_text="Preferred start date for the trip")
+    end_date = models.DateField(help_text="Preferred end date for the trip")
+    destination = models.CharField(max_length=200, help_text="Preferred destination")
+    budget = models.CharField(max_length=50, help_text="Budget for the trip (e.g., $1700)")
+    travel_method = models.CharField(max_length=20, choices=TRAVEL_METHOD_CHOICES, help_text="Preferred method of travel")
+    rental_car = models.BooleanField(default=False, help_text="Whether rental car is needed")
+    accommodation_preference = models.CharField(max_length=100, blank=True, null=True, help_text="Preferred accommodation type")
+    activity_preferences = models.TextField(blank=True, null=True, help_text="Preferred activities")
+    dietary_restrictions = models.TextField(blank=True, null=True, help_text="Any dietary restrictions")
+    accessibility_needs = models.TextField(blank=True, null=True, help_text="Any accessibility requirements")
+    additional_notes = models.TextField(blank=True, null=True, help_text="Additional notes or preferences")
+    is_completed = models.BooleanField(default=False, help_text="Whether user has completed entering preferences")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['group', 'user']
+        ordering = ['-created_at']
+        verbose_name = "Trip Preference"
+        verbose_name_plural = "Trip Preferences"
+    
+    def __str__(self):
+        return f"Trip preferences for {self.user.username} in {self.group.name}"

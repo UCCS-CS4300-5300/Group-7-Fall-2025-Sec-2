@@ -128,8 +128,8 @@
                             </a>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <button class="btn btn-outline-success w-100">
-                                <i class="fas fa-search"></i><br>Find Trips
+                            <button class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#planTripModal">
+                                <i class="fas fa-map-marked-alt"></i><br>Plan a New Trip
                             </button>
                         </div>
                         <div class="col-md-3 mb-3">
@@ -144,6 +144,43 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Plan Trip Modal -->
+<div class="modal fade" id="planTripModal" tabindex="-1" aria-labelledby="planTripModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="planTripModalLabel">Plan a New Trip</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Select a group to add your trip preferences:</p>
+                {% if user_groups %}
+                    <div class="list-group">
+                        {% for group_member in user_groups %}
+                        <a href="{% url 'travel_groups:add_trip_preferences' group_member.group.id %}" class="list-group-item list-group-item-action">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ group_member.group.name }}</h6>
+                                <small>{{ group_member.group.member_count }} members</small>
+                            </div>
+                            <p class="mb-1">{{ group_member.group.description|truncatewords:10 }}</p>
+                        </a>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">You're not a member of any groups yet.</p>
+                        <a href="{% url 'travel_groups:group_list' %}" class="btn btn-primary">Join a Group</a>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
             </div>
         </div>
     </div>

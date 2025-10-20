@@ -4,8 +4,8 @@ from django.contrib import messages
 from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from .models import TravelGroup, GroupMember, TravelPreference, GroupItinerary
-from .forms import CreateGroupForm, JoinGroupForm, SearchGroupForm, TravelPreferenceForm, GroupSettingsForm
+from .models import TravelGroup, GroupMember, TravelPreference, GroupItinerary, TripPreference
+from .forms import CreateGroupForm, JoinGroupForm, SearchGroupForm, TravelPreferenceForm, GroupSettingsForm, TripPreferenceForm
 from accounts.models import Itinerary
 
 @login_required
@@ -366,3 +366,76 @@ def collect_group_preferences(request, group_id):
         'members_with_preferences': len(preferences_data),
     }
     return render(request, 'travel_groups/collect_preferences.html', context)
+
+@login_required
+def add_trip_preferences(request, group_id):
+    """View to add trip preferences for a group"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Check if user is a member
+    try:
+        GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        messages.error(request, 'You are not a member of this group.')
+        return redirect('travel_groups:group_list')
+    
+    if request.method == 'POST':
+        form = TripPreferenceForm(request.POST)
+        if form.is_valid():
+            # Check if user already has preferences for this group
+            trip_pref, created = TripPreference.objects.get_or_create(
+                group=group,
+                user=request.user,
+                defaults=form.cleaned_data
+            )
+            
+            if not created:
+                # Update existing preferences
+                for field, value in form.cleaned_data.items():
+                    setattr(trip_pref, field, value)
+                trip_pref.save()
+            
+            # Mark as completed
+            trip_pref.is_completed = True
+            trip_pref.save()
+            
+            messages.success(request, 'Preferences Saved!')
+            return redirect('travel_groups:group_detail', group_id=group.id)
+    else:
+        # Try to get existing preferences
+        try:
+            trip_pref = TripPreference.objects.get(group=group, user=request.user)
+            form = TripPreferenceForm(instance=trip_pref)
+        except TripPreference.DoesNotExist:
+            form = TripPreferenceForm()
+    
+    context = {
+        'group': group,
+        'form': form,
+    }
+    return render(request, 'travel_groups/add_trip_preferences.html', context)
+
+@login_required
+def view_group_trip_preferences(request, group_id):
+    """View to display all group members' trip preferences"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Check if user is a member
+    try:
+        GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        messages.error(request, 'You are not a member of this group.')
+        return redirect('travel_groups:group_list')
+    
+    # Get all trip preferences for this group
+    trip_preferences = TripPreference.objects.filter(group=group).select_related('user')
+    
+    # Get group members
+    members = GroupMember.objects.filter(group=group).select_related('user')
+    
+    context = {
+        'group': group,
+        'trip_preferences': trip_preferences,
+        'members': members,
+    }
+    return render(request, 'travel_groups/view_trip_preferences.html', context)

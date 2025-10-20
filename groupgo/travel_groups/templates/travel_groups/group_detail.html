@@ -87,6 +87,11 @@
                 <i class="fas fa-heart"></i> My Preferences
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="trip-preferences-tab" data-bs-toggle="tab" data-bs-target="#trip-preferences" type="button" role="tab">
+                <i class="fas fa-map-marked-alt"></i> Trip Preferences
+            </button>
+        </li>
         {% endif %}
     </ul>
 
@@ -275,6 +280,61 @@
                                 <i class="fas fa-edit"></i> 
                                 {% if travel_preferences %}Update{% else %}Set{% endif %} Preferences
                             </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Trip Preferences Tab -->
+        {% if user_is_member %}
+        <div class="tab-pane fade" id="trip-preferences" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Group Trip Preferences</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">View and manage trip preferences for all group members.</p>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+                                <a href="{% url 'travel_groups:add_trip_preferences' group.id %}" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Add My Trip Preferences
+                                </a>
+                                <a href="{% url 'travel_groups:view_trip_preferences' group.id %}" class="btn btn-outline-info">
+                                    <i class="fas fa-eye"></i> View All Preferences
+                                </a>
+                            </div>
+                            
+                            <!-- Quick summary of preferences completion -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-primary">{{ members.count }}</h3>
+                                            <p class="text-muted mb-0">Total Members</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-success">0</h3>
+                                            <p class="text-muted mb-0">With Trip Preferences</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-warning">0%</h3>
+                                            <p class="text-muted mb-0">Completion Rate</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
