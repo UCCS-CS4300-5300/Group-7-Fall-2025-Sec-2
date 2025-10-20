@@ -1,37 +1,152 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Submit Preferences - {{ trip.name }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; }
-        form { max-width: 500px; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        input, select, textarea { width: 100%; padding: 5px; margin-top: 5px; }
-        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
-        button:hover { background-color: #0056b3; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>Submit Preferences for {{ trip.name }}</h1>
-    <p>{{ trip.description }}</p>
-    
-    <form method="post">
-        {% csrf_token %}
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>Submit Your Trip Preferences</h1>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">{{ trip.name }}</h5>
+                <p class="card-text">{{ trip.description }}</p>
+            </div>
+        </div>
         
-        <label for="user_id">Select User:</label>
-        <select name="user_id" id="user_id" required>
-            <option value="">Choose a user...</option>
-            {% for user in users %}
-            <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
             {% endfor %}
-        </select>
+        {% endif %}
         
-        <button type="submit">Submit Preferences</button>
-    </form>
-    
-    <p><a href="{% url 'submission_status' trip.id %}">Back to Status</a></p>
-</body>
-</html>
+        <form method="post">
+            {% csrf_token %}
+            
+            <!-- User Selection -->
+            <div class="mb-4">
+                <label for="user_id" class="form-label">Select Your Name *</label>
+                <select name="user_id" id="user_id" class="form-select" required>
+                    <option value="">Choose your name...</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Budget Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">💰 Budget Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="budget_min" class="form-label">Minimum Budget ($)</label>
+                            <input type="number" class="form-control" id="budget_min" name="budget_min" step="0.01" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="budget_max" class="form-label">Maximum Budget ($)</label>
+                            <input type="number" class="form-control" id="budget_max" name="budget_max" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Activities Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🎯 Activity Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="preferred_activities" class="form-label">Activities You'd Like to Do</label>
+                        <textarea class="form-control" id="preferred_activities" name="preferred_activities" rows="3" placeholder="e.g., hiking, museums, beaches, nightlife, shopping"></textarea>
+                        <div class="form-text">Separate multiple activities with commas</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="avoid_activities" class="form-label">Activities You'd Like to Avoid</label>
+                        <textarea class="form-control" id="avoid_activities" name="avoid_activities" rows="2" placeholder="e.g., extreme sports, crowded places"></textarea>
+                        <div class="form-text">Separate multiple activities with commas</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Accommodation Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🏨 Accommodation Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="accommodation_type" class="form-label">Preferred Accommodation Type</label>
+                        <select class="form-select" id="accommodation_type" name="accommodation_type">
+                            <option value="no_preference">No Preference</option>
+                            <option value="hotel">Hotel</option>
+                            <option value="airbnb">Airbnb</option>
+                            <option value="hostel">Hostel</option>
+                            <option value="resort">Resort</option>
+                            <option value="camping">Camping</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Food Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🍽️ Food Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="dietary_restrictions" class="form-label">Dietary Restrictions</label>
+                        <textarea class="form-control" id="dietary_restrictions" name="dietary_restrictions" rows="2" placeholder="e.g., vegetarian, gluten-free, allergies"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cuisine_preferences" class="form-label">Preferred Cuisines</label>
+                        <textarea class="form-control" id="cuisine_preferences" name="cuisine_preferences" rows="2" placeholder="e.g., Italian, Asian, local cuisine"></textarea>
+                        <div class="form-text">Separate multiple cuisines with commas</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Transportation Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🚗 Transportation Preferences</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="transportation_preference" class="form-label">Preferred Transportation</label>
+                        <select class="form-select" id="transportation_preference" name="transportation_preference">
+                            <option value="no_preference">No Preference</option>
+                            <option value="flight">Flight</option>
+                            <option value="car">Car</option>
+                            <option value="train">Train</option>
+                            <option value="bus">Bus</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Additional Notes -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📝 Additional Notes</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="additional_notes" class="form-label">Any Other Preferences or Requirements</label>
+                        <textarea class="form-control" id="additional_notes" name="additional_notes" rows="3" placeholder="Any other important information about your preferences..."></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <a href="{% url 'submission_status' trip.id %}" class="btn btn-secondary me-md-2">Cancel</a>
+                <button type="submit" class="btn btn-primary">Submit Preferences</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

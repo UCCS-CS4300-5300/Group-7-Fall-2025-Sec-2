@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>{{ trip.name }} - Submitted Preferences</h1>
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Trip Description</h5>
+                <p class="card-text">{{ trip.description }}</p>
+            </div>
+        </div>
+        
+        {% if preference_data %}
+            {% for data in preference_data %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ data.user.name }}</h5>
+                    <span class="badge bg-success">Submitted {{ data.submission.submitted_at|date:"M d, Y H:i" }}</span>
+                </div>
+                <div class="card-body">
+                    {% if data.has_preferences %}
+                        <div class="row">
+                            <!-- Budget Section -->
+                            {% if data.preferences.budget_min or data.preferences.budget_max %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">💰 Budget</h6>
+                                <p class="mb-0">
+                                    {% if data.preferences.budget_min and data.preferences.budget_max %}
+                                        ${{ data.preferences.budget_min }} - ${{ data.preferences.budget_max }}
+                                    {% elif data.preferences.budget_min %}
+                                        Minimum: ${{ data.preferences.budget_min }}
+                                    {% elif data.preferences.budget_max %}
+                                        Maximum: ${{ data.preferences.budget_max }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Accommodation -->
+                            {% if data.preferences.accommodation_type != 'no_preference' %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">🏨 Accommodation</h6>
+                                <p class="mb-0">{{ data.preferences.get_accommodation_type_display }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Transportation -->
+                            {% if data.preferences.transportation_preference != 'no_preference' %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">🚗 Transportation</h6>
+                                <p class="mb-0">{{ data.preferences.get_transportation_preference_display }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Activities -->
+                            {% if data.preferences.preferred_activities %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">🎯 Preferred Activities</h6>
+                                <p class="mb-0">{{ data.preferences.preferred_activities }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Avoid Activities -->
+                            {% if data.preferences.avoid_activities %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">❌ Avoid Activities</h6>
+                                <p class="mb-0">{{ data.preferences.avoid_activities }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Dietary Restrictions -->
+                            {% if data.preferences.dietary_restrictions %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">🍽️ Dietary Restrictions</h6>
+                                <p class="mb-0">{{ data.preferences.dietary_restrictions }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Cuisine Preferences -->
+                            {% if data.preferences.cuisine_preferences %}
+                            <div class="col-md-6 mb-3">
+                                <h6 class="text-primary">🍽️ Cuisine Preferences</h6>
+                                <p class="mb-0">{{ data.preferences.cuisine_preferences }}</p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Additional Notes -->
+                            {% if data.preferences.additional_notes %}
+                            <div class="col-12 mb-3">
+                                <h6 class="text-primary">📝 Additional Notes</h6>
+                                <p class="mb-0">{{ data.preferences.additional_notes }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            No detailed preferences submitted yet.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                No preferences have been submitted yet.
+            </div>
+        {% endif %}
+        
+        <div class="mt-4">
+            <a href="{% url 'submission_status' trip.id %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Status
+            </a>
+            <a href="{% url 'trip_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-list"></i> All Trips
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
