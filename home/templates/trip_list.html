@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trip List</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        .trip { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+        .trip h3 { margin-top: 0; color: #007bff; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .no-trips { text-align: center; margin: 50px 0; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>My Trips</h1>
+    
+    {% if trips %}
+        {% for trip in trips %}
+        <div class="trip">
+            <h3>{{ trip.name }}</h3>
+            <p>{{ trip.description }}</p>
+            <p><strong>Created:</strong> {{ trip.created_at|date:"M d, Y" }}</p>
+            <p>
+                <a href="{% url 'submission_status' trip.id %}">View Submission Status</a> |
+                <a href="{% url 'submit_preferences' trip.id %}">Submit Preferences</a>
+            </p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="no-trips">
+            <h2>No trips yet</h2>
+            <p>Create your first trip to get started!</p>
+        </div>
+    {% endif %}
+    
+    <p><a href="{% url 'index' %}">Back to Home</a></p>
+</body>
+</html>

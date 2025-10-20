@@ -1,11 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% load static %}
-
-<h2>Welcome to GroupGo!</h2>
+<h1>Welcome to GroupGo!</h1>
 <p>The AI Assistant for Planning Group Vacations</p>
 
-<img src="{% static 'images/groupgo.png' %}" alt="GroupGo" class="img-fluid rounded" width="50%">
+<h2>Features:</h2>
+<ul>
+    <li>Create and manage group trips</li>
+    <li>Track submission status of group members</li>
+    <li>Submit your preferences for trips</li>
+</ul>
 
+<p><a href="{% url 'trip_list' %}">View My Trips</a></p>
 {% endblock %}

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Submit Preferences - {{ trip.name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        form { max-width: 500px; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 5px; margin-top: 5px; }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>Submit Preferences for {{ trip.name }}</h1>
+    <p>{{ trip.description }}</p>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <label for="user_id">Select User:</label>
+        <select name="user_id" id="user_id" required>
+            <option value="">Choose a user...</option>
+            {% for user in users %}
+            <option value="{{ user.id }}">{{ user.name }} ({{ user.email }})</option>
+            {% endfor %}
+        </select>
+        
+        <button type="submit">Submit Preferences</button>
+    </form>
+    
+    <p><a href="{% url 'submission_status' trip.id %}">Back to Status</a></p>
+</body>
+</html>
