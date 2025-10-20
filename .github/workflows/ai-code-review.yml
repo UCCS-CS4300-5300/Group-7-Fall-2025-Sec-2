@@ -1,16 +1,14 @@
-name: AI Code Review with ChatGPT
+name: AI Code Review
 
 on:
   pull_request:
+    # Only run when code or docs likely to be reviewed have changed
     paths:
       - "**/*.py"
+      - "**/*.md"
       - "**/*.html"
-      - "**/*.css"
-      - "**/*.sh"
-      - "**/*.yml"
-      - "**/*.yaml"
       - ".github/workflows/ai-code-review.yml"
-  workflow_dispatch:
+  workflow_dispatch:  # allow manual runs from the Actions tab
 
 permissions:
   contents: read
@@ -43,17 +41,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
-
-          MODEL: "gpt-4o-mini"
+          # If you set secret OPENAI_MODEL (e.g., 'gpt-5'), it will use that; else it falls back.
+          MODEL: ${{ secrets.OPENAI_MODEL != '' && secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
           PROMPT: |
             Please review the Python/Django code changes and provide feedback on:
               1) Code quality and Django best practices
               2) Potential bugs/issues
-              3) Security concerns 
+              3) Security concerns
               4) Performance considerations
               5) Suggestions for improvement
               Keep comments concise and reference line numbers where useful.
-
+          # Newer models expect 'max_completion_tokens' rather than 'max_tokens'
           max_completion_tokens: "8000"
           top_p: "1"
           temperature: "0.7"
