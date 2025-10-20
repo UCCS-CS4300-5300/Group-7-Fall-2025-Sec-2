@@ -13,12 +13,13 @@ import json
 
 def home_view(request):
     """Homepage view"""
+    print("DEBUG: Rendering accounts/home.html template")
     return render(request, 'accounts/home.html')
 
 def login_view(request):
     """Login page view"""
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('accounts:dashboard')
     
     if request.method == 'POST':
         email = request.POST.get('email')
@@ -30,7 +31,7 @@ def login_view(request):
             user = authenticate(request, username=user.username, password=password)
             if user is not None:
                 login(request, user)
-                return redirect('dashboard')
+                return redirect('accounts:dashboard')
             else:
                 messages.error(request, 'Invalid email or password.')
         except User.DoesNotExist:
@@ -41,21 +42,24 @@ def login_view(request):
 def signup_view(request):
     """Sign up page view"""
     if request.user.is_authenticated:
-        return redirect('dashboard')
+        return redirect('accounts:dashboard')
     
     if request.method == 'POST':
         form = SignUpForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            # Create user profile
-            UserProfile.objects.create(
-                user=user,
-                phone_number=form.cleaned_data['phone_number']
-            )
-            username = form.cleaned_data.get('username')
-            messages.success(request, f'Account created for {username}!')
-            login(request, user)
-            return redirect('dashboard')
+            try:
+                user = form.save()
+                # Create user profile
+                UserProfile.objects.create(
+                    user=user,
+                    phone_number=form.cleaned_data['phone_number']
+                )
+                username = form.cleaned_data.get('username')
+                messages.success(request, f'Account created for {username}!')
+                login(request, user)
+                return redirect('accounts:dashboard')
+            except Exception as e:
+                messages.error(request, f'Error creating account: {e}')
     else:
         form = SignUpForm()
     
@@ -64,7 +68,15 @@ def signup_view(request):
 @login_required
 def dashboard_view(request):
     """User dashboard view"""
-    user_profile = UserProfile.objects.get(user=request.user)
+    try:
+        user_profile = UserProfile.objects.get(user=request.user)
+    except UserProfile.DoesNotExist:
+        # Create a UserProfile if it doesn't exist (for users created outside of signup)
+        user_profile = UserProfile.objects.create(
+            user=request.user,
+            phone_number=''  # Empty phone number for users created outside signup
+        )
+    
     saved_itineraries = Itinerary.objects.filter(user=request.user, is_active=False)
     active_trips = Itinerary.objects.filter(user=request.user, is_active=True)
     
@@ -78,7 +90,7 @@ def dashboard_view(request):
 def logout_view(request):
     """Logout view"""
     logout(request)
-    return redirect('home')
+    return redirect('accounts:home')
 
 @login_required
 @require_http_methods(["POST"])
