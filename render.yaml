@@ -1,7 +1,6 @@
 services:
   - type: web
     plan: free
-    runtime: python
 
     name: cs4300-groupgo
     repo: https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2.git

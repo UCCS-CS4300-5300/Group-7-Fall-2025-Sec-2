@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ group.name }} - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Group Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h1 class="fw-bold mb-2">{{ group.name }}</h1>
+                            <p class="text-muted mb-3">{{ group.description }}</p>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong><i class="fas fa-users"></i> Members:</strong><br>
+                                    {{ group.member_count }}/{{ group.max_members }}
+                                </div>
+                                <div class="col-md-3">
+                                    <strong><i class="fas fa-key"></i> Group Code:</strong><br>
+                                    <code class="bg-light px-2 py-1 rounded">{{ group_code }}</code>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong><i class="fas fa-lock"></i> Password Protected:</strong><br>
+                                    <span class="badge bg-warning">Yes</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong><i class="fas fa-clock"></i> Created:</strong><br>
+                                    {{ group.created_at|date:"M d, Y" }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            {% if user_is_member %}
+                                {% if user_role == 'admin' %}
+                                    <span class="badge bg-warning mb-2">Admin</span><br>
+                                    <a href="{% url 'travel_groups:group_settings' group.id %}" class="btn btn-outline-warning btn-sm">
+                                        <i class="fas fa-cog"></i> Settings
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-success mb-2">Member</span><br>
+                                    <a href="{% url 'travel_groups:leave_group' group.id %}" class="btn btn-outline-danger btn-sm">
+                                        <i class="fas fa-sign-out-alt"></i> Leave Group
+                                    </a>
+                                {% endif %}
+                            {% else %}
+                                {% if not group.is_full %}
+                                    <a href="{% url 'travel_groups:join_group' %}" class="btn btn-primary">
+                                        <i class="fas fa-user-plus"></i> Join Group
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-danger">Group Full</span>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="groupTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="members-tab" data-bs-toggle="tab" data-bs-target="#members" type="button" role="tab">
+                <i class="fas fa-users"></i> Members ({{ members.count }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="itineraries-tab" data-bs-toggle="tab" data-bs-target="#itineraries" type="button" role="tab">
+                <i class="fas fa-route"></i> Trips ({{ group_itineraries.count }})
+            </button>
+        </li>
+        {% if user_is_member %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="trip-management-tab" data-bs-toggle="tab" data-bs-target="#trip-management" type="button" role="tab">
+                <i class="fas fa-plus"></i> Manage Trips
+            </button>
+        </li>
+        {% endif %}
+        {% if user_is_member %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="preferences-tab" data-bs-toggle="tab" data-bs-target="#preferences" type="button" role="tab">
+                <i class="fas fa-heart"></i> My Preferences
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="trip-preferences-tab" data-bs-toggle="tab" data-bs-target="#trip-preferences" type="button" role="tab">
+                <i class="fas fa-map-marked-alt"></i> Trip Preferences
+            </button>
+        </li>
+        {% endif %}
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="groupTabsContent">
+        <!-- Members Tab -->
+        <div class="tab-pane fade show active" id="members" role="tabpanel">
+            <div class="row">
+                {% for member in members %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="flex-shrink-0">
+                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                        {{ member.user.first_name|first|default:member.user.username|first|upper }}
+                                    </div>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1">{{ member.user.get_full_name|default:member.user.username }}</h6>
+                                    <small class="text-muted">
+                                        {% if member.role == 'admin' %}
+                                            <span class="badge bg-warning">Admin</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Member</span>
+                                        {% endif %}
+                                        {% if member.has_travel_preferences %}
+                                            <span class="badge bg-info ms-1">Has Preferences</span>
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">No members found.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Itineraries Tab -->
+        <div class="tab-pane fade" id="itineraries" role="tabpanel">
+            <div class="row">
+                {% for group_itinerary in group_itineraries %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ group_itinerary.itinerary.title }}</h6>
+                            <p class="card-text">{{ group_itinerary.itinerary.description|truncatewords:15 }}</p>
+                            <div class="mb-2">
+                                <strong>Destination:</strong> {{ group_itinerary.itinerary.destination }}
+                            </div>
+                            <div class="mb-2">
+                                <strong>Dates:</strong> 
+                                {{ group_itinerary.itinerary.start_date|date:"M d" }} - 
+                                {{ group_itinerary.itinerary.end_date|date:"M d, Y" }}
+                            </div>
+                            <small class="text-muted">
+                                Added by {{ group_itinerary.added_by.get_full_name|default:group_itinerary.added_by.username }}
+                                on {{ group_itinerary.added_at|date:"M d, Y" }}
+                            </small>
+                            {% if group_itinerary.is_approved %}
+                                <span class="badge bg-success ms-1">Approved</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-4">
+                        <i class="fas fa-route fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">No trips added yet.</p>
+                        {% if user_is_member %}
+                            <p class="text-muted">Create or add trips using the "Manage Trips" tab.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Trip Management Tab -->
+        {% if user_is_member %}
+        <div class="tab-pane fade" id="trip-management" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-plus"></i> Trip Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-plus-circle fa-2x text-primary mb-3"></i>
+                                            <h6>Create New Trip</h6>
+                                            <p class="text-muted">Create a new trip specifically for this group.</p>
+                                            <a href="{% url 'travel_groups:group_trip_management' group.id %}" class="btn btn-primary">
+                                                <i class="fas fa-plus"></i> Create Trip
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <i class="fas fa-chart-bar fa-2x text-success mb-3"></i>
+                                            <h6>Collect Preferences</h6>
+                                            <p class="text-muted">View and collect member preferences for trip planning.</p>
+                                            <a href="{% url 'travel_groups:collect_preferences' group.id %}" class="btn btn-success">
+                                                <i class="fas fa-chart-bar"></i> View Preferences
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Preferences Tab -->
+        {% if user_is_member %}
+        <div class="tab-pane fade" id="preferences" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Travel Preferences</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if travel_preferences %}
+                                <div class="row">
+                                    {% if travel_preferences.budget_range %}
+                                    <div class="col-md-6 mb-3">
+                                        <strong>Budget Range:</strong><br>
+                                        {{ travel_preferences.budget_range }}
+                                    </div>
+                                    {% endif %}
+                                    {% if travel_preferences.accommodation_preference %}
+                                    <div class="col-md-6 mb-3">
+                                        <strong>Accommodation:</strong><br>
+                                        {{ travel_preferences.accommodation_preference }}
+                                    </div>
+                                    {% endif %}
+                                    {% if travel_preferences.activity_preferences %}
+                                    <div class="col-12 mb-3">
+                                        <strong>Activity Preferences:</strong><br>
+                                        {{ travel_preferences.activity_preferences }}
+                                    </div>
+                                    {% endif %}
+                                    {% if travel_preferences.dietary_restrictions %}
+                                    <div class="col-12 mb-3">
+                                        <strong>Dietary Restrictions:</strong><br>
+                                        {{ travel_preferences.dietary_restrictions }}
+                                    </div>
+                                    {% endif %}
+                                    {% if travel_preferences.accessibility_needs %}
+                                    <div class="col-12 mb-3">
+                                        <strong>Accessibility Needs:</strong><br>
+                                        {{ travel_preferences.accessibility_needs }}
+                                    </div>
+                                    {% endif %}
+                                    {% if travel_preferences.notes %}
+                                    <div class="col-12 mb-3">
+                                        <strong>Additional Notes:</strong><br>
+                                        {{ travel_preferences.notes }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted">You haven't set your travel preferences yet.</p>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer">
+                            <a href="{% url 'travel_groups:update_preferences' group.id %}" class="btn btn-primary">
+                                <i class="fas fa-edit"></i> 
+                                {% if travel_preferences %}Update{% else %}Set{% endif %} Preferences
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Trip Preferences Tab -->
+        {% if user_is_member %}
+        <div class="tab-pane fade" id="trip-preferences" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">Group Trip Preferences</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">View and manage trip preferences for all group members.</p>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+                                <a href="{% url 'travel_groups:add_trip_preferences' group.id %}" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Add My Trip Preferences
+                                </a>
+                                <a href="{% url 'travel_groups:view_trip_preferences' group.id %}" class="btn btn-outline-info">
+                                    <i class="fas fa-eye"></i> View All Preferences
+                                </a>
+                            </div>
+                            
+                            <!-- Quick summary of preferences completion -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-primary">{{ members.count }}</h3>
+                                            <p class="text-muted mb-0">Total Members</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-success">0</h3>
+                                            <p class="text-muted mb-0">With Trip Preferences</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h3 class="text-warning">0%</h3>
+                                            <p class="text-muted mb-0">Completion Rate</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

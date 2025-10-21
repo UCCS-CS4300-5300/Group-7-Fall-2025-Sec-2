@@ -1,11 +1,50 @@
 {% extends "base.html" %}
-
-{% block content %}
 {% load static %}
 
-<h2>Welcome to GroupGo!</h2>
-<p>The AI Assistant for Planning Group Vacations</p>
+{% block content %}
+<div class="hero-section">
+    <div class="container text-center">
+        <h1 class="display-4 fw-bold mb-4">Welcome to GroupGo</h1>
+        <p class="lead mb-4">Plan your perfect group trip with friends and family</p>
+       
+        {% if not user.is_authenticated %}
+            <a href="{% url 'accounts:signup' %}" class="btn btn-light btn-lg me-3">Get Started</a>
+            <a href="{% url 'accounts:login' %}" class="btn btn-outline-light btn-lg">Login</a>
+        {% else %}
+            <a href="{% url 'accounts:dashboard' %}" class="btn btn-light btn-lg">Go to Dashboard</a>
+        {% endif %}
+    </div>
+</div>
 
-<img src="{% static 'images/groupgo.png' %}" alt="GroupGo" class="img-fluid rounded" width="50%">
-
+<div class="container py-5">
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100 text-center p-4">
+                <div class="card-body">
+                    <i class="fas fa-route fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Plan Itineraries</h5>
+                    <p class="card-text">Create detailed travel plans with destinations, dates, and activities.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 text-center p-4">
+                <div class="card-body">
+                    <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Group Collaboration</h5>
+                    <p class="card-text">Share plans with your travel group and collaborate on trip details.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 text-center p-4">
+                <div class="card-body">
+                    <i class="fas fa-bookmark fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Save & Organize</h5>
+                    <p class="card-text">Keep track of your favorite destinations and past trips.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
