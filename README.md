@@ -21,7 +21,7 @@ A Django-based user account management system for the GroupGo travel application
 
 1. **Navigate to the project directory:**
    ```bash
-   cd /Users/devonwhite/Desktop/Github/CS4300/Group-7-Fall-2025-Sec-2/groupgo
+   cd /Group-7-Fall-2025-Sec-2/groupgo
    ```
 
 2. **Create a virtual environment (recommended):**
