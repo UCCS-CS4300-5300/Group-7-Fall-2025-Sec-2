@@ -52,8 +52,8 @@ A Django-based user account management system for the GroupGo travel application
    ```
 
 7. **Access the application:**
-   - Homepage: http://localhost:8000/
-   - Admin panel: http://localhost:8000/admin/
+   - Homepage: https://groupgo.decisiveonion.com/
+   - Admin panel: https://groupgo.decisiveonion.com/admin
 
 ## User Flow
 
