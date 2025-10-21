@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Trip List{% endblock %}
+
+{% block content %}
+    <h1>My Trips</h1>
+    
+    {% if trips %}
+        {% for trip in trips %}
+        <div class="trip">
+            <h3>{{ trip.name }}</h3>
+            <p>{{ trip.description }}</p>
+            <p><strong>Created:</strong> {{ trip.created_at|date:"M d, Y" }}</p>
+            <p>
+                <a href="{% url 'submission_status' trip.id %}">View Submission Status</a> |
+                <a href="{% url 'submit_preferences' trip.id %}">Submit Preferences</a>
+            </p>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="no-trips">
+            <h2>No trips yet</h2>
+            <p>Create your first trip to get started!</p>
+        </div>
+    {% endif %}
+    
+    <p><a href="{% url 'index' %}">Back to Home</a></p>
+{% endblock %}
