@@ -35,8 +35,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
-          # If you set secret OPENAI_MODEL (e.g., 'gpt-5'), it will use that; else it falls back.
-          MODEL: gpt-4
+
+          MODEL: gpt-3.5-turbo-1106
           PROMPT: |
             Please review the Python/Django code changes and provide feedback on:
               1) Code quality and Django best practices
