@@ -8,7 +8,7 @@ on:
       - "**/*.md"
       - "**/*.html"
       - ".github/workflows/ai-code-review.yml"
-  workflow_dispatch:  # allow manual runs from the Actions tab
+  workflow_dispatch: # allow manual runs from the Actions tab
 
 permissions:
   contents: read
@@ -28,12 +28,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Optional: show basic diff stats in the run log
-      # - name: Show changed files
-      #   run: |
-      #     git fetch origin ${{ github.base_ref }} --depth=1 || true
-      #     git diff --name-status origin/${{ github.base_ref }}... | sed -e 's/^/  /' || true
-
       # Main review
       - name: AI Code Review
         uses: anc95/ChatGPT-CodeReview@main
@@ -42,7 +36,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
           # If you set secret OPENAI_MODEL (e.g., 'gpt-5'), it will use that; else it falls back.
-          MODEL: ${{ secrets.OPENAI_MODEL != '' && secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
+          MODEL: "gpt-4o-mini"
           PROMPT: |
             Please review the Python/Django code changes and provide feedback on:
               1) Code quality and Django best practices

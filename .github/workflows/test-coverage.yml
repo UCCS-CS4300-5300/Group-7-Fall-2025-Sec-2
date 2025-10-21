@@ -25,21 +25,26 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov pylint
+          pip install coverage
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run tests (prints coverage to console)
+      - name: Run tests with coverage
         run: |
           set -e
-          pytest --cov=. --cov-report xml:coverage.xml || {
+          coverage run manage.py test || {
             code=$?
-            if [ "$code" -eq 5 ]; then
-              echo "No tests collected (pytest exit code 5). Treating as success for CI coverage requirement."
-              exit 0
+            if [ "$code" -eq 0 ]; then
+              echo "Tests completed successfully."
             else
+              echo "Tests failed with exit code $code"
               exit $code
             fi
           }
+
+      - name: Generate coverage XML
+        run: |
+          coverage report -m
+          coverage xml
 
       - name: Upload coverage.xml (optional)
         if: always()

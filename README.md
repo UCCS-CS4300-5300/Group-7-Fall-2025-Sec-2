@@ -52,8 +52,8 @@ A Django-based user account management system for the GroupGo travel application
    ```
 
 7. **Access the application:**
-   - Homepage: http://localhost:8000/
-   - Admin panel: http://localhost:8000/admin/
+   - Homepage: https://groupgo.decisiveonion.com/
+   - Admin panel: https://groupgo.decisiveonion.com/admin
 
 ## User Flow
 
@@ -101,7 +101,7 @@ The application follows the Gherkin scenario provided:
 To test the provided Gherkin scenario:
 
 1. Start the server: `python manage.py runserver`
-2. Navigate to http://localhost:8000/
+2. Navigate to https://groupgo.decisiveonion.com/
 3. Click "Sign Up" in the navigation
 4. Fill in the form with:
    - Name: "Darth"
