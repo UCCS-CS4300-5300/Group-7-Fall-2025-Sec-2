@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Trip Management - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Group Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="fw-bold mb-2">{{ group.name }}</h1>
+                            <p class="text-muted mb-0">Trip Management</p>
+                        </div>
+                        <div>
+                            <a href="{% url 'travel_groups:group_detail' group.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Group
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create New Trip Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-plus"></i> Create New Trip</h5>
+                </div>
+                <div class="card-body">
+                    <form id="newTripForm">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="title" class="form-label">Trip Title</label>
+                                <input type="text" class="form-control" id="title" name="title" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="destination" class="form-label">Destination</label>
+                                <input type="text" class="form-control" id="destination" name="destination" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="start_date" class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="end_date" class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" required>
+                            </div>
+                        </div>
+                        <div class="d-grid">
+                            <button type="button" class="btn btn-primary" onclick="createTrip()">
+                                <i class="fas fa-plus"></i> Create Trip
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Trips -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-route"></i> Group Trips ({{ group_itineraries.count }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if group_itineraries %}
+                        <div class="row">
+                            {% for group_itinerary in group_itineraries %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">{{ group_itinerary.itinerary.title }}</h6>
+                                        <p class="card-text">{{ group_itinerary.itinerary.description|truncatewords:15 }}</p>
+                                        <div class="mb-2">
+                                            <strong>Destination:</strong> {{ group_itinerary.itinerary.destination }}
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Dates:</strong> 
+                                            {{ group_itinerary.itinerary.start_date|date:"M d" }} - 
+                                            {{ group_itinerary.itinerary.end_date|date:"M d, Y" }}
+                                        </div>
+                                        <small class="text-muted">
+                                            Added by {{ group_itinerary.added_by.get_full_name|default:group_itinerary.added_by.username }}
+                                            on {{ group_itinerary.added_at|date:"M d, Y" }}
+                                        </small>
+                                        {% if group_itinerary.is_approved %}
+                                            <span class="badge bg-success ms-1">Approved</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-route fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">No trips created yet for this group.</p>
+                            <p class="text-muted">Create your first trip using the form above!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Existing Trip -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Add Your Existing Trip</h5>
+                </div>
+                <div class="card-body">
+                    {% if user_itineraries %}
+                        <div class="row">
+                            {% for itinerary in user_itineraries %}
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h6 class="card-title">{{ itinerary.title }}</h6>
+                                        <p class="card-text">{{ itinerary.description|truncatewords:10 }}</p>
+                                        <div class="mb-2">
+                                            <strong>Destination:</strong> {{ itinerary.destination }}
+                                        </div>
+                                        <div class="mb-3">
+                                            <strong>Dates:</strong> 
+                                            {{ itinerary.start_date|date:"M d" }} - 
+                                            {{ itinerary.end_date|date:"M d, Y" }}
+                                        </div>
+                                        <button class="btn btn-outline-primary btn-sm" onclick="addItinerary({{ itinerary.id }})">
+                                            <i class="fas fa-plus"></i> Add to Group
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-bookmark fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">You don't have any personal trips yet.</p>
+                            <p class="text-muted">Create a new trip above or go to your dashboard to create personal trips.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function createTrip() {
+        const form = document.getElementById('newTripForm');
+        const formData = new FormData(form);
+        
+        fetch('{% url "travel_groups:create_group_trip" group.id %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error creating trip: ' + JSON.stringify(data.errors));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while creating the trip.');
+        });
+    }
+
+    function addItinerary(itineraryId) {
+        const formData = new FormData();
+        formData.append('itinerary_id', itineraryId);
+        
+        fetch('{% url "travel_groups:add_itinerary" group.id %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error adding trip: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while adding the trip.');
+        });
+    }
+</script>
+{% endblock %}
