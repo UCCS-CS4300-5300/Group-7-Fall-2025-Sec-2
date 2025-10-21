@@ -1,18 +1,8 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Trip List</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; }
-        .trip { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
-        .trip h3 { margin-top: 0; color: #007bff; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .no-trips { text-align: center; margin: 50px 0; color: #666; }
-    </style>
-</head>
-<body>
+{% extends "base.html" %}
+
+{% block title %}Trip List{% endblock %}
+
+{% block content %}
     <h1>My Trips</h1>
     
     {% if trips %}
@@ -35,5 +25,4 @@
     {% endif %}
     
     <p><a href="{% url 'index' %}">Back to Home</a></p>
-</body>
-</html>
+{% endblock %}
