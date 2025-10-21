@@ -9,6 +9,15 @@ on:
       - "**/*.html"
       - ".github/workflows/ai-code-review.yml"
   workflow_dispatch: # allow manual runs from the Actions tab
+    inputs:
+      paths:
+        description: List of glob patterns for files to review
+        required: false
+        default: |
+          **/*.py
+          **/*.md
+          **/*.html
+          .github/workflows/ai-code-review.yml
 
 permissions:
   contents: read
@@ -36,7 +45,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
           # If you set secret OPENAI_MODEL (e.g., 'gpt-5'), it will use that; else it falls back.
-          MODEL: "gpt-4o-mini"
+          MODEL: gpt-4
           PROMPT: |
             Please review the Python/Django code changes and provide feedback on:
               1) Code quality and Django best practices
