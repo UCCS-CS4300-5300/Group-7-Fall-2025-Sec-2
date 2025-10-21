@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Group Preferences - {{ group.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Group Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h1 class="fw-bold mb-2">{{ group.name }}</h1>
+                            <p class="text-muted mb-0">Group Preferences Collection</p>
+                        </div>
+                        <div>
+                            <a href="{% url 'travel_groups:group_detail' group.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left"></i> Back to Group
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preferences Summary -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Preferences Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-primary">{{ total_members }}</h3>
+                                <p class="text-muted">Total Members</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-success">{{ members_with_preferences }}</h3>
+                                <p class="text-muted">With Preferences</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-warning">{{ total_members|add:"-"|add:members_with_preferences }}</h3>
+                                <p class="text-muted">Missing Preferences</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h3 class="text-info">
+                                    {% if total_members > 0 %}
+                                        {% widthratio members_with_preferences total_members 100 %}%
+                                    {% else %}
+                                        0%
+                                    {% endif %}
+                                </h3>
+                                <p class="text-muted">Completion Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Members and Their Preferences -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-users"></i> Member Preferences</h5>
+                </div>
+                <div class="card-body">
+                    {% for member in members %}
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="card-title">
+                                        {{ member.user.get_full_name|default:member.user.username }}
+                                        {% if member.role == 'admin' %}
+                                            <span class="badge bg-warning">Admin</span>
+                                        {% endif %}
+                                    </h6>
+                                    <p class="text-muted mb-2">
+                                        {% if member.has_travel_preferences %}
+                                            <span class="badge bg-success">Preferences Set</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">No Preferences</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div>
+                                    {% if member.has_travel_preferences %}
+                                        <a href="{% url 'travel_groups:update_preferences' group.id %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-edit"></i> Update
+                                        </a>
+                                    {% else %}
+                                        <a href="{% url 'travel_groups:update_preferences' group.id %}" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-plus"></i> Set Preferences
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            {% if member.has_travel_preferences %}
+                                {% for pref_data in preferences_data %}
+                                    {% if pref_data.user == member.user.username %}
+                                    <div class="mt-3">
+                                        <div class="row">
+                                            {% if pref_data.budget_range %}
+                                            <div class="col-md-6 mb-2">
+                                                <strong>Budget:</strong> {{ pref_data.budget_range }}
+                                            </div>
+                                            {% endif %}
+                                            {% if pref_data.accommodation %}
+                                            <div class="col-md-6 mb-2">
+                                                <strong>Accommodation:</strong> {{ pref_data.accommodation }}
+                                            </div>
+                                            {% endif %}
+                                            {% if pref_data.activities %}
+                                            <div class="col-12 mb-2">
+                                                <strong>Activities:</strong> {{ pref_data.activities|truncatewords:20 }}
+                                            </div>
+                                            {% endif %}
+                                            {% if pref_data.dietary %}
+                                            <div class="col-12 mb-2">
+                                                <strong>Dietary:</strong> {{ pref_data.dietary|truncatewords:10 }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="mt-3">
+                                    <p class="text-muted">This member hasn't set their travel preferences yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Integration Section -->
+    {% if members_with_preferences > 0 %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-robot"></i> Generate Trip Recommendations</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">Based on the collected preferences, we can generate personalized trip recommendations for your group.</p>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle"></i> API Integration Ready</h6>
+                        <p class="mb-0">The system has collected preferences from {{ members_with_preferences }} member(s). This data can now be sent to an external API to generate trip recommendations based on:</p>
+                        <ul class="mb-0 mt-2">
+                            <li>Budget preferences</li>
+                            <li>Accommodation preferences</li>
+                            <li>Activity interests</li>
+                            <li>Dietary restrictions</li>
+                            <li>Accessibility needs</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="generateRecommendations()">
+                            <i class="fas fa-magic"></i> Generate Trip Recommendations
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function generateRecommendations() {
+        // This would integrate with an external API
+        // For now, we'll show a placeholder
+        alert('API Integration: This would send the collected preferences to an external service to generate trip recommendations based on the group\'s preferences.');
+        
+        // Example of what would be sent to the API:
+        const preferencesData = {{ preferences_data|safe }};
+        console.log('Preferences data for API:', preferencesData);
+    }
+</script>
+{% endblock %}
