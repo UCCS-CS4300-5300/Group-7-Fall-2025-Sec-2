@@ -38,55 +38,60 @@ jobs:
 
           MODEL: gpt-4o-mini
           PROMPT: |
-            Act as an expert Python/Django code reviewer. Analyze the code changes and provide a focused, professional review.
+            Act as an expert Python/Django code reviewer. Analyze the code changes and provide a structured, actionable review.
             
-            # Review Focus Areas
+            # Review Categories
             
-            ## 1. Django Best Practices
-            - Proper ORM usage and queryset optimization
-            - Correct use of models, views, serializers, and forms
-            - Following Django conventions and design patterns
+            Review each category and report only actual issues found:
             
-            ## 2. Security Issues
-            - SQL injection, XSS, or CSRF vulnerabilities
-            - Authentication and authorization flaws
-            - Exposed secrets or sensitive data
-            - Missing input validation
+            **1. Django Best Practices**
+            - ORM usage, queryset optimization, and proper model/view/serializer patterns
+            - Adherence to Django conventions and architectural patterns
             
-            ## 3. Performance Problems
-            - N+1 query problems
-            - Missing select_related() or prefetch_related()
-            - Inefficient algorithms or data structures
-            - Missing database indexes
+            **2. Security Vulnerabilities**
+            - SQL injection, XSS, CSRF, authentication/authorization flaws
+            - Exposed secrets, missing input validation, insecure data handling
             
-            ## 4. Code Quality
-            - Error handling and edge cases
-            - Code readability and maintainability
-            - Proper use of type hints
-            - Unnecessary complexity or duplication
+            **3. Performance Issues**
+            - N+1 queries, missing select_related/prefetch_related
+            - Inefficient algorithms, missing database indexes, unoptimized queries
             
-            ## 5. Potential Bugs
-            - Logic errors or race conditions
-            - Incorrect data handling
-            - Missing null checks or validations
+            **4. Code Quality & Maintainability**
+            - Error handling, edge cases, code readability
+            - Type hints, unnecessary complexity, code duplication
             
-            # Response Rules
+            **5. Bugs & Logic Errors**
+            - Logic flaws, race conditions, incorrect data handling
+            - Missing validations, null pointer issues
             
-            - Use this format for issues: `[SEVERITY] Line X: [Issue] - [Brief explanation]`
-            - Severity levels: CRITICAL (security/data loss), HIGH (bugs/performance), MEDIUM (code quality), LOW (suggestions)
-            - Only report actual issues - if code is good, respond with "No significant issues found"
-            - Include a brief code example for non-obvious fixes
-            - Maximum 3 sentences per issue
-            - Skip formatting/style issues unless they impact functionality
             
-            # Example Response Format
+            # Response Format
             
-            [CRITICAL] Line 45: Potential SQL injection - User input directly concatenated into raw query. Use parameterized queries instead.
+            Structure your review with clear sections:
+          
+            ## Security Issues
+            - Line X: [Description] - [Impact and suggested fix]
             
-            [HIGH] Line 23: N+1 query detected - Add .select_related('user') to avoid multiple database hits.
+            ## Performance Concerns
+            - Line Y: [Description] - [Impact and suggested fix]
+            
+            ## Code Quality
+            - Line Z: [Description] - [Suggestion for improvement]
+          
+            
+            # Guidelines
+            
+            - Use severity indicators: 🚨 CRITICAL | ⚠️ HIGH | 💡 MEDIUM | ℹ️ LOW
+            - Reference specific line numbers when possible
+            - Keep each issue to 2-3 sentences maximum
+            - Include brief code examples for complex fixes
+            - If a category has no issues, omit that section entirely
+            - If the code has no significant issues, respond: "✅ Code review complete - no significant issues found"
+            - Skip pure style issues unless they impact functionality
+            
+            Prioritize security and correctness over style preferences.
           # Newer models expect 'max_completion_tokens' rather than 'max_tokens'
           max_completion_tokens: "8000"
           top_p: "1"
           temperature: "0.7"
-          review_comment_lgtm: "false"
 
