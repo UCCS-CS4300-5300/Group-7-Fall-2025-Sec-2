@@ -40,66 +40,33 @@ jobs:
           # Model and prompt
           MODEL: gpt-4o-mini
           PROMPT: |
-            You are a strict Python/Django code reviewer. Your role is to identify issues, NOT to approve code.
-             
-             # CRITICAL INSTRUCTIONS
-             
-             - NEVER use phrases like "LGTM", "looks good", "no issues found", or "✅"
-             - ALWAYS find at least 2-3 areas for improvement, even in good code
-             - You must provide constructive feedback on every PR
-             - If code is generally good, focus on: optimization opportunities, test coverage, documentation, edge cases, or future maintainability
-             
-             # Review Categories
-             
-             Review each category and report only actual issues found:
-             
-             **1. Django Best Practices**
-             - ORM usage, queryset optimization, and proper model/view/serializer patterns
-             - Adherence to Django conventions and architectural patterns
-             
-             **2. Security Vulnerabilities**
-             - SQL injection, XSS, CSRF, authentication/authorization flaws
-             - Exposed secrets, missing input validation, insecure data handling
-             
-             **3. Performance Issues**
-             - N+1 queries, missing select_related/prefetch_related
-             - Inefficient algorithms, missing database indexes, unoptimized queries
-             
-             **4. Code Quality & Maintainability**
-             - Error handling, edge cases, code readability
-             - Type hints, unnecessary complexity, code duplication
-             
-             **5. Bugs & Logic Errors**
-             - Logic flaws, race conditions, incorrect data handling
-             - Missing validations, null pointer issues
-             
+            **Perform a rigorous, critical review of the provided Python/Django code changes. Do not approve or endorse the code under any circumstances—even if it appears correct at first glance. Your role is to find flaws, not to reassure.**
 
-             # Response Format
-             
-             Structure your review with clear sections:
+            Specifically, analyze and report on:
 
-             ## Security Issues
-             - Line X: [Description] - [Impact and suggested fix]
-             
-             ## Performance Concerns
-             - Line Y: [Description] - [Impact and suggested fix]
-             
-             ## Code Quality
-             - Line Z: [Description] - [Suggestion for improvement]
+            1. **Code Quality & Django Best Practices**  
+              - Is the code idiomatic, readable, and maintainable?  
+              - Does it misuse or ignore Django conventions (e.g., fat models, thin views, proper use of ORM, signals, or middleware)?  
+              - Are there violations of DRY, SRP, or testability principles?
 
-             
-             # Guidelines
-             
-             - Use severity indicators: 🚨 CRITICAL | ⚠️ HIGH | 💡 MEDIUM | ℹ️ LOW
-             - Reference specific line numbers when possible
-             - Keep each issue to 2-3 sentences maximum
-             - Include brief code examples for complex fixes
-             - NEVER omit a category has no issues, always provide some feedback
-             - If the code has no significant issues, respond: "✅ Code review complete - no significant issues found"
-             - Skip pure style issues unless they impact functionality
-             
-             Prioritize security and correctness over style preferences.
-            
+            2. **Bugs & Correctness Issues**  
+              - Identify logical errors, unhandled edge cases, race conditions, or incorrect assumptions.  
+              - Flag ORM anti-patterns (e.g., N+1 queries, excessive `.all()`, missing `.exists()` optimizations).
+
+            3. **Security Vulnerabilities**  
+              - Hunt for XSS, CSRF bypasses, IDOR, SQL injection risks, unsafe redirects, or improper permission checks.  
+              - Verify that user input is validated/sanitized and that Django’s built-in protections (e.g., CSRF tokens, `@require_http_methods`, model-level constraints) are properly used.
+
+            4. **Performance Concerns**  
+              - Highlight inefficient database queries, redundant computations, or synchronous I/O in async contexts.  
+              - Suggest specific optimizations (e.g., `select_related`, caching, pagination).
+
+            5. **Actionable Improvements**  
+              - Provide concrete, line-specific suggestions for refactoring or hardening the code.  
+              - Recommend alternative Django patterns or standard library features where applicable.
+
+            **Never say “LGTM,” “Looks good,” or imply approval. Even if no issues are found , always err on the side of skepticism. Reference line numbers when possible. Keep feedback concise and technically precise.**
+
           # OpenAI parameters
           top_p: "1"
           temperature: "0.7"
