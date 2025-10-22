@@ -32,10 +32,12 @@ jobs:
       - name: AI Code Review
         uses: anc95/ChatGPT-CodeReview@v1.0.11
         env:
+          # GitHub and OpenAI credentials
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_API_ENDPOINT: https://api.openai.com/v1
 
+          # Model and prompt
           MODEL: gpt-4o-mini
           PROMPT: |
             You are a strict Python/Django code reviewer. Your role is to identify issues, NOT to approve code.
@@ -97,7 +99,7 @@ jobs:
              - Skip pure style issues unless they impact functionality
              
              Prioritize security and correctness over style preferences.
-          # Newer models expect 'max_completion_tokens' rather than 'max_tokens'
-          max_completion_tokens: "8000"
+            
+          # OpenAI parameters
           top_p: "1"
           temperature: "0.7"
