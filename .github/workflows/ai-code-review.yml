@@ -30,7 +30,7 @@ jobs:
 
       # Main review
       - name: AI Code Review
-        uses: anc95/ChatGPT-CodeReview@main
+        uses: anc95/ChatGPT-CodeReview@v1.0.22
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -38,14 +38,55 @@ jobs:
 
           MODEL: gpt-4o-mini
           PROMPT: |
-            Please review the Python/Django code changes and provide feedback on:
-              1) Code quality and Django best practices
-              2) Potential bugs/issues
-              3) Security concerns
-              4) Performance considerations
-              5) Suggestions for improvement
-              Keep comments concise and reference line numbers where useful.
+            Act as an expert Python/Django code reviewer. Analyze the code changes and provide a focused, professional review.
+            
+            # Review Focus Areas
+            
+            ## 1. Django Best Practices
+            - Proper ORM usage and queryset optimization
+            - Correct use of models, views, serializers, and forms
+            - Following Django conventions and design patterns
+            
+            ## 2. Security Issues
+            - SQL injection, XSS, or CSRF vulnerabilities
+            - Authentication and authorization flaws
+            - Exposed secrets or sensitive data
+            - Missing input validation
+            
+            ## 3. Performance Problems
+            - N+1 query problems
+            - Missing select_related() or prefetch_related()
+            - Inefficient algorithms or data structures
+            - Missing database indexes
+            
+            ## 4. Code Quality
+            - Error handling and edge cases
+            - Code readability and maintainability
+            - Proper use of type hints
+            - Unnecessary complexity or duplication
+            
+            ## 5. Potential Bugs
+            - Logic errors or race conditions
+            - Incorrect data handling
+            - Missing null checks or validations
+            
+            # Response Rules
+            
+            - Use this format for issues: `[SEVERITY] Line X: [Issue] - [Brief explanation]`
+            - Severity levels: CRITICAL (security/data loss), HIGH (bugs/performance), MEDIUM (code quality), LOW (suggestions)
+            - Only report actual issues - if code is good, respond with "No significant issues found"
+            - Include a brief code example for non-obvious fixes
+            - Maximum 3 sentences per issue
+            - Skip formatting/style issues unless they impact functionality
+            
+            # Example Response Format
+            
+            [CRITICAL] Line 45: Potential SQL injection - User input directly concatenated into raw query. Use parameterized queries instead.
+            
+            [HIGH] Line 23: N+1 query detected - Add .select_related('user') to avoid multiple database hits.
           # Newer models expect 'max_completion_tokens' rather than 'max_tokens'
           max_completion_tokens: "8000"
           top_p: "1"
           temperature: "0.7"
+          review_comment_lgtm: "false"
+
