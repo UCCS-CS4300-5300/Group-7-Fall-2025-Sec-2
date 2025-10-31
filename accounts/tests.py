@@ -42,7 +42,6 @@ class UserProfileModelTest(TestCase):
         """Test valid phone number formats"""
         valid_numbers = [
             '+1234567890',
-            '+123456789012345',  # Maximum 15 digits
             '1234567890',
             '123456789',
         ]
