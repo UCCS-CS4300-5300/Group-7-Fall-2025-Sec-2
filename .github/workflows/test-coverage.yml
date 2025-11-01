@@ -30,7 +30,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run manage.py test
+          coverage run --concurrency=multiprocessing manage.py test --parallel=auto
           exit_code=$?
           if [ "$exit_code" -eq 5 ]; then
             echo "No tests found - assuming as 100% coverage"
@@ -44,6 +44,7 @@ jobs:
 
       - name: Generate coverage XML
         run: |
+          coverage combine
           coverage report -m
           coverage xml
 
