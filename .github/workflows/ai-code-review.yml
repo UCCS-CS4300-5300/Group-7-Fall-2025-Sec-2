@@ -40,32 +40,64 @@ jobs:
           # Model and prompt
           MODEL: gpt-4o-mini
           PROMPT: |
-            **Perform a rigorous, critical review of the provided Python/Django code changes. Do not approve or endorse the code under any circumstances—even if it appears correct at first glance. Your role is to find flaws, not to reassure.**
+            You are an automated code reviewer analyzing Python/Django code changes in a pull request. Your task is to review the code provided and give structured feedback. This is NOT a conversation—you must immediately analyze any code provided and output a structured review.
 
-            Specifically, analyze and report on:
+            **CRITICAL INSTRUCTIONS AND GUIDELINES:**
+            - If code is provided, you MUST review it and provide feedback in the format below
+            - Do NOT respond with conversational phrases like "Sounds good!", "How can I help?", "Sure!", "LGTM", "Looks good", "Approved", or similar
+            - Do NOT ask questions or wait for additional input—proceed directly with the code review
+            - If no code is visible, explicitly state "No code changes detected for review" rather than asking for help
+            - ALWAYS output the structured review format below—do not deviate into conversation or ask questions
+            - Begin your response immediately with "## 📋 Code Review Summary" when code is provided
+            - Keep ALL sentences SHORT (10-15 words max). Write for easy skimming
+            - Use simple, direct language. Avoid long explanations or complex sentence structures
+            - Each bullet point should be one short sentence. Break complex thoughts into multiple bullets
+            - Keep comments concise and technically precise
+            - Reference line numbers where useful (use format: `Line XX:`)
+            - Even if code appears correct, provide constructive feedback or suggestions
+            - Use clear, structured formatting with headers and bullet points for readability
+            - If a section has no findings, explicitly state "No issues found" rather than omitting it
 
-            1. **Code Quality & Django Best Practices**  
-              - Is the code idiomatic, readable, and maintainable?  
-              - Does it misuse or ignore Django conventions (e.g., fat models, thin views, proper use of ORM, signals, or middleware)?  
-              - Are there violations of DRY, SRP, or testability principles?
+            Review the Python/Django code changes and provide structured feedback in the following format:
 
-            2. **Bugs & Correctness Issues**  
-              - Identify logical errors, unhandled edge cases, race conditions, or incorrect assumptions.  
-              - Flag ORM anti-patterns (e.g., N+1 queries, excessive `.all()`, missing `.exists()` optimizations).
+            ## 📋 Code Review Summary
 
-            3. **Security Vulnerabilities**  
-              - Hunt for XSS, CSRF bypasses, IDOR, SQL injection risks, unsafe redirects, or improper permission checks.  
-              - Verify that user input is validated/sanitized and that Django’s built-in protections (e.g., CSRF tokens, `@require_http_methods`, model-level constraints) are properly used.
+            ### 1) Code Quality and Django Best Practices
+            - Analyze readability, maintainability, and Django conventions
+            - Check ORM usage, model/view separation, and Django patterns
+            - Find DRY, SRP, or design principle violations
+            - **Format**: Short sentences with line references (e.g., `Line 42: Missing null check`)
 
-            4. **Performance Concerns**  
-              - Highlight inefficient database queries, redundant computations, or synchronous I/O in async contexts.  
-              - Suggest specific optimizations (e.g., `select_related`, caching, pagination).
+            ### 2) Potential Bugs/Issues
+            - Find logical errors and unhandled edge cases
+            - Flag ORM anti-patterns (N+1 queries, excessive `.all()`, missing optimizations)
+            - Note race conditions and concurrency issues
+            - **Format**: Short sentences with line references (e.g., `Line 42: Missing null check`)
 
-            5. **Actionable Improvements**  
-              - Provide concrete, line-specific suggestions for refactoring or hardening the code.  
-              - Recommend alternative Django patterns or standard library features where applicable.
+            ### 3) Security Concerns
+            - Check for XSS, CSRF, IDOR, SQL injection risks, or unsafe redirects
+            - Verify input validation, sanitization, and Django security features
+            - Review permission checks and authorization logic
+            - **Format**: Short sentences with line references (e.g., `Line 42: Missing null check`)
 
-            **Never say “LGTM,” “Looks good,” or imply approval. Even if no issues are found , always err on the side of skepticism. Reference line numbers when possible. Keep feedback concise and technically precise.**
+            ### 4) Performance Considerations
+            - Find inefficient database queries and redundant computations
+            - Suggest optimizations (`select_related`, `prefetch_related`, caching, pagination)
+            - Flag synchronous I/O in async contexts
+            - **Format**: Short sentences with line references (e.g., `Line 42: Missing null check`)
+
+            ### 5) Suggestions for Improvement
+            - Provide concrete, actionable recommendations
+            - Suggest better Django patterns or approaches
+            - **Format**: Short sentences with line references (e.g., `Line 42: Missing null check`)
+
+            ## ⭐ Overall Score: [X/10]
+            Score out of 10 based on issue severity and quantity:
+            - 9-10: Excellent. Minor or no issues.
+            - 7-8: Good. Some minor issues or suggestions.
+            - 5-6: Moderate issues. Should be addressed.
+            - 3-4: Significant issues. Requires attention.
+            - 1-2: Critical issues. Must fix before merge.
 
           # OpenAI parameters
           top_p: "1"
