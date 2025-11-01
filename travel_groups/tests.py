@@ -437,6 +437,12 @@ class GroupListViewTest(TestCase):
         groups = response.context['groups']
         self.assertIn(self.group, groups)
         self.assertNotIn(inactive_group, groups)
+    
+    def test_group_list_search_form_present(self):
+        """Test that search form is present in context"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:group_list'))
+        self.assertIn('form', response.context)
 
 
 class CreateGroupViewTest(TestCase):
@@ -616,6 +622,13 @@ class LeaveGroupViewTest(TestCase):
         response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]), follow=True)
         self.assertContains(response, 'only admin')
         self.assertTrue(GroupMember.objects.filter(id=self.admin_member.id).exists())
+    
+    def test_leave_group_not_member(self):
+        """Test leaving group when user is not a member"""
+        user3 = User.objects.create_user(username='user3', password='pass123')
+        self.client.login(username='user3', password='pass123')
+        response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]), follow=True)
+        self.assertContains(response, 'not a member')
 
 
 class MyGroupsViewTest(TestCase):
@@ -764,6 +777,21 @@ class GroupSettingsViewTest(TestCase):
         self.group.refresh_from_db()
         self.assertEqual(self.group.name, 'Updated Group Name')
         self.assertEqual(self.group.max_members, 15)
+    
+    def test_group_settings_get_request(self):
+        """Test GET request to group settings view"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/group_settings.html')
+        self.assertEqual(response.context['group'], self.group)
+    
+    def test_group_settings_not_member(self):
+        """Test group settings access by non-member"""
+        user3 = User.objects.create_user(username='user3', password='pass123')
+        self.client.login(username='user3', password='pass123')
+        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]), follow=True)
+        self.assertContains(response, 'not a member')
 
 
 class AddItineraryToGroupViewTest(TestCase):
@@ -817,6 +845,29 @@ class AddItineraryToGroupViewTest(TestCase):
         )
         data = json.loads(response.content)
         self.assertFalse(data['success'])
+    
+    def test_add_itinerary_not_found(self):
+        """Test adding itinerary that doesn't exist"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.post(
+            reverse('travel_groups:add_itinerary', args=[self.group.id]),
+            {'itinerary_id': 99999}
+        )
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('not found', data['message'].lower())
+    
+    def test_add_itinerary_error_handling(self):
+        """Test error handling in add itinerary view"""
+        self.client.login(username='testuser', password='pass123')
+        # Test with invalid data that might cause an exception
+        response = self.client.post(
+            reverse('travel_groups:add_itinerary', args=[self.group.id]),
+            {'itinerary_id': 'invalid'}
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
 
 
 class ViewGroupTripPreferencesTest(TestCase):
@@ -850,3 +901,283 @@ class ViewGroupTripPreferencesTest(TestCase):
         response = self.client.get(reverse('travel_groups:view_trip_preferences', args=[self.group.id]))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'travel_groups/view_trip_preferences.html')
+
+
+class GroupTripManagementViewTest(TestCase):
+    """Test cases for group trip management view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='pass123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+    
+    def test_group_trip_management_requires_login(self):
+        """Test that group trip management requires authentication"""
+        response = self.client.get(reverse('travel_groups:group_trip_management', args=[self.group.id]))
+        self.assertEqual(response.status_code, 302)
+    
+    def test_group_trip_management_requires_membership(self):
+        """Test that group trip management requires group membership"""
+        user2 = User.objects.create_user(username='user2', password='pass123')
+        self.client.login(username='user2', password='pass123')
+        response = self.client.get(reverse('travel_groups:group_trip_management', args=[self.group.id]), follow=True)
+        self.assertContains(response, 'not a member')
+    
+    def test_group_trip_management_success(self):
+        """Test successful access to group trip management"""
+        self.client.login(username='testuser', password='pass123')
+        Itinerary.objects.create(
+            user=self.user,
+            title='My Trip',
+            destination='Hawaii',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=5)
+        )
+        response = self.client.get(reverse('travel_groups:group_trip_management', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/group_trip_management.html')
+        self.assertEqual(response.context['group'], self.group)
+        self.assertEqual(response.context['user_role'], 'admin')
+
+
+class CreateGroupTripViewTest(TestCase):
+    """Test cases for create group trip view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='pass123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.start_date = date.today()
+        self.end_date = self.start_date + timedelta(days=7)
+    
+    def test_create_group_trip_requires_login(self):
+        """Test that creating group trip requires authentication"""
+        response = self.client.post(reverse('travel_groups:create_group_trip', args=[self.group.id]))
+        self.assertEqual(response.status_code, 302)
+    
+
+
+class CollectGroupPreferencesViewTest(TestCase):
+    """Test cases for collect group preferences view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='pass123')
+        self.user2 = User.objects.create_user(username='user2', password='pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='pass123'
+        )
+        self.member1 = GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.member2 = GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+    
+    def test_collect_preferences_requires_login(self):
+        """Test that collecting preferences requires authentication"""
+        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 302)
+    
+    def test_collect_preferences_requires_membership(self):
+        """Test that collecting preferences requires group membership"""
+        user3 = User.objects.create_user(username='user3', password='pass123')
+        self.client.login(username='user3', password='pass123')
+        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]), follow=True)
+        self.assertContains(response, 'not a member')
+    
+    def test_collect_preferences_success(self):
+        """Test successful collection of group preferences"""
+        self.client.login(username='testuser', password='pass123')
+        # Create travel preferences for members
+        TravelPreference.objects.create(
+            member=self.member1,
+            budget_range='$500-1000',
+            accommodation_preference='Hotel',
+            activity_preferences='Hiking',
+            dietary_restrictions='None',
+            accessibility_needs='None',
+            notes='Beach destinations'
+        )
+        self.member1.has_travel_preferences = True
+        self.member1.save()
+        
+        TravelPreference.objects.create(
+            member=self.member2,
+            budget_range='$1000-1500',
+            accommodation_preference='Airbnb',
+            activity_preferences='Swimming',
+            dietary_restrictions='Vegetarian',
+            accessibility_needs='None',
+            notes='City tours'
+        )
+        self.member2.has_travel_preferences = True
+        self.member2.save()
+        
+        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/collect_preferences.html')
+        self.assertEqual(response.context['group'], self.group)
+        self.assertEqual(response.context['total_members'], 2)
+        self.assertEqual(response.context['members_with_preferences'], 2)
+        self.assertEqual(len(response.context['preferences_data']), 2)
+    
+    def test_collect_preferences_without_preferences(self):
+        """Test collecting preferences when members haven't set preferences"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_members'], 2)
+        self.assertEqual(response.context['members_with_preferences'], 0)
+        self.assertEqual(len(response.context['preferences_data']), 0)
+
+
+class UpdateTravelPreferencesViewExtendedTest(TestCase):
+    """Extended test cases for update travel preferences view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='pass123'
+        )
+        self.member = GroupMember.objects.create(
+            group=self.group,
+            user=self.user,
+            role='admin'
+        )
+    
+    def test_update_preferences_get_with_existing_preferences(self):
+        """Test GET request to update preferences when preferences exist"""
+        TravelPreference.objects.create(
+            member=self.member,
+            budget_range='$500-1000',
+            accommodation_preference='Hotel',
+            activity_preferences='Hiking'
+        )
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:update_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/update_preferences.html')
+        # Form should be pre-filled with existing preferences
+        form = response.context['form']
+        self.assertEqual(form.instance.budget_range, '$500-1000')
+    
+    def test_update_preferences_get_without_existing_preferences(self):
+        """Test GET request to update preferences when preferences don't exist"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:update_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/update_preferences.html')
+        # Form should be empty
+        form = response.context['form']
+        self.assertIsNone(form.instance.pk)
+    
+    def test_update_preferences_update_existing(self):
+        """Test updating existing preferences"""
+        TravelPreference.objects.create(
+            member=self.member,
+            budget_range='$500-1000',
+            accommodation_preference='Hotel'
+        )
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.post(reverse('travel_groups:update_preferences', args=[self.group.id]), {
+            'budget_range': '$1000-1500',
+            'accommodation_preference': 'Airbnb',
+            'activity_preferences': 'Swimming',
+            'dietary_restrictions': 'None',
+            'accessibility_needs': 'None',
+            'notes': 'Updated preferences'
+        })
+        self.assertEqual(response.status_code, 302)
+        preferences = TravelPreference.objects.get(member=self.member)
+        self.assertEqual(preferences.budget_range, '$1000-1500')
+        self.assertEqual(preferences.accommodation_preference, 'Airbnb')
+
+
+class AddTripPreferencesViewExtendedTest(TestCase):
+    """Extended test cases for add trip preferences view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser', password='pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='pass123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.start_date = date.today()
+        self.end_date = self.start_date + timedelta(days=7)
+    
+    def test_add_trip_preferences_get_with_existing(self):
+        """Test GET request when trip preferences already exist"""
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            destination='Hawaii',
+            budget='$1700',
+            travel_method='flight',
+            is_completed=False
+        )
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:add_trip_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/add_trip_preferences.html')
+        form = response.context['form']
+        self.assertEqual(form.instance.destination, 'Hawaii')
+    
+    def test_add_trip_preferences_get_without_existing(self):
+        """Test GET request when trip preferences don't exist"""
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.get(reverse('travel_groups:add_trip_preferences', args=[self.group.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'travel_groups/add_trip_preferences.html')
+        form = response.context['form']
+        self.assertIsNone(form.instance.pk)
+    
+    def test_add_trip_preferences_update_existing(self):
+        """Test updating existing trip preferences"""
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            destination='Hawaii',
+            budget='$1700',
+            travel_method='flight',
+            is_completed=False
+        )
+        self.client.login(username='testuser', password='pass123')
+        response = self.client.post(reverse('travel_groups:add_trip_preferences', args=[self.group.id]), {
+            'start_date': self.start_date.strftime('%Y-%m-%d'),
+            'end_date': self.end_date.strftime('%Y-%m-%d'),
+            'destination': 'Paris',
+            'budget': '$2000',
+            'travel_method': 'flight',
+            'rental_car': False
+        })
+        self.assertEqual(response.status_code, 302)
+        trip_pref = TripPreference.objects.get(group=self.group, user=self.user)
+        self.assertEqual(trip_pref.destination, 'Paris')
+        self.assertEqual(trip_pref.budget, '$2000')
+        self.assertTrue(trip_pref.is_completed)
+    
+    def test_add_trip_preferences_not_member(self):
+        """Test adding trip preferences when not a member"""
+        user2 = User.objects.create_user(username='user2', password='pass123')
+        self.client.login(username='user2', password='pass123')
+        response = self.client.get(reverse('travel_groups:add_trip_preferences', args=[self.group.id]), follow=True)
+        self.assertContains(response, 'not a member')
