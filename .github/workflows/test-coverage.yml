@@ -42,10 +42,10 @@ jobs:
             exit $exit_code
           fi
 
-      - name: Generate coverage XML
+      - name: Generate report and verify minimum 80% coverage
         run: |
           coverage combine
-          coverage report -m
+          coverage report -m --fail-under=80
           coverage xml
 
       - name: Upload coverage.xml (optional)
