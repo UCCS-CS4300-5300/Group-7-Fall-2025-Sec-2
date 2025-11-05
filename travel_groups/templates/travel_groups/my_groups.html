@@ -41,13 +41,6 @@
                 </div>
                 <div class="card-body">
                     <p class="card-text">{{ membership.group.description|truncatewords:15 }}</p>
-                    <div class="mb-2">
-                        <strong><i class="fas fa-map-marker-alt"></i> Destination:</strong> {{ membership.group.destination }}
-                    </div>
-                    <div class="mb-2">
-                        <strong><i class="fas fa-calendar"></i> Dates:</strong> 
-                        {{ membership.group.start_date|date:"M d" }} - {{ membership.group.end_date|date:"M d, Y" }}
-                    </div>
                     <div class="mb-3">
                         <strong><i class="fas fa-users"></i> Members:</strong> 
                         {{ membership.group.member_count }}/{{ membership.group.max_members }}
