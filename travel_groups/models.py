@@ -22,7 +22,7 @@ class TravelGroup(models.Model):
         verbose_name_plural = "Travel Groups"
     
     def __str__(self):
-        return f"{self.name} - {self.destination}"
+        return self.name
     
     @property
     def member_count(self):
