@@ -138,8 +138,103 @@
             </div>
         </div>
 
-        <!-- Itineraries Tab -->
+        <!-- Trips Tab (Shows Voting Options or Regular Trips) -->
         <div class="tab-pane fade" id="itineraries" role="tabpanel">
+            {% if voting_options %}
+            <!-- Voting Options Available -->
+            <div class="alert alert-success mb-4">
+                <h5 class="alert-heading"><i class="fas fa-vote-yea"></i> Voting in Progress!</h5>
+                <p>AI has generated 3 trip options based on your group's preferences. Cast your vote below!</p>
+                <p class="mb-0"><strong>{{ votes_cast }} of {{ members.count }}</strong> members have voted.</p>
+            </div>
+            
+            <div class="row">
+                {% for option_data in voting_options %}
+                {% with option=option_data.option activities=option_data.activities %}
+                <div class="col-lg-4 mb-4">
+                    <div class="card h-100 {% if user_vote and user_vote.option == option %}border-success border-3{% else %}border-primary{% endif %}">
+                        <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-warning{% endif %} text-white">
+                            <h5 class="mb-0">
+                                Option {{ option.option_letter }}
+                                {% if option.option_letter == 'A' %}💰{% elif option.option_letter == 'B' %}⚖️{% else %}⭐{% endif %}
+                            </h5>
+                            <small>{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</small>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title">{{ option.title }}</h6>
+                            <p class="card-text">{{ option.description }}</p>
+                            
+                            {% if option.destination %}
+                            <div class="alert alert-info mb-2 text-center">
+                                <strong>📍 Destination:</strong> {{ option.destination }}
+                            </div>
+                            {% endif %}
+                            {% if option.search %}
+                            <div class="alert alert-light mb-3 text-center">
+                                <strong>📅 Travel Dates:</strong> {{ option.search.start_date|date:"M d, Y" }} - {{ option.search.end_date|date:"M d, Y" }}
+                            </div>
+                            {% endif %}
+                            
+                            <hr>
+                            
+                            {% if option.selected_flight %}
+                            <h6 class="mb-2">✈️ Flight</h6>
+                            <p class="small">
+                                <strong>{{ option.selected_flight.airline }}</strong><br>
+                                ${{ option.selected_flight.price }} | {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}
+                            </p>
+                            {% endif %}
+                            
+                            {% if option.selected_hotel %}
+                            <h6 class="mb-2">🏨 Hotel</h6>
+                            <p class="small">
+                                <strong>{{ option.selected_hotel.name }}</strong><br>
+                                ${{ option.selected_hotel.total_price }} total
+                                {% if option.selected_hotel.rating %} | ⭐ {{ option.selected_hotel.rating }}/5{% endif %}
+                            </p>
+                            {% endif %}
+                            
+                            {% if activities %}
+                            <h6 class="mb-2">🎭 Activities ({{ activities|length }})</h6>
+                            <ul class="small ps-3">
+                                {% for activity in activities|slice:":3" %}
+                                <li>{{ activity.name }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            
+                            <hr>
+                            
+                            <div class="text-center mb-3">
+                                <h4 class="text-primary mb-0">${{ option.estimated_total_cost }}</h4>
+                                <small class="text-muted">${{ option.cost_per_person }} per person</small>
+                            </div>
+                        </div>
+                        <div class="card-footer text-center">
+                            <button class="btn {% if user_vote and user_vote.option == option %}btn-success{% else %}btn-outline-primary{% endif %} btn-lg w-100" onclick="castVote('{{ option.id }}', '{{ option.option_letter }}')">
+                                {% if user_vote and user_vote.option == option %}
+                                    ✓ Your Vote
+                                {% else %}
+                                    Vote for Option {{ option.option_letter }}
+                                {% endif %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+            
+            {% if voting_complete %}
+            <div class="text-center mt-4">
+                <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-success btn-lg">
+                    <i class="fas fa-trophy"></i> View Voting Results
+                </a>
+            </div>
+            {% endif %}
+            
+            {% else %}
+            <!-- Regular Trips View (when no voting in progress) -->
             <div class="row">
                 {% for group_itinerary in group_itineraries %}
                 <div class="col-md-6 col-lg-4 mb-3">
@@ -171,50 +266,138 @@
                         <i class="fas fa-route fa-2x text-muted mb-3"></i>
                         <p class="text-muted">No trips added yet.</p>
                         {% if user_is_member %}
-                            <p class="text-muted">Create or add trips using the "Manage Trips" tab.</p>
+                            <p class="text-muted">Use the "Manage Trips" tab to find your perfect trip with AI!</p>
                         {% endif %}
                     </div>
                 </div>
                 {% endfor %}
             </div>
+            {% endif %}
         </div>
 
         <!-- Trip Management Tab -->
         {% if user_is_member %}
         <div class="tab-pane fade" id="trip-management" role="tabpanel">
-            <div class="row">
+            <!-- Find Your Trip Section -->
+            <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-plus"></i> Trip Management</h5>
+                    <div class="card border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-magic"></i> AI-Powered Trip Finder</h5>
                         </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <i class="fas fa-plus-circle fa-2x text-primary mb-3"></i>
-                                            <h6>Create New Trip</h6>
-                                            <p class="text-muted">Create a new trip specifically for this group.</p>
-                                            <a href="{% url 'travel_groups:group_trip_management' group.id %}" class="btn btn-primary">
-                                                <i class="fas fa-plus"></i> Create Trip
-                                            </a>
-                                        </div>
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-robot fa-4x text-primary mb-4"></i>
+                            <h4 class="mb-3">Find Your Perfect Group Trip!</h4>
+                            <p class="lead mb-2">Let AI analyze your group's preferences and create 3 custom itinerary options</p>
+                            <p class="text-muted mb-4">Using real flight data from Duffel API and smart recommendations from OpenAI</p>
+                            
+                            <div class="alert alert-info d-inline-block text-start">
+                                <strong>📊 Group Status:</strong><br>
+                                <span class="ms-3">Total Members: {{ members.count }}</span><br>
+                                <span class="ms-3">Members with Preferences: {{ prefs_count }}</span>
+                            </div>
+                            
+                            <div class="mt-4">
+                                {% if prefs_count >= 2 %}
+                                <button class="btn btn-success btn-lg px-5" onclick="findYourTrip()">
+                                    <i class="fas fa-magic"></i> Find Your Trip
+                                </button>
+                                <p class="text-muted mt-2 small">This will generate 3 AI-curated options for your group to vote on</p>
+                                {% else %}
+                                <div class="alert alert-warning">
+                                    <strong>⚠️ Need More Preferences!</strong><br>
+                                    At least 2 members need to submit their trip preferences before AI can generate options.
+                                </div>
+                                <a href="{% url 'travel_groups:add_trip_preferences' group.id %}" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Add Your Preferences
+                                </a>
+                                {% endif %}
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <div class="row text-start">
+                                <div class="col-md-4">
+                                    <div class="p-3">
+                                        <h6><i class="fas fa-check-circle text-success"></i> Step 1</h6>
+                                        <p class="small">All members submit their trip preferences</p>
                                     </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            <i class="fas fa-chart-bar fa-2x text-success mb-3"></i>
-                                            <h6>Collect Preferences</h6>
-                                            <p class="text-muted">View and collect member preferences for trip planning.</p>
-                                            <a href="{% url 'travel_groups:collect_preferences' group.id %}" class="btn btn-success">
-                                                <i class="fas fa-chart-bar"></i> View Preferences
-                                            </a>
-                                        </div>
+                                <div class="col-md-4">
+                                    <div class="p-3">
+                                        <h6><i class="fas fa-magic text-primary"></i> Step 2</h6>
+                                        <p class="small">AI searches flights & hotels, creates 3 options</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="p-3">
+                                        <h6><i class="fas fa-vote-yea text-warning"></i> Step 3</h6>
+                                        <p class="small">Members vote on their favorite option</p>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Group Trips Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-route"></i> Group Trips ({{ group_itineraries.count }})</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if group_itineraries %}
+                                <div class="row">
+                                    {% for group_itinerary in group_itineraries %}
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <h6 class="card-title">{{ group_itinerary.itinerary.title }}</h6>
+                                                <p class="card-text">{{ group_itinerary.itinerary.description|truncatewords:15 }}</p>
+                                                <div class="mb-2">
+                                                    <strong>Destination:</strong> {{ group_itinerary.itinerary.destination }}
+                                                </div>
+                                                <div class="mb-2">
+                                                    <strong>Dates:</strong> 
+                                                    {{ group_itinerary.itinerary.start_date|date:"M d" }} - 
+                                                    {{ group_itinerary.itinerary.end_date|date:"M d, Y" }}
+                                                </div>
+                                                <small class="text-muted">
+                                                    Added by {{ group_itinerary.added_by.get_full_name|default:group_itinerary.added_by.username }}
+                                                    on {{ group_itinerary.added_at|date:"M d, Y" }}
+                                                </small>
+                                                {% if group_itinerary.is_approved %}
+                                                    <span class="badge bg-success ms-1">Approved</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="card-footer bg-light">
+                                                {% if user_role == 'admin' or group_itinerary.added_by.id == user.id %}
+                                                <div class="btn-group w-100" role="group">
+                                                    <button class="btn btn-primary btn-sm" onclick="editTrip('{{ group_itinerary.itinerary.id }}', '{{ group_itinerary.itinerary.title|escapejs }}', '{{ group_itinerary.itinerary.description|escapejs }}', '{{ group_itinerary.itinerary.destination|escapejs }}', '{{ group_itinerary.itinerary.start_date|date:"Y-m-d" }}', '{{ group_itinerary.itinerary.end_date|date:"Y-m-d" }}')" style="width: 50%;">
+                                                        <i class="fas fa-edit"></i> Edit
+                                                    </button>
+                                                    <button class="btn btn-danger btn-sm" onclick="deleteTrip({{ group_itinerary.itinerary.id }}, '{{ group_itinerary.itinerary.title|escapejs }}')" style="width: 50%;">
+                                                        <i class="fas fa-trash"></i> Delete
+                                                    </button>
+                                                </div>
+                                                {% else %}
+                                                <small class="text-muted d-block text-center">Only admin or creator can edit/delete</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-route fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted">No trips created yet for this group.</p>
+                                    <p class="text-muted">Create your first trip using the form above!</p>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -343,4 +526,397 @@
         {% endif %}
     </div>
 </div>
+
+<!-- Date Selection Modal for "Find Your Trip" -->
+<div class="modal fade" id="dateSelectionModal" tabindex="-1" aria-labelledby="dateSelectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="dateSelectionModalLabel">
+                    <i class="fas fa-calendar"></i> Select Trip Dates
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> <strong>Select your group's travel dates</strong><br>
+                    AI will search for flights and hotels within this date range.
+                </div>
+                
+                <form id="dateSelectionForm">
+                    {% csrf_token %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="trip_start_date" class="form-label">
+                                <i class="fas fa-plane-departure"></i> Start Date
+                            </label>
+                            <input type="date" 
+                                   class="form-control form-control-lg" 
+                                   id="trip_start_date" 
+                                   name="start_date" 
+                                   required
+                                   min="{{ today|date:'Y-m-d' }}">
+                            <small class="text-muted">When does your trip start?</small>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="trip_end_date" class="form-label">
+                                <i class="fas fa-plane-arrival"></i> End Date
+                            </label>
+                            <input type="date" 
+                                   class="form-control form-control-lg" 
+                                   id="trip_end_date" 
+                                   name="end_date" 
+                                   required
+                                   min="{{ today|date:'Y-m-d' }}">
+                            <small class="text-muted">When does your trip end?</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12">
+                            <div id="date_info" class="alert alert-light" style="display: none;">
+                                <strong>Trip Duration:</strong> <span id="trip_duration">0</span> days
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-clock"></i> <strong>Note:</strong> Finding your trip with AI will take 30-60 seconds. 
+                        We'll search real flights, analyze preferences, and create 3 custom options.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success btn-lg" onclick="confirmAndFindTrip()">
+                    <i class="fas fa-magic"></i> Find Your Trip
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Trip Modal -->
+<div class="modal fade" id="editTripModal" tabindex="-1" aria-labelledby="editTripModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editTripModalLabel">
+                    <i class="fas fa-edit"></i> Edit Trip
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editTripForm">
+                    {% csrf_token %}
+                    <input type="hidden" id="edit_trip_id" name="trip_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_title" class="form-label">Trip Title</label>
+                            <input type="text" class="form-control" id="edit_title" name="title" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_destination" class="form-label">Destination</label>
+                            <input type="text" class="form-control" id="edit_destination" name="destination" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">Description</label>
+                        <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="edit_start_date" name="start_date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="edit_end_date" name="end_date" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveEditedTrip()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function findYourTrip() {
+    // Open date selection modal instead of immediately starting
+    const modal = new bootstrap.Modal(document.getElementById('dateSelectionModal'));
+    modal.show();
+}
+
+function confirmAndFindTrip() {
+    // Get selected dates
+    const startDate = document.getElementById('trip_start_date').value;
+    const endDate = document.getElementById('trip_end_date').value;
+    
+    // Validate dates
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates.');
+        return;
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (end <= start) {
+        alert('End date must be after start date.');
+        return;
+    }
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (start < today) {
+        alert('Start date cannot be in the past.');
+        return;
+    }
+    
+    // Close the date modal
+    bootstrap.Modal.getInstance(document.getElementById('dateSelectionModal')).hide();
+    
+    // Show loading state
+    const loadingModal = document.createElement('div');
+    loadingModal.className = 'modal fade show';
+    loadingModal.style.display = 'block';
+    loadingModal.style.backgroundColor = 'rgba(0,0,0,0.5)';
+    loadingModal.innerHTML = `
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-5">
+                    <i class="fas fa-robot fa-4x text-primary mb-3"></i>
+                    <h4>AI is Finding Your Perfect Trip!</h4>
+                    <div class="spinner-border text-primary my-3" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mb-2">Searching flights for ${startDate} to ${endDate}</p>
+                    <p class="text-muted">This takes 30-60 seconds...</p>
+                    <div id="progress-steps" class="mt-3">
+                        <small class="text-muted">
+                            <span id="step1">🔍 Analyzing preferences...</span><br>
+                            <span id="step2" style="display:none;">✈️ Searching flights...</span><br>
+                            <span id="step3" style="display:none;">🏨 Finding hotels...</span><br>
+                            <span id="step4" style="display:none;">🤖 Creating 3 options...</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(loadingModal);
+    
+    // Animate progress steps
+    setTimeout(() => { document.getElementById('step2').style.display = 'block'; }, 5000);
+    setTimeout(() => { document.getElementById('step3').style.display = 'block'; }, 15000);
+    setTimeout(() => { document.getElementById('step4').style.display = 'block'; }, 25000);
+    
+    // Make API call with selected dates
+    fetch('{% url "ai_implementation:generate_voting_options" group.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            start_date: startDate,
+            end_date: endDate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingModal.remove();
+        if (data.success) {
+            // Success - force page reload and navigate to Trips tab
+            // First set the hash, then force reload
+            window.location.hash = 'itineraries';
+            window.location.reload(true);  // true = force reload from server, not cache
+        } else {
+            alert('Error: ' + (data.error || 'Failed to generate options. Please try again.'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        loadingModal.remove();
+        alert('An error occurred. Please try again.');
+    });
+}
+
+// Calculate trip duration when dates change
+document.addEventListener('DOMContentLoaded', function() {
+    const startInput = document.getElementById('trip_start_date');
+    const endInput = document.getElementById('trip_end_date');
+    
+    if (startInput && endInput) {
+        function updateDuration() {
+            const start = new Date(startInput.value);
+            const end = new Date(endInput.value);
+            
+            if (startInput.value && endInput.value && end > start) {
+                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                document.getElementById('trip_duration').textContent = days;
+                document.getElementById('date_info').style.display = 'block';
+            } else {
+                document.getElementById('date_info').style.display = 'none';
+            }
+        }
+        
+        startInput.addEventListener('change', updateDuration);
+        endInput.addEventListener('change', updateDuration);
+    }
+});
+
+function castVote(optionId, optionLetter) {
+    if (confirm(`Vote for Option ${optionLetter}?`)) {
+        fetch(`/ai/group/{{ group.id }}/voting/cast/${optionId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: 'comment='
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Reload to update vote counts
+                window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while voting');
+        });
+    }
+}
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function editTrip(tripId, title, description, destination, startDate, endDate) {
+    // Populate the edit form
+    document.getElementById('edit_trip_id').value = tripId;
+    document.getElementById('edit_title').value = title;
+    document.getElementById('edit_description').value = description;
+    document.getElementById('edit_destination').value = destination;
+    document.getElementById('edit_start_date').value = startDate;
+    document.getElementById('edit_end_date').value = endDate;
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('editTripModal'));
+    modal.show();
+}
+
+function saveEditedTrip() {
+    const form = document.getElementById('editTripForm');
+    const formData = new FormData(form);
+    const tripId = document.getElementById('edit_trip_id').value;
+    
+    fetch(`/groups/{{ group.id }}/edit-trip/${tripId}/`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            bootstrap.Modal.getInstance(document.getElementById('editTripModal')).hide();
+            // Reload to show updated trip
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#trip-management';
+        } else {
+            alert('Error: ' + (data.error || JSON.stringify(data.errors)));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while updating the trip.');
+    });
+}
+
+function deleteTrip(itineraryId, tripTitle) {
+    if (confirm(`Are you sure you want to delete "${tripTitle}" from this group?\n\nNote: This only removes it from the group, not from your personal trips.`)) {
+        fetch(`/groups/{{ group.id }}/delete-trip/${itineraryId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Reload to show updated trip list
+                window.location.href = '{% url "travel_groups:group_detail" group.id %}#trip-management';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the trip.');
+        });
+    }
+}
+
+// When page loads with hash, activate appropriate tab
+document.addEventListener('DOMContentLoaded', function() {
+    const hash = window.location.hash;
+    console.log('Page loaded with hash:', hash);
+    
+    if (hash === '#trip-management') {
+        const tripTab = document.getElementById('trip-management-tab');
+        if (tripTab) {
+            console.log('Activating trip-management tab');
+            const tab = new bootstrap.Tab(tripTab);
+            tab.show();
+        }
+    } else if (hash === '#itineraries') {
+        const itinTab = document.getElementById('itineraries-tab');
+        if (itinTab) {
+            console.log('Activating itineraries tab');
+            const tab = new bootstrap.Tab(itinTab);
+            tab.show();
+            // Scroll to top of page to ensure voting options are visible
+            setTimeout(function() {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }, 100);
+        }
+    }
+});
+</script>
+
 {% endblock %}

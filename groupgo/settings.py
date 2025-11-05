@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,6 +45,7 @@ INSTALLED_APPS = [
     "home",
     "accounts",
     "travel_groups",
+    "ai_implementation",
 ]
 
 MIDDLEWARE = [
@@ -132,3 +137,23 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# OpenAI API Configuration
+# Using OPEN_AI_KEY secret key
+OPENAI_API_KEY = os.environ.get('OPEN_AI_KEY', '')
+OPENAI_MODEL = 'gpt-4-turbo-preview'
+
+# Travel API Configuration
+# Duffel API (Primary - for flights and hotels)
+# Get your API key from: https://duffel.com/
+DUFFEL_API_KEY = os.environ.get('DUFFEL_API_KEY', '')
+
+# Amadeus API (Alternative for flights)
+AMADEUS_API_KEY = os.environ.get('AMADEUS_API_KEY', '')
+AMADEUS_API_SECRET = os.environ.get('AMADEUS_API_SECRET', '')
+
+# Hotel API Configuration (if using a specific service)
+HOTEL_API_KEY = os.environ.get('HOTEL_API_KEY', '')
+
+# Activity API Configuration (if using a specific service)
+ACTIVITY_API_KEY = os.environ.get('ACTIVITY_API_KEY', '')

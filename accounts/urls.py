@@ -11,4 +11,5 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('api/create-itinerary/', views.create_itinerary, name='create_itinerary'),
     path('api/get-itineraries/', views.get_itineraries, name='get_itineraries'),
+    path('api/delete-itinerary/<int:itinerary_id>/', views.delete_itinerary, name='delete_itinerary'),
 ]

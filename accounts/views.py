@@ -127,3 +127,26 @@ def get_itineraries(request):
             'created_at': itinerary.created_at.strftime('%Y-%m-%d %H:%M')
         })
     return JsonResponse({'itineraries': data})
+
+@login_required
+@require_http_methods(["POST", "DELETE"])
+def delete_itinerary(request, itinerary_id):
+    """Delete a user's itinerary"""
+    try:
+        itinerary = Itinerary.objects.get(id=itinerary_id, user=request.user)
+        itinerary_title = itinerary.title
+        itinerary.delete()
+        return JsonResponse({
+            'success': True, 
+            'message': f'Itinerary "{itinerary_title}" has been deleted successfully.'
+        })
+    except Itinerary.DoesNotExist:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Itinerary not found or you do not have permission to delete it.'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False, 
+            'error': str(e)
+        }, status=500)

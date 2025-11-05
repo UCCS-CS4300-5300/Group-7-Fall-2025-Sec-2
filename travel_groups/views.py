@@ -5,7 +5,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from .models import TravelGroup, GroupMember, TravelPreference, GroupItinerary, TripPreference
-from .forms import CreateGroupForm, JoinGroupForm, SearchGroupForm, TravelPreferenceForm, GroupSettingsForm, TripPreferenceForm
+from .forms import CreateGroupForm, JoinGroupForm, SearchGroupForm, TravelPreferenceForm, GroupSettingsForm, TripPreferenceForm, ItineraryForm
 from accounts.models import Itinerary
 
 @login_required
@@ -68,6 +68,10 @@ def create_group(request):
 @login_required
 def group_detail(request, group_id):
     """View to show group details"""
+    import json
+    from datetime import date
+    from ai_implementation.models import GroupConsensus, GroupItineraryOption, ItineraryVote, ActivityResult
+    
     group = get_object_or_404(TravelGroup, id=group_id)
     
     # Check if user is a member
@@ -93,6 +97,79 @@ def group_detail(request, group_id):
         except TravelPreference.DoesNotExist:
             pass
     
+    # Get preference count for "Find Your Trip" button
+    prefs_count = TripPreference.objects.filter(group=group, is_completed=True).count()
+    
+    # Check for active voting options
+    voting_options = None
+    user_vote = None
+    votes_cast = 0
+    voting_complete = False
+    
+    try:
+        # Get latest consensus with options
+        consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
+        
+        if consensus:
+            # Get the 3 voting options
+            options = GroupItineraryOption.objects.filter(
+                group=group,
+                consensus=consensus
+            ).select_related('selected_flight', 'selected_hotel')
+            
+            if options.exists():
+                # Get activities for each option
+                voting_options = []
+                for option in options:
+                    activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
+                    
+                    # Get activities matching this option's destination
+                    if option.search and activity_ids:
+                        all_activities = ActivityResult.objects.filter(
+                            search=option.search,
+                            external_id__in=activity_ids
+                        )
+                        
+                        # Filter activities to match option's destination
+                        activities = []
+                        for activity in all_activities:
+                            try:
+                                activity_raw = json.loads(activity.raw_data)
+                                activity_destination = activity_raw.get('searched_destination', '')
+                                
+                                # If option has a destination, filter by it
+                                if option.destination:
+                                    if activity_destination == option.destination:
+                                        activities.append(activity)
+                                else:
+                                    # No destination filtering - include all activities
+                                    activities.append(activity)
+                            except:
+                                # If can't parse raw_data, include activity
+                                activities.append(activity)
+                        
+                        # If no activities after filtering, fall back to showing all
+                        if not activities and all_activities:
+                            activities = list(all_activities)
+                    else:
+                        activities = []
+                    
+                    voting_options.append({
+                        'option': option,
+                        'activities': activities
+                    })
+                
+                # Check if user has voted
+                if user_is_member:
+                    user_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+                
+                # Get voting stats
+                votes_cast = ItineraryVote.objects.filter(group=group).count()
+                voting_complete = votes_cast >= members.count()
+    except Exception as e:
+        print(f"Error fetching voting options: {str(e)}")
+        voting_options = None
+    
     context = {
         'group': group,
         'members': members,
@@ -101,6 +178,13 @@ def group_detail(request, group_id):
         'user_role': user_role,
         'travel_preferences': travel_preferences,
         'group_code': group.get_unique_identifier(),
+        'user': request.user,  # Explicitly pass user for permission checks
+        'prefs_count': prefs_count,  # For "Find Your Trip" button
+        'voting_options': voting_options,  # For Trips tab voting display
+        'user_vote': user_vote,
+        'votes_cast': votes_cast,
+        'voting_complete': voting_complete,
+        'today': date.today(),  # For date picker minimum date
     }
     return render(request, 'travel_groups/group_detail.html', context)
 
@@ -254,17 +338,32 @@ def group_trip_management(request, group_id):
         messages.error(request, 'You are not a member of this group.')
         return redirect('travel_groups:group_list')
     
-    # Get group itineraries
-    group_itineraries = GroupItinerary.objects.filter(group=group).select_related('itinerary', 'added_by')
+    # Get group itineraries - ensure we get all trips linked to this group
+    # Use select_related to avoid N+1 queries
+    group_itineraries = GroupItinerary.objects.filter(
+        group=group
+    ).select_related('itinerary', 'added_by').order_by('-added_at')
+    
+    # Debug logging
+    print(f"📋 Group '{group.name}' has {group_itineraries.count()} trips")
+    for gi in group_itineraries:
+        print(f"   - {gi.itinerary.title} (ID: {gi.itinerary.id}) added by {gi.added_by.username}")
     
     # Get user's personal itineraries for adding to group
-    user_itineraries = Itinerary.objects.filter(user=request.user)
+    # Exclude itineraries already in this group
+    existing_itinerary_ids = group_itineraries.values_list('itinerary_id', flat=True)
+    user_itineraries = Itinerary.objects.filter(
+        user=request.user
+    ).exclude(
+        id__in=existing_itinerary_ids
+    )
     
     context = {
         'group': group,
         'group_itineraries': group_itineraries,
         'user_itineraries': user_itineraries,
         'user_role': membership.role,
+        'user': request.user,  # Explicitly pass user for template comparison
     }
     return render(request, 'travel_groups/group_trip_management.html', context)
 
@@ -300,6 +399,8 @@ def add_itinerary_to_group(request, group_id):
 @require_http_methods(["POST"])
 def create_group_trip(request, group_id):
     """Create a new trip for the group"""
+    from django.db import transaction
+    
     group = get_object_or_404(TravelGroup, id=group_id)
     
     # Check if user is a member
@@ -310,18 +411,32 @@ def create_group_trip(request, group_id):
     
     form = ItineraryForm(request.POST)
     if form.is_valid():
-        itinerary = form.save(commit=False)
-        itinerary.user = request.user
-        itinerary.save()
-        
-        # Link to group
-        GroupItinerary.objects.create(
-            group=group,
-            itinerary=itinerary,
-            added_by=request.user
-        )
-        
-        return JsonResponse({'success': True, 'itinerary_id': itinerary.id})
+        try:
+            # Use atomic transaction to ensure both saves succeed
+            with transaction.atomic():
+                itinerary = form.save(commit=False)
+                itinerary.user = request.user
+                itinerary.save()
+                
+                # Link to group - this ensures trip appears in group
+                group_itinerary = GroupItinerary.objects.create(
+                    group=group,
+                    itinerary=itinerary,
+                    added_by=request.user,
+                    is_approved=True  # Auto-approve trips created by members
+                )
+                
+                print(f"✅ Created trip '{itinerary.title}' (ID: {itinerary.id}) for group '{group.name}'")
+                print(f"✅ GroupItinerary link created (ID: {group_itinerary.id})")
+            
+            return JsonResponse({
+                'success': True, 
+                'itinerary_id': itinerary.id,
+                'message': f'Trip "{itinerary.title}" created successfully!'
+            })
+        except Exception as e:
+            print(f"❌ Error creating trip: {str(e)}")
+            return JsonResponse({'success': False, 'errors': str(e)})
     else:
         return JsonResponse({'success': False, 'errors': form.errors})
 
@@ -439,3 +554,99 @@ def view_group_trip_preferences(request, group_id):
         'members': members,
     }
     return render(request, 'travel_groups/view_trip_preferences.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def edit_group_trip(request, group_id, itinerary_id):
+    """Edit a trip/itinerary in a group"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Check if user is a member
+    try:
+        membership = GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'You are not a member of this group.'})
+    
+    # Get the itinerary
+    try:
+        itinerary = Itinerary.objects.get(id=itinerary_id)
+        
+        # Check permissions: only admin or the owner can edit
+        if membership.role != 'admin' and itinerary.user != request.user:
+            return JsonResponse({'success': False, 'error': 'You do not have permission to edit this trip.'})
+        
+        # Update the itinerary
+        itinerary.title = request.POST.get('title', itinerary.title)
+        itinerary.description = request.POST.get('description', itinerary.description)
+        itinerary.destination = request.POST.get('destination', itinerary.destination)
+        
+        # Update dates if provided
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        
+        if start_date:
+            itinerary.start_date = start_date
+        if end_date:
+            itinerary.end_date = end_date
+        
+        itinerary.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Trip "{itinerary.title}" has been updated successfully.'
+        })
+        
+    except Itinerary.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Trip not found.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_http_methods(["POST", "GET"])
+def delete_group_trip(request, group_id, itinerary_id):
+    """Delete a trip/itinerary from a group"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Check if user is a member
+    try:
+        membership = GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        messages.error(request, 'You are not a member of this group.')
+        return redirect('travel_groups:group_list')
+    
+    # Get the group itinerary link
+    try:
+        group_itinerary = GroupItinerary.objects.get(
+            group=group,
+            itinerary_id=itinerary_id
+        )
+        
+        # Check permissions: only admin or the person who added it can delete
+        if membership.role != 'admin' and group_itinerary.added_by != request.user:
+            messages.error(request, 'You do not have permission to delete this trip.')
+            return redirect('travel_groups:group_detail', group_id=group.id)
+        
+        # Store trip title for message
+        trip_title = group_itinerary.itinerary.title
+        
+        # Delete the link (not the itinerary itself, just the group connection)
+        group_itinerary.delete()
+        
+        messages.success(request, f'Trip "{trip_title}" has been removed from the group.')
+        
+        # Return JSON if AJAX request
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'message': f'Trip "{trip_title}" removed successfully.'})
+        
+        # Otherwise redirect back
+        return redirect('travel_groups:group_trip_management', group_id=group.id)
+        
+    except GroupItinerary.DoesNotExist:
+        messages.error(request, 'Trip not found in this group.')
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Trip not found'})
+        
+        return redirect('travel_groups:group_detail', group_id=group.id)
