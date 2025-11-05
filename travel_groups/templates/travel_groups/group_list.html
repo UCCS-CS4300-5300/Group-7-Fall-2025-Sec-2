@@ -58,13 +58,6 @@
                 </div>
                 <div class="card-body">
                     <p class="card-text">{{ group.description|truncatewords:20 }}</p>
-                    <div class="mb-2">
-                        <strong><i class="fas fa-map-marker-alt"></i> Destination:</strong> {{ group.destination }}
-                    </div>
-                    <div class="mb-2">
-                        <strong><i class="fas fa-calendar"></i> Dates:</strong> 
-                        {{ group.start_date|date:"M d" }} - {{ group.end_date|date:"M d, Y" }}
-                    </div>
                     <div class="mb-3">
                         <strong><i class="fas fa-users"></i> Members:</strong> 
                         {{ group.member_count }}/{{ group.max_members }}
