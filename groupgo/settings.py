@@ -154,7 +154,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # OpenAI API Configuration
 # Using OPEN_AI_KEY secret key
 OPENAI_API_KEY = os.environ.get('OPEN_AI_KEY', '')
-OPENAI_MODEL = 'gpt-4-turbo-preview'
+OPENAI_MODEL = 'gpt-4o-mini'
 
 # Travel API Configuration
 # Duffel API (Primary - for flights and hotels)
