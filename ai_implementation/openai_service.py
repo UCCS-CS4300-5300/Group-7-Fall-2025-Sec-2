@@ -30,7 +30,7 @@ class OpenAIService:
     def _log_request_size(self, messages: List[Dict[str, str]], function_name: str):
         """
         Calculate and log the size of the OpenAI request in KB.
-        
+
         Args:
             messages: List of message dictionaries being sent to OpenAI
             function_name: Name of the function making the request
@@ -39,13 +39,17 @@ class OpenAIService:
         messages_json = json.dumps(messages)
         size_bytes = sys.getsizeof(messages_json)
         size_kb = size_bytes / 1024
-        
-        print(f"📦 OpenAI Request Size [{function_name}]: {size_kb:.2f} KB ({size_bytes:,} bytes)")
-        
+
+        print(
+            f"📦 OpenAI Request Size [{function_name}]: {size_kb:.2f} KB ({size_bytes:,} bytes)"
+        )
+
         # Also log character count which correlates to token count
-        total_chars = sum(len(msg.get('content', '')) for msg in messages)
-        print(f"   Total characters in messages: {total_chars:,} (~{total_chars//4} tokens estimated)")
-        
+        total_chars = sum(len(msg.get("content", "")) for msg in messages)
+        print(
+            f"   Total characters in messages: {total_chars:,} (~{total_chars//4} tokens estimated)"
+        )
+
         return size_kb
 
     def consolidate_travel_results(
@@ -86,10 +90,10 @@ class OpenAIService:
                 },
                 {"role": "user", "content": prompt},
             ]
-            
+
             # Log request size
             self._log_request_size(messages, "consolidate_travel_results")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -291,58 +295,109 @@ IMPORTANT: All flights and hotels MUST match these dates. Filter your selections
             )
 
         prompt = f"""
-Analyze {len(member_preferences)} group members' travel preferences and create 3 itinerary options.
+Analyze these {len(member_preferences)} group members' travel preferences and create 3 DIFFERENT itinerary options for them to vote on.
 
 {date_info}
 
-MEMBERS:
+MEMBER PREFERENCES SUMMARY:
 {member_summary}
 
-BUDGETS: Min=${min_budget:.0f}, Med=${median_budget:.0f}, Max=${max_budget:.0f}
+BUDGET ANALYSIS FROM ALL MEMBERS:
+- Lowest Budget: ${min_budget:.2f}
+- Median Budget: ${median_budget:.2f}
+- Highest Budget: ${max_budget:.2f}
 
-FLIGHTS:
-{json.dumps(simplified_flights)}
+FULL GROUP MEMBER PREFERENCES (with detailed preferences):
+{json.dumps(member_preferences, indent=2)}
 
-HOTELS:
-{json.dumps(simplified_hotels)}
+AVAILABLE FLIGHTS (top 5):
+{json.dumps(flight_results[:5], indent=2)}
 
-ACTIVITIES:
-{json.dumps(simplified_activities)}
+AVAILABLE HOTELS (top 5):
+{json.dumps(hotel_results[:5], indent=2)}
 
-Create 3 options matching budgets A=${min_budget:.0f}, B=${median_budget:.0f}, C=${max_budget:.0f}.
-Use exact IDs from lists. Return JSON:
+AVAILABLE ACTIVITIES (top 8):
+{json.dumps(activity_results[:8], indent=2)}
+
+CRITICAL REQUIREMENTS:
+- YOU MUST consider ALL {len(member_preferences)} members' preferences, not just one person
+- Each option must balance ALL members' destination, activity, and accommodation preferences
+- Different members may have different budgets - find compromises that work for the group
+- IMPORTANT: Different members want different destinations - USE DIFFERENT DESTINATIONS across the 3 options when possible
+- Look at the "searched_destination" field in flights/hotels/activities to see which destination each option is for
+- Option A, B, and C should ideally feature DIFFERENT destinations from different members' preferences
+
+Create 3 distinct options with SPECIFIC BUDGET TARGETS AND DESTINATION VARIETY:
+
+DESTINATION SELECTION STRATEGY:
+- Each member wants a specific destination (see their preferences)
+- Try to feature a DIFFERENT destination in each option (A, B, C) when members have different preferences
+- For example: If Member 1 wants Rome and Member 2 wants Sicily, Option A could be Rome, Option B could be Sicily, Option C could be a third location or the best compromise
+- Select flights/hotels/activities that match each chosen destination (use "searched_destination" field)
+
+1. **Option A - Budget-Friendly**: Target the LOWEST budget (${min_budget:.2f})
+   - Choose ONE destination that best fits this budget
+   - Select the cheapest flight, hotel, and activities FOR THAT DESTINATION
+   - Must fit within ${min_budget:.2f} budget
+   - Explain which member's destination preference this option prioritizes
+   
+2. **Option B - Balanced**: Target the MEDIAN budget (${median_budget:.2f})
+   - Choose a DIFFERENT destination from Option A (if multiple destinations available)
+   - Balance between cost and quality FOR THAT DESTINATION
+   - Must fit within ${median_budget:.2f} budget
+   - Explain which member's destination preference this option prioritizes
+   
+3. **Option C - Premium**: Target the HIGHEST budget (${max_budget:.2f})
+   - Choose a DIFFERENT destination from Options A and B (if multiple destinations available)
+   - Select the best quality flight, hotel, and activities FOR THAT DESTINATION
+   - Can use up to ${max_budget:.2f} budget
+   - Explain which member's destination preference this option prioritizes
+
+For EACH option, provide a JSON response with this structure:
 {{
     "options": [
         {{
             "option_letter": "A",
-            "title": "Budget-Friendly",
-            "description": "Brief description",
-            "selected_flight_id": "exact id from flights",
-            "selected_hotel_id": "exact id from hotels",
-            "selected_activity_ids": ["exact ids from activities"],
-            "estimated_total_cost": 0.0,
-            "cost_per_person": 0.0,
-            "ai_reasoning": "Why this works for the group",
-            "compromise_explanation": "How it balances preferences",
-            "pros": ["Pro 1", "Pro 2"],
-            "cons": ["Con 1", "Con 2"]
+            "title": "Budget-Friendly Adventure",
+            "description": "Detailed 2-3 sentence description of this option",
+            "selected_flight_id": "MUST be exact 'id' field from AVAILABLE FLIGHTS above",
+            "selected_hotel_id": "MUST be exact 'id' field from AVAILABLE HOTELS above",
+            "selected_activity_ids": ["MUST be exact 'id' fields from AVAILABLE ACTIVITIES above"],
+            "estimated_total_cost": 2500.00,
+            "cost_per_person": 1250.00,
+            "ai_reasoning": "Detailed explanation of why this combination works for the ENTIRE group, mentioning ALL members",
+            "compromise_explanation": "How this option balances ALL {len(member_preferences)} members' preferences - specifically mention each member by name and their key preferences that are addressed",
+            "pros": ["Advantage 1", "Advantage 2", "Advantage 3"],
+            "cons": ["Trade-off 1", "Trade-off 2"]
         }},
         {{
             "option_letter": "B",
-            "title": "Balanced",
+            "title": "Best All-Around Experience",
+            "description": "...",
             ...
         }},
         {{
             "option_letter": "C",
-            "title": "Premium",
+            "title": "Premium Luxury Package",
+            "description": "...",
             ...
         }}
     ],
-    "voting_guidance": "Brief voting guidance",
-    "consensus_summary": "What all options have in common"
+    "voting_guidance": "Brief note on how members should consider their vote",
+    "consensus_summary": "What all options have in common (unanimous preferences)"
 }}
 
-ONLY use exact IDs from the lists above. DO NOT create new IDs.
+CRITICAL REMINDERS:
+- ONLY use IDs that appear in the "AVAILABLE FLIGHTS", "AVAILABLE HOTELS", and "AVAILABLE ACTIVITIES" sections above
+- DO NOT make up or create new IDs - copy the exact "id" field from the results provided
+- If you select a hotel with id "hotel_rome_123", that EXACT ID must exist in the AVAILABLE HOTELS list
+- In your ai_reasoning and compromise_explanation, explicitly mention how you incorporated EACH member's preferences
+- If destinations differ among members, explain how you chose a compromise location or activities
+- If activity preferences differ, explain how you selected activities that appeal to multiple members
+- Show that you considered ALL {len(member_preferences)} members, not just the member with the strongest preferences
+- Each option's total cost should reflect its budget tier (lowest/median/highest)
+
+Make each option genuinely different in cost but similar in how well it serves ALL members!
 """
 
         # Log budget analysis for debugging
@@ -365,10 +420,10 @@ ONLY use exact IDs from the lists above. DO NOT create new IDs.
                 },
                 {"role": "user", "content": prompt},
             ]
-            
+
             # Log request size
             self._log_request_size(messages, "generate_three_itinerary_options")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -450,10 +505,10 @@ Please provide a JSON response with:
                 },
                 {"role": "user", "content": prompt},
             ]
-            
+
             # Log request size
             self._log_request_size(messages, "generate_group_consensus")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -523,10 +578,10 @@ Keep it under 300 words and make it inspiring!
                 },
                 {"role": "user", "content": prompt},
             ]
-            
+
             # Log request size
             self._log_request_size(messages, "generate_itinerary_description")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -577,10 +632,10 @@ Please provide a helpful, accurate answer to this travel question.
                 },
                 {"role": "user", "content": prompt},
             ]
-            
+
             # Log request size
             self._log_request_size(messages, "answer_travel_question")
-            
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
