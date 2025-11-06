@@ -87,8 +87,8 @@
                         <ul class="mb-0">
                             <li><strong>Group Code:</strong> <code>{{ group.get_unique_identifier }}</code></li>
                             <li><strong>Created:</strong> {{ group.created_at|date:"M d, Y" }}</li>
-                            <li><strong>Destination:</strong> {{ group.destination }}</li>
-                            <li><strong>Travel Dates:</strong> {{ group.start_date|date:"M d" }} - {{ group.end_date|date:"M d, Y" }}</li>
+                            <li><strong>Members:</strong> {{ group.member_count }}/{{ group.max_members }}</li>
+                            <li><strong>Note:</strong> Destination and travel dates are now stored in individual trip preferences. View trip preferences in the group details page.</li>
                         </ul>
                     </div>
                 </div>
