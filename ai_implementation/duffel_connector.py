@@ -233,8 +233,7 @@ class DuffelFlightSearch(DuffelAPIConnector):
                 'aircraft': aircraft_name,
                 'seats_available': offer.get('available_services', 'Limited'),
                 'route': f"{first_segment.get('origin', {}).get('iata_code')} → {last_segment.get('destination', {}).get('iata_code')}",
-                'is_mock': False,
-                'raw_data': offer  # Store full offer for booking later
+                'is_mock': False
             }
             
         except Exception as e:
