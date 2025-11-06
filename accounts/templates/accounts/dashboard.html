@@ -60,11 +60,18 @@
                         {% for trip in active_trips %}
                             <div class="card active-trip-card mb-3">
                                 <div class="card-body">
-                                    <h6 class="card-title">{{ trip.title }}</h6>
-                                    <p class="card-text text-muted">{{ trip.destination }}</p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar"></i> {{ trip.start_date }} - {{ trip.end_date }}
-                                    </small>
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="card-title">{{ trip.title }}</h6>
+                                            <p class="card-text text-muted mb-2">{{ trip.destination }}</p>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i> {{ trip.start_date }} - {{ trip.end_date }}
+                                            </small>
+                                        </div>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteItinerary({{ trip.id }}, '{{ trip.title|escapejs }}')" title="Delete itinerary">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         {% endfor %}
@@ -93,11 +100,18 @@
                         {% for itinerary in saved_itineraries %}
                             <div class="card itinerary-card mb-3">
                                 <div class="card-body">
-                                    <h6 class="card-title">{{ itinerary.title }}</h6>
-                                    <p class="card-text text-muted">{{ itinerary.destination }}</p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar"></i> {{ itinerary.start_date }} - {{ itinerary.end_date }}
-                                    </small>
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="card-title">{{ itinerary.title }}</h6>
+                                            <p class="card-text text-muted mb-2">{{ itinerary.destination }}</p>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i> {{ itinerary.start_date }} - {{ itinerary.end_date }}
+                                            </small>
+                                        </div>
+                                        <button class="btn btn-danger btn-sm" onclick="deleteItinerary({{ itinerary.id }}, '{{ itinerary.title|escapejs }}')" title="Delete itinerary">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         {% endfor %}
@@ -186,4 +200,49 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function deleteItinerary(itineraryId, title) {
+    if (confirm(`Are you sure you want to delete "${title}"?\n\nThis action cannot be undone.`)) {
+        fetch(`/api/delete-itinerary/${itineraryId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete itinerary'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the itinerary.');
+        });
+    }
+}
+
+// Helper function to get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
 {% endblock %}

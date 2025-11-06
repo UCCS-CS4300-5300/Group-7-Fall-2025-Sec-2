@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ itinerary.title }} - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>{{ itinerary.title }}</h2>
+                <a href="{% url 'ai_implementation:my_itineraries' %}" class="btn btn-outline-secondary">
+                    🔙 Back to My Itineraries
+                </a>
+            </div>
+            <p class="text-muted">{{ itinerary.destination }} • {{ itinerary.duration_days }} days</p>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Description -->
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">📝 Description</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ itinerary.description }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flight Details -->
+        {% if itinerary.selected_flight %}
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">✈️ Flight</h5>
+                </div>
+                <div class="card-body">
+                    <h6>{{ itinerary.selected_flight.airline }}</h6>
+                    <p>
+                        <strong>Price:</strong> ${{ itinerary.selected_flight.price }}<br>
+                        <strong>Departure:</strong> {{ itinerary.selected_flight.departure_time }}<br>
+                        <strong>Arrival:</strong> {{ itinerary.selected_flight.arrival_time }}<br>
+                        <strong>Duration:</strong> {{ itinerary.selected_flight.duration }}<br>
+                        <strong>Stops:</strong> {{ itinerary.selected_flight.stops }}<br>
+                        <strong>Class:</strong> {{ itinerary.selected_flight.booking_class }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Hotel Details -->
+        {% if itinerary.selected_hotel %}
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">🏨 Hotel</h5>
+                </div>
+                <div class="card-body">
+                    <h6>{{ itinerary.selected_hotel.name }}</h6>
+                    <p>
+                        <strong>Total Price:</strong> ${{ itinerary.selected_hotel.total_price }}<br>
+                        <strong>Per Night:</strong> ${{ itinerary.selected_hotel.price_per_night }}<br>
+                        {% if itinerary.selected_hotel.rating %}
+                        <strong>Rating:</strong> ⭐ {{ itinerary.selected_hotel.rating }}/5<br>
+                        {% endif %}
+                        <strong>Room Type:</strong> {{ itinerary.selected_hotel.room_type }}<br>
+                        {% if itinerary.selected_hotel.breakfast_included %}
+                        <span class="badge badge-info">Breakfast Included</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Activities -->
+    {% if activities %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">🎭 Activities & Tours</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for activity in activities %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ activity.name }}</h6>
+                                    <p class="card-text small">
+                                        <strong>Price:</strong> ${{ activity.price }}<br>
+                                        <strong>Duration:</strong> {{ activity.duration_hours }} hours<br>
+                                        {% if activity.rating %}
+                                        <strong>Rating:</strong> ⭐ {{ activity.rating }}/5<br>
+                                        {% endif %}
+                                        {% if activity.category %}
+                                        <span class="badge badge-secondary">{{ activity.category }}</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cost Summary -->
+    {% if itinerary.estimated_total_cost %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">💰 Cost Summary</h5>
+                </div>
+                <div class="card-body">
+                    <h4>Total Estimated Cost: ${{ itinerary.estimated_total_cost }}</h4>
+                    <p class="text-muted">This is an estimate based on the selected options. Actual costs may vary.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="row mb-5">
+        <div class="col-md-12 text-center">
+            {% if itinerary.search %}
+            <a href="{% url 'ai_implementation:search_results' itinerary.search.id %}" class="btn btn-primary">
+                🔄 Modify Search
+            </a>
+            {% endif %}
+            <a href="{% url 'ai_implementation:my_itineraries' %}" class="btn btn-outline-secondary">
+                📋 Back to Itineraries
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from .models import TravelGroup, GroupMember, TravelPreference, TripPreference
+from accounts.models import Itinerary
 
 class CreateGroupForm(forms.ModelForm):
     """Form for creating a new travel group"""
@@ -130,5 +131,31 @@ class TripPreferenceForm(forms.ModelForm):
         if start_date and end_date:
             if start_date >= end_date:
                 raise forms.ValidationError("End date must be after start date.")
+        
+        return cleaned_data
+
+
+class ItineraryForm(forms.ModelForm):
+    """Form for creating itineraries"""
+    class Meta:
+        model = Itinerary
+        fields = ['title', 'description', 'destination', 'start_date', 'end_date', 'is_active']
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Trip title'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Describe your trip...'}),
+            'destination': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Destination'}),
+            'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        
+        if start_date and end_date:
+            if end_date < start_date:
+                raise forms.ValidationError("End date must be after or equal to start date.")
         
         return cleaned_data

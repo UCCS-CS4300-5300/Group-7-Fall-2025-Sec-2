@@ -25,6 +25,7 @@ urlpatterns = [
     path("", include("accounts.urls")),
     path("home/", include("home.urls")),
     path("groups/", include("travel_groups.urls")),
+    path("ai/", include("ai_implementation.urls")),
 ]
 
 # Serve static files during development
