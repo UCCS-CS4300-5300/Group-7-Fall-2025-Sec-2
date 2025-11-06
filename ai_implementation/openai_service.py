@@ -12,43 +12,45 @@ from django.conf import settings
 
 class OpenAIService:
     """Service class for interacting with OpenAI API"""
-    
+
     def __init__(self):
         """Initialize OpenAI client with API key from environment or settings"""
-        api_key = os.environ.get('OPENAI_API_KEY', getattr(settings, 'OPENAI_API_KEY', None))
+        api_key = os.environ.get(
+            "OPENAI_API_KEY", getattr(settings, "OPENAI_API_KEY", None)
+        )
         if not api_key:
             raise ValueError(
                 "OpenAI API key not found. Please set OPENAI_API_KEY in environment "
                 "variables or Django settings."
             )
         self.client = OpenAI(api_key=api_key)
-        self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4-turbo-preview')
-    
+        self.model = getattr(settings, "OPENAI_MODEL", "gpt-4-turbo-preview")
+
     def consolidate_travel_results(
         self,
         flight_results: List[Dict[str, Any]],
         hotel_results: List[Dict[str, Any]],
         activity_results: List[Dict[str, Any]],
-        user_preferences: Dict[str, Any]
+        user_preferences: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
         Use OpenAI to consolidate and rank travel search results based on user preferences.
-        
+
         Args:
             flight_results: List of flight search results
             hotel_results: List of hotel search results
             activity_results: List of activity search results
             user_preferences: Dictionary containing user/group preferences
-            
+
         Returns:
             Dictionary containing consolidated and ranked results with AI recommendations
         """
-        
+
         # Prepare the prompt for OpenAI
         prompt = self._create_consolidation_prompt(
             flight_results, hotel_results, activity_results, user_preferences
         )
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -60,40 +62,37 @@ class OpenAIService:
                             "multiple travel options (flights, hotels, activities) and consolidate them "
                             "into a coherent, ranked recommendation based on user preferences. "
                             "Provide practical advice and explain your reasoning."
-                        )
+                        ),
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
                 max_tokens=1000,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             # Parse the response
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error calling OpenAI API: {str(e)}")
             return {
                 "error": str(e),
                 "flights": flight_results,
                 "hotels": hotel_results,
-                "activities": activity_results
+                "activities": activity_results,
             }
-    
+
     def _create_consolidation_prompt(
         self,
         flights: List[Dict],
         hotels: List[Dict],
         activities: List[Dict],
-        preferences: Dict
+        preferences: Dict,
     ) -> str:
         """Create a detailed prompt for OpenAI to consolidate travel results"""
-        
+
         prompt = f"""
 Please analyze the following travel options and provide consolidated recommendations.
 
@@ -151,56 +150,60 @@ Rank items by how well they match the preferences, with scores from 0-100.
 Include only the top 5 recommendations for each category.
 """
         return prompt
-    
+
     def generate_three_itinerary_options(
         self,
         member_preferences: List[Dict[str, Any]],
         flight_results: List[Dict[str, Any]],
         hotel_results: List[Dict[str, Any]],
         activity_results: List[Dict[str, Any]],
-        selected_dates: Dict[str, Any] = None
+        selected_dates: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
         Generate 3 different itinerary options for group voting.
         Each option balances member preferences differently.
-        
+
         Args:
             member_preferences: List of preference dictionaries from group members
             flight_results: Available flight options
             hotel_results: Available hotel options
             activity_results: Available activity options
             selected_dates: Optional dict with start_date, end_date, duration_days
-            
+
         Returns:
             Dictionary containing 3 different itinerary options with reasoning
         """
-        
+
         # Calculate budget statistics from all members
         budgets = []
         for pref in member_preferences:
-            budget_str = pref.get('budget', '0')
+            budget_str = pref.get("budget", "0")
             # Handle both string and numeric budgets, remove $ and commas
             if isinstance(budget_str, str):
-                budget_str = budget_str.replace('$', '').replace(',', '').strip()
+                budget_str = budget_str.replace("$", "").replace(",", "").strip()
             try:
                 budget = float(budget_str)
                 if budget > 0:
                     budgets.append(budget)
             except (ValueError, TypeError):
                 continue
-        
+
         # Calculate min, median, max budgets
         if budgets:
             budgets.sort()
             min_budget = budgets[0]
             max_budget = budgets[-1]
-            median_budget = budgets[len(budgets) // 2] if len(budgets) > 0 else sum(budgets) / len(budgets)
+            median_budget = (
+                budgets[len(budgets) // 2]
+                if len(budgets) > 0
+                else sum(budgets) / len(budgets)
+            )
         else:
             # Fallback if no budgets found
             min_budget = 1000
             median_budget = 3000
             max_budget = 5000
-        
+
         # Build date info string
         date_info = ""
         if selected_dates:
@@ -212,13 +215,56 @@ SELECTED TRAVEL DATES:
 
 IMPORTANT: All flights and hotels MUST match these dates. Filter your selections to match this date range.
 """
-        
-        # Build individual member summary
-        member_summary = "\n".join([
-            f"- {pref.get('user', 'Member')}: Budget ${pref.get('budget', 'N/A')}, Destination: {pref.get('destination', 'N/A')}, Activities: {pref.get('activity_preferences', 'N/A')}"
-            for pref in member_preferences
-        ])
-        
+
+        # OPTIMIZATION: Summarize member preferences (no full JSON)
+        member_summary = "\n".join(
+            [
+                f"- {pref.get('user', 'Member')}: Budget ${pref.get('budget', 'N/A')}, Destination: {pref.get('destination', 'N/A')}, Activities: {str(pref.get('activity_preferences', 'N/A'))[:80]}"
+                for pref in member_preferences
+            ]
+        )
+
+        # OPTIMIZATION: Simplify flight data - only essential fields
+        simplified_flights = []
+        for flight in flight_results[:3]:  # Reduced from 5 to 3
+            simplified_flights.append(
+                {
+                    "id": flight.get("id"),
+                    "destination": flight.get("searched_destination", "N/A"),
+                    "price": flight.get("total_amount", "N/A"),
+                    "carrier": (
+                        flight.get("owner", {}).get("name", "N/A")
+                        if isinstance(flight.get("owner"), dict)
+                        else "N/A"
+                    ),
+                }
+            )
+
+        # OPTIMIZATION: Simplify hotel data - only essential fields
+        simplified_hotels = []
+        for hotel in hotel_results[:4]:  # Reduced from 5 to 4
+            simplified_hotels.append(
+                {
+                    "id": hotel.get("id"),
+                    "name": hotel.get("name", "N/A")[:60],  # Truncate long names
+                    "destination": hotel.get("searched_destination", "N/A"),
+                    "price": hotel.get("price_per_night", "N/A"),
+                    "rating": hotel.get("rating", "N/A"),
+                }
+            )
+
+        # OPTIMIZATION: Simplify activity data - only essential fields
+        simplified_activities = []
+        for activity in activity_results[:6]:  # Reduced from 8 to 6
+            simplified_activities.append(
+                {
+                    "id": activity.get("id"),
+                    "name": activity.get("name", "N/A")[:60],  # Truncate long names
+                    "destination": activity.get("searched_destination", "N/A"),
+                    "price": activity.get("price", "N/A"),
+                }
+            )
+
         prompt = f"""
 Analyze these {len(member_preferences)} group members' travel preferences and create 3 DIFFERENT itinerary options for them to vote on.
 
@@ -232,99 +278,56 @@ BUDGET ANALYSIS FROM ALL MEMBERS:
 - Median Budget: ${median_budget:.2f}
 - Highest Budget: ${max_budget:.2f}
 
-FULL GROUP MEMBER PREFERENCES (with detailed preferences):
-{json.dumps(member_preferences, indent=2)}
+AVAILABLE FLIGHTS (simplified):
+{json.dumps(simplified_flights, indent=2)}
 
-AVAILABLE FLIGHTS (top 5):
-{json.dumps(flight_results[:5], indent=2)}
+AVAILABLE HOTELS (simplified):
+{json.dumps(simplified_hotels, indent=2)}
 
-AVAILABLE HOTELS (top 5):
-{json.dumps(hotel_results[:5], indent=2)}
+AVAILABLE ACTIVITIES (simplified):
+{json.dumps(simplified_activities, indent=2)}
 
-AVAILABLE ACTIVITIES (top 8):
-{json.dumps(activity_results[:8], indent=2)}
+REQUIREMENTS:
+- Consider ALL {len(member_preferences)} members' preferences
+- Balance destinations, activities, and accommodations for the group
+- Use different destinations across options when possible
+- Match budget targets: Option A=${min_budget:.2f}, B=${median_budget:.2f}, C=${max_budget:.2f}
 
-CRITICAL REQUIREMENTS:
-- YOU MUST consider ALL {len(member_preferences)} members' preferences, not just one person
-- Each option must balance ALL members' destination, activity, and accommodation preferences
-- Different members may have different budgets - find compromises that work for the group
-- IMPORTANT: Different members want different destinations - USE DIFFERENT DESTINATIONS across the 3 options when possible
-- Look at the "searched_destination" field in flights/hotels/activities to see which destination each option is for
-- Option A, B, and C should ideally feature DIFFERENT destinations from different members' preferences
-
-Create 3 distinct options with SPECIFIC BUDGET TARGETS AND DESTINATION VARIETY:
-
-DESTINATION SELECTION STRATEGY:
-- Each member wants a specific destination (see their preferences)
-- Try to feature a DIFFERENT destination in each option (A, B, C) when members have different preferences
-- For example: If Member 1 wants Rome and Member 2 wants Sicily, Option A could be Rome, Option B could be Sicily, Option C could be a third location or the best compromise
-- Select flights/hotels/activities that match each chosen destination (use "searched_destination" field)
-
-1. **Option A - Budget-Friendly**: Target the LOWEST budget (${min_budget:.2f})
-   - Choose ONE destination that best fits this budget
-   - Select the cheapest flight, hotel, and activities FOR THAT DESTINATION
-   - Must fit within ${min_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-   
-2. **Option B - Balanced**: Target the MEDIAN budget (${median_budget:.2f})
-   - Choose a DIFFERENT destination from Option A (if multiple destinations available)
-   - Balance between cost and quality FOR THAT DESTINATION
-   - Must fit within ${median_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-   
-3. **Option C - Premium**: Target the HIGHEST budget (${max_budget:.2f})
-   - Choose a DIFFERENT destination from Options A and B (if multiple destinations available)
-   - Select the best quality flight, hotel, and activities FOR THAT DESTINATION
-   - Can use up to ${max_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-
-For EACH option, provide a JSON response with this structure:
+Return JSON with this structure:
 {{
     "options": [
         {{
             "option_letter": "A",
-            "title": "Budget-Friendly Adventure",
-            "description": "Detailed 2-3 sentence description of this option",
-            "selected_flight_id": "MUST be exact 'id' field from AVAILABLE FLIGHTS above",
-            "selected_hotel_id": "MUST be exact 'id' field from AVAILABLE HOTELS above",
-            "selected_activity_ids": ["MUST be exact 'id' fields from AVAILABLE ACTIVITIES above"],
-            "estimated_total_cost": 2500.00,
-            "cost_per_person": 1250.00,
-            "ai_reasoning": "Detailed explanation of why this combination works for the ENTIRE group, mentioning ALL members",
-            "compromise_explanation": "How this option balances ALL {len(member_preferences)} members' preferences - specifically mention each member by name and their key preferences that are addressed",
-            "pros": ["Advantage 1", "Advantage 2", "Advantage 3"],
-            "cons": ["Trade-off 1", "Trade-off 2"]
+            "title": "Budget-Friendly",
+            "description": "Brief description",
+            "selected_flight_id": "exact id from flights",
+            "selected_hotel_id": "exact id from hotels",
+            "selected_activity_ids": ["exact ids from activities"],
+            "estimated_total_cost": 0.0,
+            "cost_per_person": 0.0,
+            "ai_reasoning": "Why this works for the group",
+            "compromise_explanation": "How it balances preferences",
+            "pros": ["Pro 1", "Pro 2"],
+            "cons": ["Con 1", "Con 2"]
         }},
         {{
             "option_letter": "B",
-            "title": "Best All-Around Experience",
-            "description": "...",
+            "title": "Balanced",
             ...
         }},
         {{
             "option_letter": "C",
-            "title": "Premium Luxury Package",
-            "description": "...",
+            "title": "Premium",
             ...
         }}
     ],
-    "voting_guidance": "Brief note on how members should consider their vote",
-    "consensus_summary": "What all options have in common (unanimous preferences)"
+    "voting_guidance": "Brief voting guidance",
+    "consensus_summary": "What all options have in common"
 }}
 
-CRITICAL REMINDERS:
-- ONLY use IDs that appear in the "AVAILABLE FLIGHTS", "AVAILABLE HOTELS", and "AVAILABLE ACTIVITIES" sections above
-- DO NOT make up or create new IDs - copy the exact "id" field from the results provided
-- If you select a hotel with id "hotel_rome_123", that EXACT ID must exist in the AVAILABLE HOTELS list
-- In your ai_reasoning and compromise_explanation, explicitly mention how you incorporated EACH member's preferences
-- If destinations differ among members, explain how you chose a compromise location or activities
-- If activity preferences differ, explain how you selected activities that appeal to multiple members
-- Show that you considered ALL {len(member_preferences)} members, not just the member with the strongest preferences
-- Each option's total cost should reflect its budget tier (lowest/median/highest)
-
-Make each option genuinely different in cost but similar in how well it serves ALL members!
+ONLY use exact IDs from the lists above. DO NOT create new IDs.
 """
-        
+
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
         print(f"   All member budgets: {budgets}")
@@ -333,55 +336,50 @@ Make each option genuinely different in cost but similar in how well it serves A
         print(f"   Max Budget: ${max_budget:.2f}")
         print(f"\n📋 MEMBER PREFERENCES:")
         for i, pref in enumerate(member_preferences, 1):
-            print(f"   {i}. {pref.get('user')}: ${pref.get('budget')} - {pref.get('destination')} - {pref.get('activity_preferences', '')[:50]}...")
-        
+            print(
+                f"   {i}. {pref.get('user')}: ${pref.get('budget')} - {pref.get('destination')} - {pref.get('activity_preferences', '')[:50]}..."
+            )
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "You are an expert group travel coordinator AI. Your job is to create "
-                            "3 distinct itinerary options that consider ALL group members equally. "
-                            "CRITICAL: You must balance ALL members' preferences (destinations, activities, accommodations) "
-                            "in EVERY option, not just focus on one person. The three options differ by budget level "
-                            "(lowest/median/highest from the group), but ALL must satisfy everyone's preferences as much as possible. "
-                            "Each option should explain which member preferences are prioritized and how compromises work for the group."
-                        )
+                        "content": "You are a travel coordinator AI. Create 3 itinerary options balancing all group members' preferences at different budget levels. Return valid JSON only.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
-                temperature=0.8,  # Higher creativity for variety
-                max_tokens=2500,
-                response_format={"type": "json_object"}
+                temperature=0.7,  # Reduced for more consistent results
+                max_tokens=2000,  # Reduced from 2500
+                response_format={"type": "json_object"},
+                timeout=30,  # Add 30 second timeout
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error generating itinerary options: {str(e)}")
             return {
                 "error": str(e),
                 "options": [],
-                "note": "Unable to generate options due to error"
+                "note": "Unable to generate options due to error",
             }
-    
-    def generate_group_consensus(self, member_preferences: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+    def generate_group_consensus(
+        self, member_preferences: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         Analyze multiple group members' preferences and generate a consensus.
-        
+
         Args:
             member_preferences: List of preference dictionaries from group members
-            
+
         Returns:
             Dictionary containing consensus preferences and recommendations
         """
-        
+
         prompt = f"""
 Analyze the following travel preferences from {len(member_preferences)} group members and find the best consensus.
 
@@ -417,7 +415,7 @@ Please provide a JSON response with:
     "group_dynamics_notes": "Notes about group compatibility and suggestions"
 }}
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -428,51 +426,52 @@ Please provide a JSON response with:
                             "You are an expert group travel coordinator. Your job is to analyze "
                             "multiple people's travel preferences and find the best consensus that "
                             "satisfies the group while being fair and practical."
-                        )
+                        ),
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
                 max_tokens=1500,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error generating group consensus: {str(e)}")
             return {
                 "error": str(e),
                 "consensus_preferences": {},
-                "note": "Unable to generate consensus due to error"
+                "note": "Unable to generate consensus due to error",
             }
-    
+
     def create_itinerary_description(
         self,
         destination: str,
         activities: List[str],
         duration_days: int,
-        preferences: Optional[Dict] = None
+        preferences: Optional[Dict] = None,
     ) -> str:
         """
         Generate a compelling itinerary description using OpenAI.
-        
+
         Args:
             destination: Travel destination
             activities: List of selected activities
             duration_days: Number of days for the trip
             preferences: Optional user preferences
-            
+
         Returns:
             Generated itinerary description
         """
-        
-        prefs_text = json.dumps(preferences, indent=2) if preferences else "No specific preferences"
-        
+
+        prefs_text = (
+            json.dumps(preferences, indent=2)
+            if preferences
+            else "No specific preferences"
+        )
+
         prompt = f"""
 Create an engaging, detailed itinerary description for a {duration_days}-day trip to {destination}.
 
@@ -488,44 +487,45 @@ Generate a compelling description that:
 
 Keep it under 300 words and make it inspiring!
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a creative travel writer who creates inspiring itinerary descriptions."
+                        "content": "You are a creative travel writer who creates inspiring itinerary descriptions.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.8,
-                max_tokens=500
+                max_tokens=500,
             )
-            
+
             return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"Error generating itinerary description: {str(e)}")
             return f"Explore {destination} over {duration_days} days with exciting activities including {', '.join(activities)}."
-    
-    def answer_travel_question(self, question: str, context: Optional[Dict] = None) -> str:
+
+    def answer_travel_question(
+        self, question: str, context: Optional[Dict] = None
+    ) -> str:
         """
         Answer travel-related questions using OpenAI.
-        
+
         Args:
             question: User's question
             context: Optional context about the trip/search
-            
+
         Returns:
             AI-generated answer
         """
-        
-        context_text = json.dumps(context, indent=2) if context else "No specific context"
-        
+
+        context_text = (
+            json.dumps(context, indent=2) if context else "No specific context"
+        )
+
         prompt = f"""
 Context: {context_text}
 
@@ -533,7 +533,7 @@ Question: {question}
 
 Please provide a helpful, accurate answer to this travel question.
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -543,20 +543,16 @@ Please provide a helpful, accurate answer to this travel question.
                         "content": (
                             "You are a knowledgeable travel advisor. Provide accurate, helpful "
                             "information about travel destinations, planning, and logistics."
-                        )
+                        ),
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=500,
             )
-            
+
             return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"Error answering question: {str(e)}")
             return "I apologize, but I'm unable to answer that question at the moment. Please try again later."
-
