@@ -140,7 +140,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-<<<<<<< HEAD
 # OpenAI API Configuration
 # Using OPEN_AI_KEY secret key
 OPENAI_API_KEY = os.environ.get('OPEN_AI_KEY', '')
@@ -160,7 +159,6 @@ HOTEL_API_KEY = os.environ.get('HOTEL_API_KEY', '')
 
 # Activity API Configuration (if using a specific service)
 ACTIVITY_API_KEY = os.environ.get('ACTIVITY_API_KEY', '')
-=======
 # Email Configuration
 # For development, use console backend. In production, configure SMTP settings.
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
@@ -181,4 +179,3 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'  # Set to True for testing without Redis
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
->>>>>>> main
