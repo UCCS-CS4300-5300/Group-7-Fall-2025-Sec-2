@@ -1557,7 +1557,7 @@ class ModelPropertyTest(TestCase):
             stops=0,
             booking_class='Business',
             seats_available='5',
-            raw_data=json.dumps({'extra': 'data'}),
+            searched_destination='Tokyo',
             is_mock=False
         )
         
@@ -1603,8 +1603,8 @@ class ModelPropertyTest(TestCase):
 class HelperFunctionTest(TestCase):
     """Tests for helper functions and utilities"""
     
-    def test_json_parsing_in_results(self):
-        """Test JSON data handling in results"""
+    def test_searched_destination_in_results(self):
+        """Test searched_destination field in results"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         search = TravelSearch.objects.create(
             user=user,
@@ -1613,11 +1613,6 @@ class HelperFunctionTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
-        raw_data = {
-            'test_field': 'test_value',
-            'nested': {'key': 'value'}
-        }
         
         activity = ActivityResult.objects.create(
             search=search,
@@ -1628,13 +1623,12 @@ class HelperFunctionTest(TestCase):
             price=75.00,
             currency='USD',
             duration_hours=2,
-            raw_data=json.dumps(raw_data)
+            searched_destination='London'
         )
         
-        # Parse raw_data
-        parsed = json.loads(activity.raw_data)
-        self.assertEqual(parsed['test_field'], 'test_value')
-        self.assertEqual(parsed['nested']['key'], 'value')
+        # Test searched_destination field
+        self.assertEqual(activity.searched_destination, 'London')
+        self.assertIsNotNone(activity.searched_destination)
 
 
 # ============================================================================
@@ -2167,8 +2161,8 @@ class ErrorHandlingTest(TestCase):
         # Should return error dict instead of raising
         self.assertIn('error', result)
         
-    def test_json_parsing_error_handling(self):
-        """Test handling of invalid JSON in raw_data"""
+    def test_searched_destination_field(self):
+        """Test searched_destination field can be null or empty"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         search = TravelSearch.objects.create(
             user=user,
@@ -2178,20 +2172,33 @@ class ErrorHandlingTest(TestCase):
             adults=2
         )
         
-        activity = ActivityResult.objects.create(
+        # Test with destination
+        activity_with_dest = ActivityResult.objects.create(
             search=search,
-            external_id='test_activity',
-            name='Test',
+            external_id='test_activity_1',
+            name='Test Activity 1',
             category='Tour',
             description='Test',
             price=50.00,
             currency='USD',
             duration_hours=2,
-            raw_data='invalid json {'  # Invalid JSON
+            searched_destination='Berlin'
         )
+        self.assertEqual(activity_with_dest.searched_destination, 'Berlin')
         
-        # Should not raise when accessing
-        self.assertIsNotNone(activity.raw_data)
+        # Test without destination (null)
+        activity_no_dest = ActivityResult.objects.create(
+            search=search,
+            external_id='test_activity_2',
+            name='Test Activity 2',
+            category='Tour',
+            description='Test',
+            price=50.00,
+            currency='USD',
+            duration_hours=2,
+            searched_destination=None
+        )
+        self.assertIsNone(activity_no_dest.searched_destination)
 
 
 # ============================================================================
@@ -2779,7 +2786,7 @@ class ActivityFilteringByDestinationTest(TestCase):
             price=50.00,
             currency='EUR',
             duration_hours=3,
-            raw_data=json.dumps({'searched_destination': 'Rome, Italy'})
+            searched_destination='Rome, Italy'
         )
         
         activity_sicily = ActivityResult.objects.create(
@@ -2791,25 +2798,18 @@ class ActivityFilteringByDestinationTest(TestCase):
             price=30.00,
             currency='EUR',
             duration_hours=4,
-            raw_data=json.dumps({'searched_destination': 'Sicily, Italy'})
+            searched_destination='Sicily, Italy'
         )
         
-        # Filter activities by destination
-        rome_activities = []
-        all_activities = ActivityResult.objects.filter(search=search)
-        
-        for activity in all_activities:
-            try:
-                activity_raw = json.loads(activity.raw_data)
-                activity_destination = activity_raw.get('searched_destination', '')
-                if activity_destination == 'Rome, Italy':
-                    rome_activities.append(activity)
-            except:
-                pass
+        # Filter activities by destination using searched_destination field
+        rome_activities = ActivityResult.objects.filter(
+            search=search,
+            searched_destination='Rome, Italy'
+        )
         
         # Should only get Rome activity
-        self.assertEqual(len(rome_activities), 1)
-        self.assertEqual(rome_activities[0].name, 'Colosseum Tour')
+        self.assertEqual(rome_activities.count(), 1)
+        self.assertEqual(rome_activities.first().name, 'Colosseum Tour')
 
 
 # ============================================================================
@@ -4306,7 +4306,7 @@ class ModelFieldsDetailTest(TestCase):
             stops=0,
             booking_class='Business',
             seats_available='10',
-            raw_data=json.dumps({'full': 'data'}),
+            searched_destination='Singapore',
             is_mock=False,
             ai_score=92.5,
             ai_reason='Excellent direct flight'
@@ -4344,7 +4344,7 @@ class ModelFieldsDetailTest(TestCase):
             distance_from_center='2 km',
             breakfast_included=True,
             cancellation_policy='Free up to 24h',
-            raw_data=json.dumps({'extra': 'info'}),
+            searched_destination='Dubai',
             is_mock=False,
             ai_score=98.0,
             ai_reason='Top rated luxury hotel'
