@@ -238,167 +238,76 @@ Include only the top 5 recommendations for each category.
         # Build date info string
         date_info = ""
         if selected_dates:
-            date_info = f"""
-SELECTED TRAVEL DATES:
-- Start Date: {selected_dates.get('start_date')}
-- End Date: {selected_dates.get('end_date')}
-- Duration: {selected_dates.get('duration_days')} days
+            date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d). Match these dates."
 
-IMPORTANT: All flights and hotels MUST match these dates. Filter your selections to match this date range.
-"""
-
-        # OPTIMIZATION: Summarize member preferences (no full JSON)
-        member_summary = "\n".join(
-            [
-                f"- {pref.get('user', 'Member')}: Budget ${pref.get('budget', 'N/A')}, Destination: {pref.get('destination', 'N/A')}, Activities: {str(pref.get('activity_preferences', 'N/A'))[:80]}"
-                for pref in member_preferences
-            ]
-        )
-
-        # OPTIMIZATION: Simplify flight data - only essential fields
-        simplified_flights = []
-        for flight in flight_results[:2]:  # Reduced to 2 max for memory constraints
-            simplified_flights.append(
-                {
-                    "id": flight.get("id"),
-                    "dest": flight.get("searched_destination", "N/A")[:30],  # Truncate
-                    "price": flight.get("total_amount", "N/A"),
-                }
+        # OPTIMIZATION: Summarize member preferences concisely
+        member_summary = []
+        for pref in member_preferences:
+            activities = pref.get('activity_preferences', [])
+            if isinstance(activities, list):
+                activities = ','.join(activities[:2])  # First 2 only
+            else:
+                activities = str(activities)[:40]
+            member_summary.append(
+                f"{pref.get('user', 'M')}: ${pref.get('budget', '?')}, {pref.get('destination', '?')}, {activities}"
             )
 
-        # OPTIMIZATION: Simplify hotel data - only essential fields
-        simplified_hotels = []
-        for hotel in hotel_results[:3]:  # Reduced to 3 max for memory constraints
-            simplified_hotels.append(
-                {
-                    "id": hotel.get("id"),
-                    "name": hotel.get("name", "N/A")[:40],  # More aggressive truncation
-                    "dest": hotel.get("searched_destination", "N/A")[:30],  # Truncate
-                    "price": hotel.get("price_per_night", "N/A"),
-                }
-            )
+        # OPTIMIZATION: Ultra-compact data - only critical fields
+        flights_compact = [
+            {"id": f.get("id"), "to": f.get("searched_destination", "")[:20], "$": f.get("total_amount")}
+            for f in flight_results[:5]
+        ]
+        
+        hotels_compact = [
+            {"id": h.get("id"), "name": h.get("name", "")[:25], "to": h.get("searched_destination", "")[:20], "$": h.get("price_per_night")}
+            for h in hotel_results[:5]
+        ]
+        
+        activities_compact = [
+            {"id": a.get("id"), "name": a.get("name", "")[:30], "to": a.get("searched_destination", "")[:20], "$": a.get("price")}
+            for a in activity_results[:6]
+        ]
 
-        # OPTIMIZATION: Simplify activity data - only essential fields
-        simplified_activities = []
-        for activity in activity_results[:4]:  # Reduced to 4 max for memory constraints
-            simplified_activities.append(
-                {
-                    "id": activity.get("id"),
-                    "name": activity.get("name", "N/A")[
-                        :40
-                    ],  # More aggressive truncation
-                    "dest": activity.get("searched_destination", "N/A")[
-                        :30
-                    ],  # Truncate
-                    "price": activity.get("price", "N/A"),
-                }
-            )
+        prompt = f"""Create 3 itinerary options for {len(member_preferences)} members to vote on. {date_info}
 
-        prompt = f"""
-Analyze these {len(member_preferences)} group members' travel preferences and create 3 DIFFERENT itinerary options for them to vote on.
+MEMBERS: {'; '.join(member_summary)}
+BUDGETS: Low=${min_budget:.0f}, Med=${median_budget:.0f}, High=${max_budget:.0f}
 
-{date_info}
+FLIGHTS: {json.dumps(flights_compact)}
+HOTELS: {json.dumps(hotels_compact)}
+ACTIVITIES: {json.dumps(activities_compact)}
 
-MEMBER PREFERENCES SUMMARY:
-{member_summary}
+REQUIREMENTS (CRITICAL):
+1. Balance ALL members' preferences (destinations, activities, budgets)
+2. Use DIFFERENT destinations across A/B/C when members want different places
+3. Match "to" field when selecting flights/hotels/activities for each destination
+4. Option A: Low budget (${min_budget:.0f}), Option B: Med budget (${median_budget:.0f}), Option C: High budget (${max_budget:.0f})
+5. ONLY use exact IDs from above lists - DO NOT create/modify IDs
+6. Each option must explain which member(s) preferences it prioritizes
 
-BUDGET ANALYSIS FROM ALL MEMBERS:
-- Lowest Budget: ${min_budget:.2f}
-- Median Budget: ${median_budget:.2f}
-- Highest Budget: ${max_budget:.2f}
-
-FULL GROUP MEMBER PREFERENCES (with detailed preferences):
-{json.dumps(member_preferences, indent=2)}
-
-AVAILABLE FLIGHTS (top 5):
-{json.dumps(flight_results[:5], indent=2)}
-
-AVAILABLE HOTELS (top 5):
-{json.dumps(hotel_results[:5], indent=2)}
-
-AVAILABLE ACTIVITIES (top 8):
-{json.dumps(activity_results[:8], indent=2)}
-
-CRITICAL REQUIREMENTS:
-- YOU MUST consider ALL {len(member_preferences)} members' preferences, not just one person
-- Each option must balance ALL members' destination, activity, and accommodation preferences
-- Different members may have different budgets - find compromises that work for the group
-- IMPORTANT: Different members want different destinations - USE DIFFERENT DESTINATIONS across the 3 options when possible
-- Look at the "searched_destination" field in flights/hotels/activities to see which destination each option is for
-- Option A, B, and C should ideally feature DIFFERENT destinations from different members' preferences
-
-Create 3 distinct options with SPECIFIC BUDGET TARGETS AND DESTINATION VARIETY:
-
-DESTINATION SELECTION STRATEGY:
-- Each member wants a specific destination (see their preferences)
-- Try to feature a DIFFERENT destination in each option (A, B, C) when members have different preferences
-- For example: If Member 1 wants Rome and Member 2 wants Sicily, Option A could be Rome, Option B could be Sicily, Option C could be a third location or the best compromise
-- Select flights/hotels/activities that match each chosen destination (use "searched_destination" field)
-
-1. **Option A - Budget-Friendly**: Target the LOWEST budget (${min_budget:.2f})
-   - Choose ONE destination that best fits this budget
-   - Select the cheapest flight, hotel, and activities FOR THAT DESTINATION
-   - Must fit within ${min_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-   
-2. **Option B - Balanced**: Target the MEDIAN budget (${median_budget:.2f})
-   - Choose a DIFFERENT destination from Option A (if multiple destinations available)
-   - Balance between cost and quality FOR THAT DESTINATION
-   - Must fit within ${median_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-   
-3. **Option C - Premium**: Target the HIGHEST budget (${max_budget:.2f})
-   - Choose a DIFFERENT destination from Options A and B (if multiple destinations available)
-   - Select the best quality flight, hotel, and activities FOR THAT DESTINATION
-   - Can use up to ${max_budget:.2f} budget
-   - Explain which member's destination preference this option prioritizes
-
-For EACH option, provide a JSON response with this structure:
+JSON STRUCTURE (REQUIRED):
 {{
-    "options": [
-        {{
-            "option_letter": "A",
-            "title": "Budget-Friendly Adventure",
-            "description": "Detailed 2-3 sentence description of this option",
-            "selected_flight_id": "MUST be exact 'id' field from AVAILABLE FLIGHTS above",
-            "selected_hotel_id": "MUST be exact 'id' field from AVAILABLE HOTELS above",
-            "selected_activity_ids": ["MUST be exact 'id' fields from AVAILABLE ACTIVITIES above"],
-            "estimated_total_cost": 2500.00,
-            "cost_per_person": 1250.00,
-            "ai_reasoning": "Detailed explanation of why this combination works for the ENTIRE group, mentioning ALL members",
-            "compromise_explanation": "How this option balances ALL {len(member_preferences)} members' preferences - specifically mention each member by name and their key preferences that are addressed",
-            "pros": ["Advantage 1", "Advantage 2", "Advantage 3"],
-            "cons": ["Trade-off 1", "Trade-off 2"]
-        }},
-        {{
-            "option_letter": "B",
-            "title": "Best All-Around Experience",
-            "description": "...",
-            ...
-        }},
-        {{
-            "option_letter": "C",
-            "title": "Premium Luxury Package",
-            "description": "...",
-            ...
-        }}
-    ],
-    "voting_guidance": "Brief note on how members should consider their vote",
-    "consensus_summary": "What all options have in common (unanimous preferences)"
-}}
-
-CRITICAL REMINDERS:
-- ONLY use IDs that appear in the "AVAILABLE FLIGHTS", "AVAILABLE HOTELS", and "AVAILABLE ACTIVITIES" sections above
-- DO NOT make up or create new IDs - copy the exact "id" field from the results provided
-- If you select a hotel with id "hotel_rome_123", that EXACT ID must exist in the AVAILABLE HOTELS list
-- In your ai_reasoning and compromise_explanation, explicitly mention how you incorporated EACH member's preferences
-- If destinations differ among members, explain how you chose a compromise location or activities
-- If activity preferences differ, explain how you selected activities that appeal to multiple members
-- Show that you considered ALL {len(member_preferences)} members, not just the member with the strongest preferences
-- Each option's total cost should reflect its budget tier (lowest/median/highest)
-
-Make each option genuinely different in cost but similar in how well it serves ALL members!
-"""
+  "options": [
+    {{
+      "option_letter": "A",
+      "title": "string",
+      "description": "string (2-3 sentences)",
+      "selected_flight_id": "string (exact id from FLIGHTS)",
+      "selected_hotel_id": "string (exact id from HOTELS)",
+      "selected_activity_ids": ["string array (exact ids from ACTIVITIES)"],
+      "estimated_total_cost": number,
+      "cost_per_person": number,
+      "ai_reasoning": "string (explain how ALL members are considered)",
+      "compromise_explanation": "string (mention each member by name)",
+      "pros": ["string", "string", "string"],
+      "cons": ["string", "string"]
+    }},
+    {{"option_letter": "B", ...}},
+    {{"option_letter": "C", ...}}
+  ],
+  "voting_guidance": "string",
+  "consensus_summary": "string"
+}}"""
 
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
@@ -416,7 +325,7 @@ Make each option genuinely different in cost but similar in how well it serves A
             messages = [
                 {
                     "role": "system",
-                    "content": "Travel coordinator AI. Create 3 itinerary options balancing group preferences. Return JSON only.",
+                    "content": "Travel AI: Create 3 itinerary options balancing all group preferences. Return valid JSON matching exact structure.",
                 },
                 {"role": "user", "content": prompt},
             ]
@@ -428,7 +337,7 @@ Make each option genuinely different in cost but similar in how well it serves A
                 model=self.model,
                 messages=messages,
                 temperature=0.7,  # Reduced for more consistent results
-                max_tokens=1200,  # Reduced from 2000 to conserve memory
+                max_tokens=1500,  # Increased slightly for detailed responses
                 response_format={"type": "json_object"},
                 timeout=90,  # Increased timeout to 90 seconds
             )
