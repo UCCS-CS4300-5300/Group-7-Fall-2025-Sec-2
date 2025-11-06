@@ -929,19 +929,19 @@ def generate_voting_options(request, group_id):
             # OPTIMIZATION: Prepare lightweight data for OpenAI to reduce memory usage
             # Only include essential fields instead of full objects
             lightweight_flights = []
-            for flight in api_results["flights"][:10]:  # Limit to 10 flights max
+            for flight in api_results["flights"][:6]:  # Reduced to 6 flights max
                 lightweight_flights.append(
                     {
                         "id": flight.get("id"),
-                        "airline": flight.get("airline"),
                         "price": flight.get("price"),
                         "searched_destination": flight.get("searched_destination"),
+                        "total_amount": flight.get("total_amount"),
                         "owner": flight.get("owner", {}),
                     }
                 )
 
             lightweight_hotels = []
-            for hotel in api_results["hotels"][:12]:  # Limit to 12 hotels max
+            for hotel in api_results["hotels"][:9]:  # Reduced to 9 hotels max
                 lightweight_hotels.append(
                     {
                         "id": hotel.get("id"),
@@ -954,8 +954,8 @@ def generate_voting_options(request, group_id):
 
             lightweight_activities = []
             for activity in api_results["activities"][
-                :15
-            ]:  # Limit to 15 activities max
+                :12
+            ]:  # Reduced to 12 activities max
                 lightweight_activities.append(
                     {
                         "id": activity.get("id"),
