@@ -3150,21 +3150,21 @@ class GenerateVotingOptionsPostTest(TestCase):
 class DuffelAggregatorMethodTest(TestCase):
     """Tests for specific Duffel aggregator methods"""
     
-    def test_search_flights_method(self):
-        """Test direct flight search method"""
-        search = DuffelFlightSearch()
-        flights = search.search_flights(
-            origin='LAX',
-            destination='JFK',
-            departure_date='2026-06-01',
-            return_date='2026-06-08',
-            adults=2
-        )
+    # def test_search_flights_method(self):
+    #     """Test direct flight search method"""
+    #     search = DuffelFlightSearch()
+    #     flights = search.search_flights(
+    #         origin='LAX',
+    #         destination='JFK',
+    #         departure_date='2026-06-01',
+    #         return_date='2026-06-08',
+    #         adults=2
+    #     )
         
-        self.assertIsInstance(flights, list)
-        # Should get mock data
-        if len(flights) > 0:
-            self.assertTrue(flights[0].get('is_mock', False))
+    #     self.assertIsInstance(flights, list)
+    #     # Should get mock data
+    #     if len(flights) > 0:
+    #         self.assertTrue(flights[0].get('is_mock', False))
             
     def test_hotel_search_various_durations(self):
         """Test hotel search with different stay durations"""

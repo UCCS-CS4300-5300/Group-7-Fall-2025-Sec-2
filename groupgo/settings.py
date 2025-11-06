@@ -12,10 +12,21 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Detect if we're running tests
+# Check for test command in sys.argv, coverage test runner, or test environment variable
+TESTING = (
+    'test' in sys.argv or 
+    'pytest' in sys.argv[0] or 
+    any('test' in arg.lower() for arg in sys.argv) or
+    os.environ.get('DJANGO_TESTING', '').lower() == 'true' or
+    'coverage' in sys.argv[0] and 'test' in ' '.join(sys.argv)
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -161,7 +172,11 @@ HOTEL_API_KEY = os.environ.get('HOTEL_API_KEY', '')
 ACTIVITY_API_KEY = os.environ.get('ACTIVITY_API_KEY', '')
 # Email Configuration
 # For development, use console backend. In production, configure SMTP settings.
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+# For tests, use locmem backend to avoid connecting to email server
+if TESTING:
+    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+else:
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
@@ -176,6 +191,10 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'  # Set to True for testing without Redis
+# For tests, always run Celery tasks synchronously (eager mode)
+if TESTING:
+    CELERY_TASK_ALWAYS_EAGER = True
+else:
+    CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'  # Set to True for testing without Redis
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
