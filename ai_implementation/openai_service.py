@@ -5,6 +5,7 @@ Handles all interactions with the OpenAI API for consolidating and processing tr
 
 import os
 import json
+import sys
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 from django.conf import settings
@@ -24,7 +25,28 @@ class OpenAIService:
                 "variables or Django settings."
             )
         self.client = OpenAI(api_key=api_key)
-        self.model = getattr(settings, "OPENAI_MODEL", "gpt-4-turbo-preview")
+        self.model = getattr(settings, "OPENAI_MODEL", "gpt-4o-mini")
+
+    def _log_request_size(self, messages: List[Dict[str, str]], function_name: str):
+        """
+        Calculate and log the size of the OpenAI request in KB.
+        
+        Args:
+            messages: List of message dictionaries being sent to OpenAI
+            function_name: Name of the function making the request
+        """
+        # Convert messages to JSON string to get actual payload size
+        messages_json = json.dumps(messages)
+        size_bytes = sys.getsizeof(messages_json)
+        size_kb = size_bytes / 1024
+        
+        print(f"📦 OpenAI Request Size [{function_name}]: {size_kb:.2f} KB ({size_bytes:,} bytes)")
+        
+        # Also log character count which correlates to token count
+        total_chars = sum(len(msg.get('content', '')) for msg in messages)
+        print(f"   Total characters in messages: {total_chars:,} (~{total_chars//4} tokens estimated)")
+        
+        return size_kb
 
     def consolidate_travel_results(
         self,
@@ -52,20 +74,25 @@ class OpenAIService:
         )
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert travel planner AI assistant. Your job is to analyze "
+                        "multiple travel options (flights, hotels, activities) and consolidate them "
+                        "into a coherent, ranked recommendation based on user preferences. "
+                        "Provide practical advice and explain your reasoning."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ]
+            
+            # Log request size
+            self._log_request_size(messages, "consolidate_travel_results")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert travel planner AI assistant. Your job is to analyze "
-                            "multiple travel options (flights, hotels, activities) and consolidate them "
-                            "into a coherent, ranked recommendation based on user preferences. "
-                            "Provide practical advice and explain your reasoning."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=1000,
                 response_format={"type": "json_object"},
@@ -331,15 +358,20 @@ ONLY use exact IDs from the lists above. DO NOT create new IDs.
             )
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "Travel coordinator AI. Create 3 itinerary options balancing group preferences. Return JSON only.",
+                },
+                {"role": "user", "content": prompt},
+            ]
+            
+            # Log request size
+            self._log_request_size(messages, "generate_three_itinerary_options")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Travel coordinator AI. Create 3 itinerary options balancing group preferences. Return JSON only.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 temperature=0.7,  # Reduced for more consistent results
                 max_tokens=1200,  # Reduced from 2000 to conserve memory
                 response_format={"type": "json_object"},
@@ -407,19 +439,24 @@ Please provide a JSON response with:
 """
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are an expert group travel coordinator. Your job is to analyze "
+                        "multiple people's travel preferences and find the best consensus that "
+                        "satisfies the group while being fair and practical."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ]
+            
+            # Log request size
+            self._log_request_size(messages, "generate_group_consensus")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an expert group travel coordinator. Your job is to analyze "
-                            "multiple people's travel preferences and find the best consensus that "
-                            "satisfies the group while being fair and practical."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=1500,
                 response_format={"type": "json_object"},
@@ -479,15 +516,20 @@ Keep it under 300 words and make it inspiring!
 """
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are a creative travel writer who creates inspiring itinerary descriptions.",
+                },
+                {"role": "user", "content": prompt},
+            ]
+            
+            # Log request size
+            self._log_request_size(messages, "generate_itinerary_description")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a creative travel writer who creates inspiring itinerary descriptions.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 temperature=0.8,
                 max_tokens=500,
             )
@@ -525,18 +567,23 @@ Please provide a helpful, accurate answer to this travel question.
 """
 
         try:
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a knowledgeable travel advisor. Provide accurate, helpful "
+                        "information about travel destinations, planning, and logistics."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ]
+            
+            # Log request size
+            self._log_request_size(messages, "answer_travel_question")
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a knowledgeable travel advisor. Provide accurate, helpful "
-                            "information about travel destinations, planning, and logistics."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=500,
             )
