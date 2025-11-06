@@ -208,7 +208,8 @@ Include only the top 5 recommendations for each category.
         # Calculate budget statistics from all members
         budgets = []
         for pref in member_preferences:
-            budget_str = pref.get("budget", "0")
+            budget_val = pref.get("budget", "0")
+            budget_str = str(budget_val)  # Ensure it's a string for processing
             # Handle both string and numeric budgets, remove $ and commas
             if isinstance(budget_str, str):
                 budget_str = budget_str.replace("$", "").replace(",", "").strip()
@@ -238,60 +239,75 @@ Include only the top 5 recommendations for each category.
         # Build date info string
         date_info = ""
         if selected_dates:
-            date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d)."
+            date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d). Match these dates."
 
-        # OPTIMIZATION V2: Ultra-concise member summary
+        # OPTIMIZATION: Summarize member preferences concisely
         member_summary = []
         for pref in member_preferences:
-            budget_k = int(float(pref.get('budget', 0))) // 1000
-            dest = pref.get('destination', '?').split(',')[0] # City only
-            acts = pref.get('activity_preferences', [])
-            act_str = ','.join(acts[:2]) if isinstance(acts, list) else str(acts)[:20]
+            activities = pref.get("activity_preferences", [])
+            if isinstance(activities, list):
+                activities = ",".join(activities[:2])  # First 2 only
+            else:
+                activities = str(activities)[:40]
             member_summary.append(
-                f"{pref.get('user', 'M')}(${budget_k}k,{dest},{act_str})"
+                f"{pref.get('user', 'M')}: ${pref.get('budget', '?')}, {pref.get('destination', '?')}, {activities}"
             )
 
-        # OPTIMIZATION V2: Ultra-compact data with single-letter keys
+        # OPTIMIZATION: Ultra-compact data - only critical fields
         flights_compact = [
-            {"id": f.get("id"), "d": f.get("searched_destination", "")[:15], "p": f.get("total_amount")}
+            {
+                "id": f.get("id"),
+                "to": f.get("searched_destination", "")[:20],
+                "$": f.get("total_amount"),
+            }
             for f in flight_results[:5]
         ]
-        
+
         hotels_compact = [
-            {"id": h.get("id"), "n": h.get("name", "")[:20], "d": h.get("searched_destination", "")[:15], "p": h.get("price_per_night")}
+            {
+                "id": h.get("id"),
+                "name": h.get("name", "")[:25],
+                "to": h.get("searched_destination", "")[:20],
+                "$": h.get("price_per_night"),
+            }
             for h in hotel_results[:5]
         ]
-        
+
         activities_compact = [
-            {"id": a.get("id"), "n": a.get("name", "")[:25], "d": a.get("searched_destination", "")[:15], "p": a.get("price")}
+            {
+                "id": a.get("id"),
+                "name": a.get("name", "")[:30],
+                "to": a.get("searched_destination", "")[:20],
+                "$": a.get("price"),
+            }
             for a in activity_results[:6]
         ]
 
-        prompt = f"""Create 3 vote options for {len(member_preferences)} members. {date_info}
-MEMBERS: {'; '.join(member_summary)}
-BUDGETS: L=${min_budget:.0f}, M=${median_budget:.0f}, H=${max_budget:.0f}
-DATA: "f":{json.dumps(flights_compact)}, "h":{json.dumps(hotels_compact)}, "a":{json.dumps(activities_compact)}
+        prompt = f"""Analyze {len(member_preferences)} members' travel preferences. Create 3 itinerary options for voting.
 
-RULES:
-1. Balance all preferences (dest, acts, budget).
-2. Use different destinations for options A, B, C.
-3. Match item 'd' (destination) to the option's destination.
-4. Target budgets: A=L, B=M, C=H.
-5. Use exact IDs from DATA only. Do not invent IDs.
-6. Explain which member's preferences are prioritized in each option.
+{date_info}
+MEMBERS: {member_summary}
+BUDGETS: Low=${min_budget:.2f}, Med=${median_budget:.2f}, High=${max_budget:.2f}
 
-JSON STRUCTURE (strict):
-{{"options":[{{
-"option_letter":"A", "title":"str", "description":"str(2-3 sent.)",
-"selected_flight_id":"str(exact id from DATA.f)",
-"selected_hotel_id":"str(exact id from DATA.h)",
-"selected_activity_ids":["str(exact ids from DATA.a)"],
-"estimated_total_cost":num, "cost_per_person":num,
-"ai_reasoning":"str(how ALL members are considered)",
-"compromise_explanation":"str(mention each member by name)",
-"pros":["str","str"], "cons":["str","str"]
-}}, {{"option_letter":"B",...}}, {{"option_letter":"C",...}}],
-"voting_guidance":"str", "consensus_summary":"str"}}"""
+DATA:
+{json.dumps(member_preferences, indent=2)}
+{json.dumps(flight_results[:5], indent=2)}
+{json.dumps(hotel_results[:5], indent=2)}
+{json.dumps(activity_results[:8], indent=2)}
+
+REQUIREMENTS:
+- Balance ALL {len(member_preferences)} members' preferences
+- Use DIFFERENT destinations per option when possible (check "searched_destination" field)
+- Option A: ${min_budget:.2f} budget, cheapest choices for ONE destination
+- Option B: ${median_budget:.2f} budget, balanced quality, DIFFERENT destination
+- Option C: ${max_budget:.2f} budget, premium quality, DIFFERENT destination
+- Explain which member's destination each option prioritizes
+
+JSON OUTPUT:
+{{"options":[{{"option_letter":"A","title":"...","description":"1-2 sentences","selected_flight_id":"exact id","selected_hotel_id":"exact id","selected_activity_ids":["exact ids"],"estimated_total_cost":0.00,"cost_per_person":0.00,"ai_reasoning":"Why this works for ALL members","compromise_explanation":"How this addresses EACH member by name","pros":["...","...","..."],"cons":["...","..."]}},{{"option_letter":"B",...}},{{"option_letter":"C",...}}],
+"voting_guidance":"...","consensus_summary":"..."}}
+
+CRITICAL: Use ONLY exact IDs from provided data. Mention ALL {len(member_preferences)} members in reasoning. Match costs to budget tiers."""
 
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
