@@ -238,76 +238,60 @@ Include only the top 5 recommendations for each category.
         # Build date info string
         date_info = ""
         if selected_dates:
-            date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d). Match these dates."
+            date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d)."
 
-        # OPTIMIZATION: Summarize member preferences concisely
+        # OPTIMIZATION V2: Ultra-concise member summary
         member_summary = []
         for pref in member_preferences:
-            activities = pref.get('activity_preferences', [])
-            if isinstance(activities, list):
-                activities = ','.join(activities[:2])  # First 2 only
-            else:
-                activities = str(activities)[:40]
+            budget_k = int(float(pref.get('budget', 0))) // 1000
+            dest = pref.get('destination', '?').split(',')[0] # City only
+            acts = pref.get('activity_preferences', [])
+            act_str = ','.join(acts[:2]) if isinstance(acts, list) else str(acts)[:20]
             member_summary.append(
-                f"{pref.get('user', 'M')}: ${pref.get('budget', '?')}, {pref.get('destination', '?')}, {activities}"
+                f"{pref.get('user', 'M')}(${budget_k}k,{dest},{act_str})"
             )
 
-        # OPTIMIZATION: Ultra-compact data - only critical fields
+        # OPTIMIZATION V2: Ultra-compact data with single-letter keys
         flights_compact = [
-            {"id": f.get("id"), "to": f.get("searched_destination", "")[:20], "$": f.get("total_amount")}
+            {"id": f.get("id"), "d": f.get("searched_destination", "")[:15], "p": f.get("total_amount")}
             for f in flight_results[:5]
         ]
         
         hotels_compact = [
-            {"id": h.get("id"), "name": h.get("name", "")[:25], "to": h.get("searched_destination", "")[:20], "$": h.get("price_per_night")}
+            {"id": h.get("id"), "n": h.get("name", "")[:20], "d": h.get("searched_destination", "")[:15], "p": h.get("price_per_night")}
             for h in hotel_results[:5]
         ]
         
         activities_compact = [
-            {"id": a.get("id"), "name": a.get("name", "")[:30], "to": a.get("searched_destination", "")[:20], "$": a.get("price")}
+            {"id": a.get("id"), "n": a.get("name", "")[:25], "d": a.get("searched_destination", "")[:15], "p": a.get("price")}
             for a in activity_results[:6]
         ]
 
-        prompt = f"""Create 3 itinerary options for {len(member_preferences)} members to vote on. {date_info}
-
+        prompt = f"""Create 3 vote options for {len(member_preferences)} members. {date_info}
 MEMBERS: {'; '.join(member_summary)}
-BUDGETS: Low=${min_budget:.0f}, Med=${median_budget:.0f}, High=${max_budget:.0f}
+BUDGETS: L=${min_budget:.0f}, M=${median_budget:.0f}, H=${max_budget:.0f}
+DATA: "f":{json.dumps(flights_compact)}, "h":{json.dumps(hotels_compact)}, "a":{json.dumps(activities_compact)}
 
-FLIGHTS: {json.dumps(flights_compact)}
-HOTELS: {json.dumps(hotels_compact)}
-ACTIVITIES: {json.dumps(activities_compact)}
+RULES:
+1. Balance all preferences (dest, acts, budget).
+2. Use different destinations for options A, B, C.
+3. Match item 'd' (destination) to the option's destination.
+4. Target budgets: A=L, B=M, C=H.
+5. Use exact IDs from DATA only. Do not invent IDs.
+6. Explain which member's preferences are prioritized in each option.
 
-REQUIREMENTS (CRITICAL):
-1. Balance ALL members' preferences (destinations, activities, budgets)
-2. Use DIFFERENT destinations across A/B/C when members want different places
-3. Match "to" field when selecting flights/hotels/activities for each destination
-4. Option A: Low budget (${min_budget:.0f}), Option B: Med budget (${median_budget:.0f}), Option C: High budget (${max_budget:.0f})
-5. ONLY use exact IDs from above lists - DO NOT create/modify IDs
-6. Each option must explain which member(s) preferences it prioritizes
-
-JSON STRUCTURE (REQUIRED):
-{{
-  "options": [
-    {{
-      "option_letter": "A",
-      "title": "string",
-      "description": "string (2-3 sentences)",
-      "selected_flight_id": "string (exact id from FLIGHTS)",
-      "selected_hotel_id": "string (exact id from HOTELS)",
-      "selected_activity_ids": ["string array (exact ids from ACTIVITIES)"],
-      "estimated_total_cost": number,
-      "cost_per_person": number,
-      "ai_reasoning": "string (explain how ALL members are considered)",
-      "compromise_explanation": "string (mention each member by name)",
-      "pros": ["string", "string", "string"],
-      "cons": ["string", "string"]
-    }},
-    {{"option_letter": "B", ...}},
-    {{"option_letter": "C", ...}}
-  ],
-  "voting_guidance": "string",
-  "consensus_summary": "string"
-}}"""
+JSON STRUCTURE (strict):
+{{"options":[{{
+"option_letter":"A", "title":"str", "description":"str(2-3 sent.)",
+"selected_flight_id":"str(exact id from DATA.f)",
+"selected_hotel_id":"str(exact id from DATA.h)",
+"selected_activity_ids":["str(exact ids from DATA.a)"],
+"estimated_total_cost":num, "cost_per_person":num,
+"ai_reasoning":"str(how ALL members are considered)",
+"compromise_explanation":"str(mention each member by name)",
+"pros":["str","str"], "cons":["str","str"]
+}}, {{"option_letter":"B",...}}, {{"option_letter":"C",...}}],
+"voting_guidance":"str", "consensus_summary":"str"}}"""
 
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
