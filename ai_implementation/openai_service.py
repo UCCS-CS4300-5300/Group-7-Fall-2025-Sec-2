@@ -226,74 +226,64 @@ IMPORTANT: All flights and hotels MUST match these dates. Filter your selections
 
         # OPTIMIZATION: Simplify flight data - only essential fields
         simplified_flights = []
-        for flight in flight_results[:3]:  # Reduced from 5 to 3
+        for flight in flight_results[:2]:  # Reduced to 2 max for memory constraints
             simplified_flights.append(
                 {
                     "id": flight.get("id"),
-                    "destination": flight.get("searched_destination", "N/A"),
+                    "dest": flight.get("searched_destination", "N/A")[:30],  # Truncate
                     "price": flight.get("total_amount", "N/A"),
-                    "carrier": (
-                        flight.get("owner", {}).get("name", "N/A")
-                        if isinstance(flight.get("owner"), dict)
-                        else "N/A"
-                    ),
                 }
             )
 
         # OPTIMIZATION: Simplify hotel data - only essential fields
         simplified_hotels = []
-        for hotel in hotel_results[:4]:  # Reduced from 5 to 4
+        for hotel in hotel_results[:3]:  # Reduced to 3 max for memory constraints
             simplified_hotels.append(
                 {
                     "id": hotel.get("id"),
-                    "name": hotel.get("name", "N/A")[:60],  # Truncate long names
-                    "destination": hotel.get("searched_destination", "N/A"),
+                    "name": hotel.get("name", "N/A")[:40],  # More aggressive truncation
+                    "dest": hotel.get("searched_destination", "N/A")[:30],  # Truncate
                     "price": hotel.get("price_per_night", "N/A"),
-                    "rating": hotel.get("rating", "N/A"),
                 }
             )
 
         # OPTIMIZATION: Simplify activity data - only essential fields
         simplified_activities = []
-        for activity in activity_results[:6]:  # Reduced from 8 to 6
+        for activity in activity_results[:4]:  # Reduced to 4 max for memory constraints
             simplified_activities.append(
                 {
                     "id": activity.get("id"),
-                    "name": activity.get("name", "N/A")[:60],  # Truncate long names
-                    "destination": activity.get("searched_destination", "N/A"),
+                    "name": activity.get("name", "N/A")[
+                        :40
+                    ],  # More aggressive truncation
+                    "dest": activity.get("searched_destination", "N/A")[
+                        :30
+                    ],  # Truncate
                     "price": activity.get("price", "N/A"),
                 }
             )
 
         prompt = f"""
-Analyze these {len(member_preferences)} group members' travel preferences and create 3 DIFFERENT itinerary options for them to vote on.
+Analyze {len(member_preferences)} group members' travel preferences and create 3 itinerary options.
 
 {date_info}
 
-MEMBER PREFERENCES SUMMARY:
+MEMBERS:
 {member_summary}
 
-BUDGET ANALYSIS FROM ALL MEMBERS:
-- Lowest Budget: ${min_budget:.2f}
-- Median Budget: ${median_budget:.2f}
-- Highest Budget: ${max_budget:.2f}
+BUDGETS: Min=${min_budget:.0f}, Med=${median_budget:.0f}, Max=${max_budget:.0f}
 
-AVAILABLE FLIGHTS (simplified):
-{json.dumps(simplified_flights, indent=2)}
+FLIGHTS:
+{json.dumps(simplified_flights)}
 
-AVAILABLE HOTELS (simplified):
-{json.dumps(simplified_hotels, indent=2)}
+HOTELS:
+{json.dumps(simplified_hotels)}
 
-AVAILABLE ACTIVITIES (simplified):
-{json.dumps(simplified_activities, indent=2)}
+ACTIVITIES:
+{json.dumps(simplified_activities)}
 
-REQUIREMENTS:
-- Consider ALL {len(member_preferences)} members' preferences
-- Balance destinations, activities, and accommodations for the group
-- Use different destinations across options when possible
-- Match budget targets: Option A=${min_budget:.2f}, B=${median_budget:.2f}, C=${max_budget:.2f}
-
-Return JSON with this structure:
+Create 3 options matching budgets A=${min_budget:.0f}, B=${median_budget:.0f}, C=${max_budget:.0f}.
+Use exact IDs from lists. Return JSON:
 {{
     "options": [
         {{
@@ -346,14 +336,14 @@ ONLY use exact IDs from the lists above. DO NOT create new IDs.
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a travel coordinator AI. Create 3 itinerary options balancing all group members' preferences at different budget levels. Return valid JSON only.",
+                        "content": "Travel coordinator AI. Create 3 itinerary options balancing group preferences. Return JSON only.",
                     },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,  # Reduced for more consistent results
-                max_tokens=2000,  # Reduced from 2500
+                max_tokens=1200,  # Reduced from 2000 to conserve memory
                 response_format={"type": "json_object"},
-                timeout=30,  # Add 30 second timeout
+                timeout=90,  # Increased timeout to 90 seconds
             )
 
             result = json.loads(response.choices[0].message.content)
