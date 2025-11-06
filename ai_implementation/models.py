@@ -100,8 +100,8 @@ class FlightResult(models.Model):
     ai_score = models.PositiveIntegerField(null=True, blank=True, help_text="AI-generated score (0-100)")
     ai_reason = models.TextField(blank=True, null=True, help_text="AI-generated reason for recommendation")
     
-    # Raw data
-    raw_data = models.TextField(blank=True, null=True, help_text="Full API response as JSON")
+    # Destination tracking (for multi-destination searches)
+    searched_destination = models.CharField(max_length=200, blank=True, null=True, help_text="Destination this result was searched for")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -144,8 +144,8 @@ class HotelResult(models.Model):
     ai_score = models.PositiveIntegerField(null=True, blank=True, help_text="AI-generated score (0-100)")
     ai_reason = models.TextField(blank=True, null=True, help_text="AI-generated reason for recommendation")
     
-    # Raw data
-    raw_data = models.TextField(blank=True, null=True, help_text="Full API response as JSON")
+    # Destination tracking (for multi-destination searches)
+    searched_destination = models.CharField(max_length=200, blank=True, null=True, help_text="Destination this result was searched for")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -189,8 +189,8 @@ class ActivityResult(models.Model):
     ai_score = models.PositiveIntegerField(null=True, blank=True, help_text="AI-generated score (0-100)")
     ai_reason = models.TextField(blank=True, null=True, help_text="AI-generated reason for recommendation")
     
-    # Raw data
-    raw_data = models.TextField(blank=True, null=True, help_text="Full API response as JSON")
+    # Destination tracking (for multi-destination searches)
+    searched_destination = models.CharField(max_length=200, blank=True, null=True, help_text="Destination this result was searched for")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

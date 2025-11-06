@@ -160,8 +160,7 @@ class FlightAPIConnector(BaseAPIConnector):
                 'duration': first_itinerary.get('duration', 'N/A'),
                 'stops': len(segments) - 1,
                 'booking_class': first_segment.get('cabin', 'Economy'),
-                'seats_available': offer.get('numberOfBookableSeats', 'N/A'),
-                'raw_data': offer  # Keep original data for reference
+                'seats_available': offer.get('numberOfBookableSeats', 'N/A')
             }
         except Exception as e:
             print(f"Error parsing flight offer: {str(e)}")

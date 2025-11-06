@@ -82,12 +82,11 @@ class FlightResultAdmin(admin.ModelAdmin):
         ('AI Recommendation', {
             'fields': ('ai_score', 'ai_reason')
         }),
-        ('Raw Data', {
-            'fields': ('raw_data', 'is_mock'),
-            'classes': ('collapse',)
+        ('Destination Tracking', {
+            'fields': ('searched_destination',)
         }),
         ('Metadata', {
-            'fields': ('created_at',)
+            'fields': ('is_mock', 'created_at')
         }),
     )
 
@@ -114,12 +113,11 @@ class HotelResultAdmin(admin.ModelAdmin):
         ('AI Recommendation', {
             'fields': ('ai_score', 'ai_reason')
         }),
-        ('Raw Data', {
-            'fields': ('raw_data', 'is_mock'),
-            'classes': ('collapse',)
+        ('Destination Tracking', {
+            'fields': ('searched_destination',)
         }),
         ('Metadata', {
-            'fields': ('created_at',)
+            'fields': ('is_mock', 'created_at')
         }),
     )
 
@@ -146,12 +144,11 @@ class ActivityResultAdmin(admin.ModelAdmin):
         ('AI Recommendation', {
             'fields': ('ai_score', 'ai_reason')
         }),
-        ('Raw Data', {
-            'fields': ('raw_data', 'is_mock'),
-            'classes': ('collapse',)
+        ('Destination Tracking', {
+            'fields': ('searched_destination',)
         }),
         ('Metadata', {
-            'fields': ('created_at',)
+            'fields': ('is_mock', 'created_at')
         }),
     )
 

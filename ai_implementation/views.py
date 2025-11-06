@@ -232,7 +232,7 @@ def perform_search(request, search_id):
                     stops=flight_data.get('stops', 0),
                     booking_class=flight_data.get('booking_class', 'Economy'),
                     seats_available=str(flight_data.get('seats_available', 'N/A')),
-                    raw_data=json.dumps(flight_data),
+                    searched_destination=flight_data.get('searched_destination', search.destination),
                     is_mock=flight_data.get('is_mock', False)
                 )
             
@@ -253,7 +253,7 @@ def perform_search(request, search_id):
                     distance_from_center=hotel_data.get('distance_from_center', ''),
                     breakfast_included=hotel_data.get('breakfast_included', False),
                     cancellation_policy=hotel_data.get('cancellation_policy', ''),
-                    raw_data=json.dumps(hotel_data),
+                    searched_destination=hotel_data.get('searched_destination', search.destination),
                     is_mock=hotel_data.get('is_mock', False)
                 )
             
@@ -275,7 +275,7 @@ def perform_search(request, search_id):
                     max_group_size=activity_data.get('max_group_size'),
                     languages=','.join(activity_data.get('languages', [])) if isinstance(activity_data.get('languages'), list) else activity_data.get('languages', ''),
                     cancellation_policy=activity_data.get('cancellation_policy', ''),
-                    raw_data=json.dumps(activity_data),
+                    searched_destination=activity_data.get('searched_destination', search.destination),
                     is_mock=activity_data.get('is_mock', False)
                 )
         
@@ -726,7 +726,7 @@ def generate_voting_options(request, group_id):
                         stops=flight_data.get('stops', 0),
                         booking_class=flight_data.get('booking_class', 'Economy'),
                         seats_available=str(flight_data.get('seats_available', 'N/A')),
-                        raw_data=json.dumps(flight_data),
+                        searched_destination=flight_data.get('searched_destination', search.destination),
                         is_mock=flight_data.get('is_mock', False)
                     )
                 
@@ -747,7 +747,7 @@ def generate_voting_options(request, group_id):
                         distance_from_center=hotel_data.get('distance_from_center', ''),
                         breakfast_included=hotel_data.get('breakfast_included', False),
                         cancellation_policy=hotel_data.get('cancellation_policy', ''),
-                        raw_data=json.dumps(hotel_data),
+                        searched_destination=hotel_data.get('searched_destination', search.destination),
                         is_mock=hotel_data.get('is_mock', False)
                     )
                 
@@ -769,7 +769,7 @@ def generate_voting_options(request, group_id):
                         max_group_size=activity_data.get('max_group_size'),
                         languages=','.join(activity_data.get('languages', [])) if isinstance(activity_data.get('languages'), list) else activity_data.get('languages', ''),
                         cancellation_policy=activity_data.get('cancellation_policy', ''),
-                        raw_data=json.dumps(activity_data),
+                        searched_destination=activity_data.get('searched_destination', search.destination),
                         is_mock=activity_data.get('is_mock', False)
                     )
             
@@ -824,37 +824,26 @@ def generate_voting_options(request, group_id):
                     ).first()
                     
                     if selected_hotel:
-                        # Extract destination from hotel's raw_data
-                        try:
-                            hotel_raw_data = json.loads(selected_hotel.raw_data)
-                            option_destination = hotel_raw_data.get('searched_destination', '')
-                            print(f"  ✅ Hotel found: {selected_hotel.name} in {option_destination}")
-                        except:
-                            pass
+                        # Extract destination from hotel's searched_destination field
+                        option_destination = selected_hotel.searched_destination or ''
+                        print(f"  ✅ Hotel found: {selected_hotel.name} in {option_destination}")
                     else:
                         print(f"  ⚠️ Hotel ID '{hotel_id}' not found in database for Option {option_data['option_letter']}")
                 
                 # Try to get destination from flight if hotel doesn't have it
                 if not option_destination and selected_flight:
-                    try:
-                        flight_raw_data = json.loads(selected_flight.raw_data)
-                        option_destination = flight_raw_data.get('searched_destination', '')
-                    except:
-                        pass
+                    option_destination = selected_flight.searched_destination or ''
                 
                 # FALLBACK: If no hotel was found but we have a destination, pick the first available hotel for that destination
                 if not selected_hotel and option_destination:
                     print(f"  🔄 Looking for fallback hotel in {option_destination}...")
-                    all_hotels = HotelResult.objects.filter(search=search)
-                    for hotel in all_hotels:
-                        try:
-                            hotel_raw = json.loads(hotel.raw_data)
-                            if hotel_raw.get('searched_destination') == option_destination:
-                                selected_hotel = hotel
-                                print(f"  ✅ Fallback hotel selected: {hotel.name}")
-                                break
-                        except:
-                            continue
+                    fallback_hotel = HotelResult.objects.filter(
+                        search=search,
+                        searched_destination=option_destination
+                    ).first()
+                    if fallback_hotel:
+                        selected_hotel = fallback_hotel
+                        print(f"  ✅ Fallback hotel selected: {fallback_hotel.name}")
                 
                 # LAST RESORT: If still no hotel, pick the first available hotel from any destination
                 if not selected_hotel:
@@ -956,19 +945,14 @@ def view_voting_options(request, group_id):
             # Filter to match option's destination
             activities = []
             for activity in all_activities:
-                try:
-                    activity_raw = json.loads(activity.raw_data)
-                    activity_destination = activity_raw.get('searched_destination', '')
-                    
-                    # If option has destination, filter by it
-                    if option.destination:
-                        if activity_destination == option.destination:
-                            activities.append(activity)
-                    else:
-                        # No destination filtering - include all
+                activity_destination = activity.searched_destination or ''
+                
+                # If option has destination, filter by it
+                if option.destination:
+                    if activity_destination == option.destination:
                         activities.append(activity)
-                except:
-                    # Fallback: include if can't parse
+                else:
+                    # No destination filtering - include all
                     activities.append(activity)
             
             # If no activities after filtering, fall back to showing all
@@ -1100,19 +1084,14 @@ def voting_results(request, group_id):
         
         # Filter activities to match winner's destination
         for activity in all_winner_activities:
-            try:
-                activity_raw = json.loads(activity.raw_data)
-                activity_destination = activity_raw.get('searched_destination', '')
-                
-                # If winner has destination, filter by it
-                if winner.destination:
-                    if activity_destination == winner.destination:
-                        winner_activities.append(activity)
-                else:
-                    # No destination filtering - include all
+            activity_destination = activity.searched_destination or ''
+            
+            # If winner has destination, filter by it
+            if winner.destination:
+                if activity_destination == winner.destination:
                     winner_activities.append(activity)
-            except:
-                # Fallback: include activity if can't parse
+            else:
+                # No destination filtering - include all
                 winner_activities.append(activity)
         
         # If no activities after filtering, fall back to showing all
