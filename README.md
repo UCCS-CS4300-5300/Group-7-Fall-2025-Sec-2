@@ -155,5 +155,4 @@ groupgo/
 
 ## AI Documentation
 
-- AI has assisted in the implementation of the following features: Email verification, Itinerary sharing, Group trip planning and helped plan and correct the code for Duffel API integration.
-- Cursor AI was used for the above implementations.
+- Cursor AI was used and assisted in the planning, implementation and correction of code for the following features: Email verification, Itinerary sharing, Group trip planning and helped plan and correct the code for Duffel API integration.
