@@ -152,3 +152,8 @@ groupgo/
 - Advanced itinerary sharing features
 - Group trip planning capabilities
 - Integration with travel APIs
+
+## AI Documentation
+
+- AI has assisted in the implementation of the following features: Email verification, Itinerary sharing, Group trip planning and helped plan and correct the code for Duffel API integration.
+- Cursor AI was used for the above implementations.
