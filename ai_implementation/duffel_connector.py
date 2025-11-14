@@ -465,6 +465,18 @@ class DuffelAggregator:
     with other travel APIs for a complete solution.
     """
     
+    COMMON_LOCATION_MAP = {
+        'sicily': 'CTA',          # Catania–Fontanarossa Airport
+        'alberta': 'YYC',         # Calgary International
+        'edmonton': 'YEG',
+        'calgary': 'YYC',
+        'banff': 'YYC',
+        'rome': 'FCO',
+        'venice': 'VCE',
+        'palermo': 'PMO',
+        'canada': 'YYZ',
+    }
+    
     def __init__(self):
         self.flight_search = DuffelFlightSearch()
         self.accommodation_search = DuffelAccommodationSearch()
@@ -503,18 +515,28 @@ class DuffelAggregator:
             'errors': []
         }
         
-        # Convert city names to IATA codes if needed
-        if origin and len(origin) > 3:
-            origin_places = self.place_search.search_places(origin)
-            origin = origin_places[0]['iata_code'] if origin_places else origin
+        # Resolve IATA codes
+        origin_code = self.get_airport_code(origin) if origin else None
+        destination_code = self.get_airport_code(destination) if destination else None
+        destination_name = self._clean_location_name(destination)
         
-        if destination and len(destination) > 3:
-            dest_places = self.place_search.search_places(destination)
-            destination_code = dest_places[0]['iata_code'] if dest_places else destination
-            destination_name = dest_places[0]['city_name'] if dest_places else destination
-        else:
-            destination_code = destination
-            destination_name = destination
+        if destination_code:
+            dest_places = self.place_search.search_places(destination_code)
+            if dest_places:
+                destination_name = dest_places[0].get('city_name') or dest_places[0].get('name') or destination_name
+        
+        if not destination_name:
+            destination_name = destination_code or 'Unknown destination'
+        
+        if origin and not origin_code:
+            msg = f"Invalid origin '{origin}'. Falling back to mock flight data."
+            print(msg)
+            results['errors'].append(msg)
+        
+        if destination and not destination_code:
+            msg = f"Invalid destination '{destination}'. Falling back to mock flight data."
+            print(msg)
+            results['errors'].append(msg)
         
         # Search flights with Duffel
         if origin and start_date:
@@ -524,8 +546,11 @@ class DuffelAggregator:
                     cabin_class = preferences['cabin_class']
                 
                 print(f"Searching Duffel flights: {origin} → {destination_code}")
+                if not origin_code or not destination_code:
+                    raise ValueError("Missing IATA codes for origin/destination")
+                
                 results['flights'] = self.flight_search.search_flights(
-                    origin=origin,
+                    origin=origin_code,
                     destination=destination_code,
                     departure_date=start_date,
                     return_date=end_date,
@@ -538,7 +563,11 @@ class DuffelAggregator:
                 print(error_msg)
                 results['errors'].append(error_msg)
                 results['flights'] = self.flight_search._get_mock_flight_data(
-                    origin, destination_code, start_date, end_date, adults
+                    origin or 'JFK',
+                    destination_code or (destination_name[:3].upper()),
+                    start_date,
+                    end_date,
+                    adults
                 )
         
         # Search hotels/accommodations
@@ -592,9 +621,41 @@ class DuffelAggregator:
         Returns:
             IATA code
         """
-        if len(city_or_code) == 3 and city_or_code.isupper():
-            return city_or_code
+        if not city_or_code:
+            return None
         
-        places = self.place_search.search_places(city_or_code)
-        return places[0]['iata_code'] if places else city_or_code
+        cleaned = city_or_code.strip()
+        if len(cleaned) == 3 and cleaned.isalpha():
+            return cleaned.upper()
+        
+        attempts = [cleaned]
+        if ',' in cleaned:
+            attempts.append(cleaned.split(',')[0].strip())
+        if ' ' in cleaned:
+            attempts.append(cleaned.split(' ')[0].strip())
+        
+        lower_cleaned = cleaned.lower()
+        if lower_cleaned in self.COMMON_LOCATION_MAP:
+            return self.COMMON_LOCATION_MAP[lower_cleaned]
+        
+        for attempt in attempts:
+            if not attempt:
+                continue
+            lower_attempt = attempt.lower()
+            if lower_attempt in self.COMMON_LOCATION_MAP:
+                return self.COMMON_LOCATION_MAP[lower_attempt]
+            places = self.place_search.search_places(attempt)
+            if places:
+                code = places[0].get('iata_code')
+                if code:
+                    return code
+        return None
+    
+    def _clean_location_name(self, location: Optional[str]) -> str:
+        if not location:
+            return ''
+        name = location
+        if ',' in name:
+            name = name.split(',')[0]
+        return name.strip()
 

@@ -345,7 +345,7 @@ class ItineraryVoteModelTest(TestCase):
             user=self.user,
             group=self.group
         )
-        expected = f"{self.user.username} voted for Option A"
+        expected = f"{self.user.username} voted YES for Option A"
         self.assertEqual(str(vote), expected)
 
 
@@ -598,13 +598,14 @@ class VotingViewsTest(TestCase):
             search=search,
             estimated_total_cost=2000.00,
             cost_per_person=1000.00,
-            ai_reasoning='Best budget option'
+            ai_reasoning='Best budget option',
+            status='active'
         )
         
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:cast_vote', args=[self.group.id, option.id])
         
-        response = self.client.post(url, {'comment': 'Great choice!'})
+        response = self.client.post(url, {'comment': 'Great choice!', 'vote': 'yes'})
         
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
@@ -1304,12 +1305,14 @@ class ViewVotingOptionsTest(TestCase):
             adults=2
         )
         
-        # Create options
-        for letter in ['A', 'B', 'C']:
+        # Create options (only the first should be active/displayed)
+        for idx, letter in enumerate(['A', 'B', 'C']):
             GroupItineraryOption.objects.create(
                 group=self.group,
                 consensus=consensus,
                 option_letter=letter,
+                round_number=idx + 1,
+                status='active' if idx == 0 else 'queued',
                 title=f'Option {letter}',
                 description=f'Description {letter}',
                 search=search,
@@ -1321,9 +1324,9 @@ class ViewVotingOptionsTest(TestCase):
         url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Current Itinerary')
         self.assertContains(response, 'Option A')
-        self.assertContains(response, 'Option B')
-        self.assertContains(response, 'Option C')
+        self.assertNotContains(response, 'Option B')
 
 
 # ============================================================================
@@ -5340,7 +5343,7 @@ class ViewsEdgeCaseTest(TestCase):
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:perform_search', args=[search.id])
         
-        response = self.client.post(url)
+        response = self.client.post(url, {'vote': 'yes'})
         self.assertEqual(response.status_code, 200)
         
     @patch('ai_implementation.views.DuffelAggregator')
@@ -5555,24 +5558,29 @@ class CastVoteEdgeCaseTest(TestCase):
             search=search,
             estimated_total_cost=2000.00,
             cost_per_person=1000.00,
-            ai_reasoning='Test'
+            ai_reasoning='Test',
+            status='active'
         )
         
     def test_cast_vote_updates_existing_vote(self):
         """Test that casting vote again updates existing vote"""
+        # Add second member so voting isn't immediately finalized
+        extra_user = User.objects.create_user('second', 'second@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=extra_user, role='member')
+        
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
         
         # First vote
-        response1 = self.client.post(url, {'comment': 'First choice'})
+        response1 = self.client.post(url, {'comment': 'First choice', 'vote': 'no'})
         self.assertEqual(response1.status_code, 200)
         
         # Second vote (should update)
-        response2 = self.client.post(url, {'comment': 'Changed my mind'})
+        response2 = self.client.post(url, {'comment': 'Changed my mind', 'vote': 'yes'})
         self.assertEqual(response2.status_code, 200)
         
         # Should only have one vote
-        votes = ItineraryVote.objects.filter(user=self.user, group=self.group)
+        votes = ItineraryVote.objects.filter(user=self.user, option=self.option)
         self.assertEqual(votes.count(), 1)
         
     def test_cast_vote_nonexistent_option(self):

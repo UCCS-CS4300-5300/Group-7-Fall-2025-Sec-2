@@ -121,54 +121,41 @@ def group_detail(request, group_id):
             ).select_related('selected_flight', 'selected_hotel')
             
             if options.exists():
-                # Get activities for each option
-                voting_options = []
-                for option in options:
-                    activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
-                    
-                    # Get activities matching this option's destination
-                    if option.search and activity_ids:
+                active_option = options.filter(status='active').order_by('round_number').first()
+                if not active_option:
+                    active_option = options.filter(status='queued').order_by('round_number').first()
+                
+                if active_option:
+                    activity_ids = json.loads(active_option.selected_activities) if active_option.selected_activities else []
+                    if active_option.search and activity_ids:
                         all_activities = ActivityResult.objects.filter(
-                            search=option.search,
+                            search=active_option.search,
                             external_id__in=activity_ids
                         )
-                        
-                        # Filter activities to match option's destination
                         activities = []
                         for activity in all_activities:
                             try:
                                 activity_raw = json.loads(activity.raw_data)
-                                activity_destination = activity_raw.get('searched_destination', '')
-                                
-                                # If option has a destination, filter by it
-                                if option.destination:
-                                    if activity_destination == option.destination:
-                                        activities.append(activity)
-                                else:
-                                    # No destination filtering - include all activities
+                                destination = activity_raw.get('searched_destination', '')
+                                if not active_option.destination or destination == active_option.destination:
                                     activities.append(activity)
                             except:
-                                # If can't parse raw_data, include activity
                                 activities.append(activity)
-                        
-                        # If no activities after filtering, fall back to showing all
                         if not activities and all_activities:
                             activities = list(all_activities)
                     else:
                         activities = []
                     
-                    voting_options.append({
-                        'option': option,
+                    voting_options = [{
+                        'option': active_option,
                         'activities': activities
-                    })
-                
-                # Check if user has voted
-                if user_is_member:
-                    user_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
-                
-                # Get voting stats
-                votes_cast = ItineraryVote.objects.filter(group=group).count()
-                voting_complete = votes_cast >= members.count()
+                    }]
+                    
+                    if user_is_member:
+                        user_vote = ItineraryVote.objects.filter(option=active_option, user=request.user).first()
+                    
+                    votes_cast = ItineraryVote.objects.filter(option=active_option).count()
+                    voting_complete = votes_cast >= members.count()
     except Exception as e:
         print(f"Error fetching voting options: {str(e)}")
         voting_options = None

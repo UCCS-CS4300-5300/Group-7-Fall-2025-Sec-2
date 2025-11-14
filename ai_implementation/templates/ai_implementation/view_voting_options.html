@@ -10,21 +10,26 @@
             <h2>🗳️ Vote on Group Itinerary</h2>
             <h4 class="text-muted">{{ group.name }}</h4>
             
-            <div class="alert alert-info mt-3">
-                <strong>Voting Progress:</strong> {{ votes_cast }} of {{ total_members}} members have voted
+            <div class="alert alert-info mt-3 d-flex flex-column flex-md-row align-items-md-center justify-content-between">
+                <div>
+                    <strong>Voting Progress:</strong> {{ votes_cast }} of {{ total_members}} members have voted
+                    {% if user_vote %}
+                        <br>✅ You voted <strong>{{ user_vote.vote_choice|upper }}</strong> on this option.
+                    {% else %}
+                        <br>⏳ Please vote <strong>Yes</strong> or <strong>Roll Again</strong> on the itinerary shown below.
+                    {% endif %}
+                </div>
                 {% if voting_complete %}
-                    <br><span class="badge badge-success">Voting Complete!</span> 
-                    <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-sm btn-success ml-2">View Results</a>
+                    <div class="mt-3 mt-md-0">
+                        <span class="badge badge-success">Voting Complete!</span> 
+                        <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-sm btn-success ml-md-2">View Results</a>
+                    </div>
                 {% endif %}
             </div>
 
-            {% if user_vote %}
-            <div class="alert alert-success">
-                ✅ You voted for <strong>Option {{ user_vote.option.option_letter }}</strong>. You can change your vote by clicking on a different option below.
-            </div>
-            {% else %}
-            <div class="alert alert-warning">
-                ⏳ Please cast your vote by selecting one of the options below.
+            {% if queued_count > 0 %}
+            <div class="alert alert-secondary">
+                🔄 {{ queued_count }} additional option{{ queued_count|pluralize }} will appear if this one is rejected.
             </div>
             {% endif %}
 
@@ -41,56 +46,58 @@
         </div>
     </div>
 
-    <!-- Display the 3 options -->
+    <!-- Active Option -->
     <div class="row mt-4">
-        {% for item in options_with_activities %}
-        {% with option=item.option activities=item.activities %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 {% if user_vote and user_vote.option == option %}border-success{% endif %} shadow">
-                <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-warning{% endif %} text-white">
-                    <h4 class="mb-0">
-                        Option {{ option.option_letter }}
-                        {% if option.option_letter == 'A' %}💰{% elif option.option_letter == 'B' %}⚖️{% else %}⭐{% endif %}
-                    </h4>
-                    <small>{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</small>
+        <div class="col-md-8 mb-4">
+            <div class="card h-100 border-info shadow">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">
+                            Current Itinerary • Option {{ active_option.option_letter }}
+                        </h4>
+                        <small>Round {{ active_option.round_number }} · Status: {{ active_option.status|title }}</small>
+                    </div>
+                    <span class="badge badge-light text-info">
+                        {{ votes_cast }} / {{ total_members }} vote{{ total_members|pluralize }}
+                    </span>
                 </div>
                 <div class="card-body">
-                    <h5 class="card-title">{{ option.title }}</h5>
-                    <p class="card-text">{{ option.description }}</p>
+                    <h5 class="card-title">{{ active_option.title }}</h5>
+                    <p class="card-text">{{ active_option.description }}</p>
                     
-                    {% if option.search %}
+                    {% if active_option.search %}
                     <div class="alert alert-light mb-3">
-                        <strong>📅 Travel Dates:</strong> {{ option.search.start_date|date:"M d, Y" }} - {{ option.search.end_date|date:"M d, Y" }}
+                        <strong>📅 Travel Dates:</strong> 
+                        {{ active_option.search.start_date|date:"M d, Y" }} - {{ active_option.search.end_date|date:"M d, Y" }}
                     </div>
                     {% endif %}
                     
                     <hr>
                     
-                    <!-- Flight -->
-                    {% if option.selected_flight %}
+                    {% if active_option.selected_flight %}
                     <h6>✈️ Flight</h6>
                     <p class="small">
-                        <strong>{{ option.selected_flight.airline }}</strong><br>
-                        ${{ option.selected_flight.price }} | {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}<br>
-                        {{ option.selected_flight.booking_class }}
+                        <strong>{{ active_option.selected_flight.airline }}</strong><br>
+                        ${{ active_option.selected_flight.price }} | {{ active_option.selected_flight.stops }} stop{{ active_option.selected_flight.stops|pluralize }}<br>
+                        {{ active_option.selected_flight.booking_class }}
                     </p>
                     {% endif %}
                     
-                    <!-- Hotel -->
-                    {% if option.selected_hotel %}
+                    {% if active_option.selected_hotel %}
                     <h6>🏨 Hotel</h6>
                     <p class="small">
-                        <strong>{{ option.selected_hotel.name }}</strong><br>
-                        ${{ option.selected_hotel.total_price }} total | ⭐ {{ option.selected_hotel.rating }}/5<br>
-                        {% if option.selected_hotel.breakfast_included %}<span class="badge badge-info">Breakfast Included</span>{% endif %}
+                        <strong>{{ active_option.selected_hotel.name }}</strong><br>
+                        ${{ active_option.selected_hotel.total_price }} total | ⭐ {{ active_option.selected_hotel.rating }}/5<br>
+                        {% if active_option.selected_hotel.breakfast_included %}
+                            <span class="badge badge-info">Breakfast Included</span>
+                        {% endif %}
                     </p>
                     {% endif %}
                     
-                    <!-- Activities -->
-                    {% if activities %}
-                    <h6>🎭 Activities ({{ activities|length }})</h6>
+                    {% if active_option_activities %}
+                    <h6>🎭 Activities ({{ active_option_activities|length }})</h6>
                     <ul class="small">
-                        {% for activity in activities %}
+                        {% for activity in active_option_activities %}
                         <li>{{ activity.name }} - ${{ activity.price }}</li>
                         {% endfor %}
                     </ul>
@@ -98,40 +105,69 @@
                     
                     <hr>
                     
-                    <!-- Cost -->
                     <div class="text-center mb-3">
-                        <h4 class="text-primary">${{ option.estimated_total_cost }}</h4>
-                        <small class="text-muted">${{ option.cost_per_person }} per person</small>
+                        <h4 class="text-primary">${{ active_option.estimated_total_cost }}</h4>
+                        <small class="text-muted">${{ active_option.cost_per_person }} per person</small>
                     </div>
                     
-                    <!-- AI Reasoning -->
                     <div class="alert alert-light">
                         <strong>🤖 AI Analysis:</strong><br>
-                        <small>{{ option.ai_reasoning }}</small>
+                        <small>{{ active_option.ai_reasoning }}</small>
                     </div>
                     
-                    {% if option.compromise_explanation %}
+                    {% if active_option.compromise_explanation %}
                     <div class="alert alert-info">
                         <strong>🤝 Compromises:</strong><br>
-                        <small>{{ option.compromise_explanation }}</small>
+                        <small>{{ active_option.compromise_explanation }}</small>
                     </div>
                     {% endif %}
                 </div>
                 <div class="card-footer text-center">
-                    <button class="btn btn-lg {% if user_vote and user_vote.option == option %}btn-success{% else %}btn-outline-primary{% endif %} vote-btn" 
-                            data-option-id="{{ option.id }}"
-                            data-option-letter="{{ option.option_letter }}">
-                        {% if user_vote and user_vote.option == option %}
-                            ✓ Your Vote
-                        {% else %}
-                            Vote for Option {{ option.option_letter }}
-                        {% endif %}
-                    </button>
+                    <div class="btn-group btn-group-lg" role="group">
+                        <button class="btn vote-btn {% if user_vote and user_vote.vote_choice == 'yes' %}btn-success{% else %}btn-outline-success{% endif %}"
+                                data-choice="yes"
+                                data-option-id="{{ active_option.id }}">
+                            👍 Yes
+                        </button>
+                        <button class="btn vote-btn {% if user_vote and user_vote.vote_choice == 'no' %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                                data-choice="no"
+                                data-option-id="{{ active_option.id }}">
+                            🎲 Roll Again
+                        </button>
+                    </div>
+                    {% if user_vote %}
+                    <p class="mt-2 mb-0 text-muted small">You can change your vote until everyone responds.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
-        {% endwith %}
-        {% endfor %}
+        
+        <div class="col-md-4">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    Group Voting Rules
+                </div>
+                <div class="card-body">
+                <ul class="mb-0">
+                    <li>Everyone must vote <strong>Yes</strong> for the trip to be approved.</li>
+                    <li>If anyone taps <strong>Roll Again</strong>, this option is rejected for the whole group.</li>
+                    <li>When an option is rejected, the next AI-generated option automatically appears.</li>
+                    <li>If all pre-generated options are rejected, generate a fresh set.</li>
+                </ul>
+                </div>
+            </div>
+            
+            {% if approved_option %}
+            <div class="alert alert-success">
+                🎉 <strong>{{ approved_option.title }}</strong> has been unanimously approved!
+                <div class="mt-2">
+                    <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-success btn-sm">
+                        View Finalized Plan
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
     <!-- Navigation -->
@@ -151,37 +187,37 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const voteButtons = document.querySelectorAll('.vote-btn');
-    
-    voteButtons.forEach(btn => {
+    document.querySelectorAll('.vote-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const optionId = this.dataset.optionId;
-            const optionLetter = this.dataset.optionLetter;
+            const choice = this.dataset.choice;
             
-            if (confirm(`Vote for Option ${optionLetter}?`)) {
-                // Send vote
-                fetch('{% url "ai_implementation:cast_vote" group.id "00000000-0000-0000-0000-000000000000" %}'.replace('00000000-0000-0000-0000-000000000000', optionId), {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}',
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: 'comment='
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
+            fetch('{% url "ai_implementation:cast_vote" group.id "00000000-0000-0000-0000-000000000000" %}'.replace('00000000-0000-0000-0000-000000000000', optionId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `vote=${choice}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (data.option_status === 'approved') {
+                        alert('🎉 Trip approved! Redirecting to results...');
+                        window.location.href = '{% url "ai_implementation:voting_results" group.id %}';
+                    } else {
                         alert(data.message);
                         location.reload();
-                    } else {
-                        alert('Error: ' + (data.error || 'Unknown error'));
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while voting');
-                });
-            }
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while submitting your vote.');
+            });
         });
     });
 });

@@ -139,8 +139,10 @@
                             <p class="small">{{ option.description }}</p>
                             <hr>
                             <div class="text-center">
-                                <h4>{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</h4>
-                                <p class="text-muted">${{ option.estimated_total_cost }} total</p>
+                                <h4>{{ option.vote_count }} YES vote{{ option.vote_count|pluralize }}</h4>
+                                <p class="text-muted">
+                                    Status: {{ option.status|title }} · ${{ option.estimated_total_cost }} total
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -162,7 +164,7 @@
                         <thead>
                             <tr>
                                 <th>Member</th>
-                                <th>Voted For</th>
+                                <th>Vote</th>
                                 <th>When</th>
                                 <th>Comment</th>
                             </tr>
@@ -171,7 +173,9 @@
                             {% for vote in votes %}
                             <tr>
                                 <td>{{ vote.user.username }}</td>
-                                <td><strong>Option {{ vote.option.option_letter }}</strong></td>
+                                <td>
+                                    <strong>{{ vote.vote_choice|upper }}</strong> · Option {{ vote.option.option_letter }}
+                                </td>
                                 <td>{{ vote.voted_at|date:"M d, h:i A" }}</td>
                                 <td>{{ vote.comment|default:"" }}</td>
                             </tr>

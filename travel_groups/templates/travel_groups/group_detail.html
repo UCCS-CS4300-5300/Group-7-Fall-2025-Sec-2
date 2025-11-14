@@ -77,7 +77,7 @@
         {% if user_is_member %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="trip-management-tab" data-bs-toggle="tab" data-bs-target="#trip-management" type="button" role="tab">
-                <i class="fas fa-plus"></i> Manage Trips
+                <i class="fas fa-plus"></i> Find A Trip
             </button>
         </li>
         {% endif %}
@@ -144,7 +144,7 @@
             <!-- Voting Options Available -->
             <div class="alert alert-success mb-4">
                 <h5 class="alert-heading"><i class="fas fa-vote-yea"></i> Voting in Progress!</h5>
-                <p>AI has generated 3 trip options based on your group's preferences. Cast your vote below!</p>
+                <p>Everyone must vote <strong>YES</strong> for it to be approved.</p>
                 <p class="mb-0"><strong>{{ votes_cast }} of {{ members.count }}</strong> members have voted.</p>
             </div>
             
@@ -153,16 +153,15 @@
                 {% with option=option_data.option activities=option_data.activities %}
                 <div class="col-lg-4 mb-4">
                     <div class="card h-100 {% if user_vote and user_vote.option == option %}border-success border-3{% else %}border-primary{% endif %}">
-                        <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-warning{% endif %} text-white">
-                            <h5 class="mb-0">
-                                Option {{ option.option_letter }}
-                                {% if option.option_letter == 'A' %}💰{% elif option.option_letter == 'B' %}⚖️{% else %}⭐{% endif %}
-                            </h5>
-                            <small>{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</small>
+                        <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-warning{% endif %} text-white text-center">
+                            <h4 class="mb-1">
+                                Your trip to {{ option.destination|default:"this destination" }}
+                            </h4>
+                            <small>{{ option.vote_count }} YES vote{{ option.vote_count|pluralize }}</small>
                         </div>
                         <div class="card-body">
-                            <h6 class="card-title">{{ option.title }}</h6>
-                            <p class="card-text">{{ option.description }}</p>
+                            <h5 class="card-title text-center">{{ option.title }}</h5>
+                            <p class="card-text text-center">{{ option.description }}</p>
                             
                             {% if option.destination %}
                             <div class="alert alert-info mb-2 text-center">
@@ -206,18 +205,21 @@
                             <hr>
                             
                             <div class="text-center mb-3">
-                                <h4 class="text-primary mb-0">${{ option.estimated_total_cost }}</h4>
+                                <h3 class="text-primary mb-0">${{ option.estimated_total_cost }}</h3>
                                 <small class="text-muted">${{ option.cost_per_person }} per person</small>
                             </div>
                         </div>
                         <div class="card-footer text-center">
-                            <button class="btn {% if user_vote and user_vote.option == option %}btn-success{% else %}btn-outline-primary{% endif %} btn-lg w-100" onclick="castVote('{{ option.id }}', '{{ option.option_letter }}')">
-                                {% if user_vote and user_vote.option == option %}
-                                    ✓ Your Vote
-                                {% else %}
-                                    Vote for Option {{ option.option_letter }}
-                                {% endif %}
-                            </button>
+                            <div class="btn-group btn-group-lg w-100" role="group">
+                                <button class="btn {% if user_vote and user_vote.option == option and user_vote.vote_choice == 'yes' %}btn-success{% else %}btn-outline-success{% endif %}"
+                                        onclick="castVote('{{ option.id }}', 'yes')">
+                                    Let's Go
+                                </button>
+                                <button class="btn {% if user_vote and user_vote.option == option and user_vote.vote_choice == 'no' %}btn-danger{% else %}btn-outline-danger{% endif %}"
+                                        onclick="castVote('{{ option.id }}', 'no')">
+                                    Roll Again
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -266,7 +268,7 @@
                         <i class="fas fa-route fa-2x text-muted mb-3"></i>
                         <p class="text-muted">No trips added yet.</p>
                         {% if user_is_member %}
-                            <p class="text-muted">Use the "Manage Trips" tab to find your perfect trip with AI!</p>
+                            <p class="text-muted">Use the "Find A Trip" tab to find your perfect trip with AI!</p>
                         {% endif %}
                     </div>
                 </div>
@@ -545,6 +547,21 @@
                 
                 <form id="dateSelectionForm">
                     {% csrf_token %}
+
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <label for="trip_start_location" class="form-label">
+                                    <i class="fas fa-map-marker-alt"></i> Starting Location
+                                </label>
+                                <input type="text"
+                                       class="form-control form-control-lg"
+                                       id="trip_start_location"
+                                       name="start_location"
+                                       placeholder="Enter city or airport (e.g., Denver or DEN)"
+                                       required>
+                                <small class="text-muted">We’ll search for flights that depart from this city or airport.</small>
+                            </div>
+                        </div>
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -661,9 +678,19 @@ function findYourTrip() {
 }
 
 function confirmAndFindTrip() {
+    const startLocationInput = document.getElementById('trip_start_location');
+    const startLocation = startLocationInput ? startLocationInput.value.trim() : '';
     // Get selected dates
     const startDate = document.getElementById('trip_start_date').value;
     const endDate = document.getElementById('trip_end_date').value;
+
+    if (!startLocation) {
+        alert('Please enter your starting location (city or airport).');
+        if (startLocationInput) {
+            startLocationInput.focus();
+        }
+        return;
+    }
     
     // Validate dates
     if (!startDate || !endDate) {
@@ -703,7 +730,7 @@ function confirmAndFindTrip() {
                     <div class="spinner-border text-primary my-3" role="status" style="width: 3rem; height: 3rem;">
                         <span class="visually-hidden">Loading...</span>
                     </div>
-                    <p class="mb-2">Searching flights for ${startDate} to ${endDate}</p>
+                    <p class="mb-2">Searching flights from ${startLocation} for ${startDate} to ${endDate}</p>
                     <p class="text-muted">This takes 30-60 seconds...</p>
                     <div id="progress-steps" class="mt-3">
                         <small class="text-muted">
@@ -732,6 +759,7 @@ function confirmAndFindTrip() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+            start_location: startLocation,
             start_date: startDate,
             end_date: endDate
         })
@@ -779,31 +807,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function castVote(optionId, optionLetter) {
-    if (confirm(`Vote for Option ${optionLetter}?`)) {
-        fetch(`/ai/group/{{ group.id }}/voting/cast/${optionId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken'),
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'comment='
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                // Reload to update vote counts
-                window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while voting');
-        });
-    }
+function castVote(optionId, choice) {
+    fetch(`/ai/group/{{ group.id }}/voting/cast/${optionId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `vote=${choice}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            // Reload to update vote counts
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while voting');
+    });
 }
 
 // Helper function to get CSRF token

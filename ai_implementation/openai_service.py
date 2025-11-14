@@ -15,14 +15,34 @@ class OpenAIService:
     
     def __init__(self):
         """Initialize OpenAI client with API key from environment or settings"""
-        api_key = os.environ.get('OPENAI_API_KEY', getattr(settings, 'OPENAI_API_KEY', None))
-        if not api_key:
-            raise ValueError(
-                "OpenAI API key not found. Please set OPENAI_API_KEY in environment "
-                "variables or Django settings."
-            )
-        self.client = OpenAI(api_key=api_key)
+        api_key = (
+            os.environ.get('OPENAI_API_KEY')
+            or os.environ.get('OPEN_AI_KEY')
+            or getattr(settings, 'OPENAI_API_KEY', None)
+        )
+        if isinstance(api_key, str):
+            api_key = api_key.strip()
+        else:
+            api_key = None
         self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4-turbo-preview')
+        self.use_mock = not bool(api_key)
+        self.client = None
+        self._client_init_error = None
+        if not self.use_mock:
+            try:
+                self.client = OpenAI(api_key=api_key)
+            except Exception as exc:
+                self._client_init_error = str(exc)
+                self.use_mock = True
+                print(
+                    f"OpenAI client initialization failed ({exc}). "
+                    "Switching to deterministic mock mode so development can continue."
+                )
+        if self.use_mock:
+            print(
+                "OpenAI API key not found or client unavailable. Falling back to deterministic mock "
+                "responses so AI features remain usable locally."
+            )
     
     def consolidate_travel_results(
         self,
@@ -48,6 +68,11 @@ class OpenAIService:
         prompt = self._create_consolidation_prompt(
             flight_results, hotel_results, activity_results, user_preferences
         )
+        
+        if self.use_mock:
+            return self._mock_consolidation_response(
+                flight_results, hotel_results, activity_results, user_preferences, error=self._client_init_error
+            )
         
         try:
             response = self.client.chat.completions.create(
@@ -78,12 +103,9 @@ class OpenAIService:
             
         except Exception as e:
             print(f"Error calling OpenAI API: {str(e)}")
-            return {
-                "error": str(e),
-                "flights": flight_results,
-                "hotels": hotel_results,
-                "activities": activity_results
-            }
+            return self._mock_consolidation_response(
+                flight_results, hotel_results, activity_results, user_preferences, error=str(e)
+            )
     
     def _create_consolidation_prompt(
         self,
@@ -175,31 +197,11 @@ Include only the top 5 recommendations for each category.
             Dictionary containing 3 different itinerary options with reasoning
         """
         
-        # Calculate budget statistics from all members
-        budgets = []
-        for pref in member_preferences:
-            budget_str = pref.get('budget', '0')
-            # Handle both string and numeric budgets, remove $ and commas
-            if isinstance(budget_str, str):
-                budget_str = budget_str.replace('$', '').replace(',', '').strip()
-            try:
-                budget = float(budget_str)
-                if budget > 0:
-                    budgets.append(budget)
-            except (ValueError, TypeError):
-                continue
-        
-        # Calculate min, median, max budgets
-        if budgets:
-            budgets.sort()
-            min_budget = budgets[0]
-            max_budget = budgets[-1]
-            median_budget = budgets[len(budgets) // 2] if len(budgets) > 0 else sum(budgets) / len(budgets)
-        else:
-            # Fallback if no budgets found
-            min_budget = 1000
-            median_budget = 3000
-            max_budget = 5000
+        budget_stats = self._calculate_budget_stats(member_preferences)
+        budgets = budget_stats['values']
+        min_budget = budget_stats['min']
+        median_budget = budget_stats['median']
+        max_budget = budget_stats['max']
         
         # Build date info string
         date_info = ""
@@ -335,6 +337,17 @@ Make each option genuinely different in cost but similar in how well it serves A
         for i, pref in enumerate(member_preferences, 1):
             print(f"   {i}. {pref.get('user')}: ${pref.get('budget')} - {pref.get('destination')} - {pref.get('activity_preferences', '')[:50]}...")
         
+        if self.use_mock:
+            return self._mock_itinerary_options(
+                member_preferences,
+                flight_results,
+                hotel_results,
+                activity_results,
+                budget_stats,
+                selected_dates,
+                error=self._client_init_error
+            )
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -365,11 +378,15 @@ Make each option genuinely different in cost but similar in how well it serves A
             
         except Exception as e:
             print(f"Error generating itinerary options: {str(e)}")
-            return {
-                "error": str(e),
-                "options": [],
-                "note": "Unable to generate options due to error"
-            }
+            return self._mock_itinerary_options(
+                member_preferences,
+                flight_results,
+                hotel_results,
+                activity_results,
+                budget_stats,
+                selected_dates,
+                error=str(e)
+            )
     
     def generate_group_consensus(self, member_preferences: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -418,6 +435,9 @@ Please provide a JSON response with:
 }}
 """
         
+        if self.use_mock:
+            return self._mock_group_consensus(member_preferences, error=self._client_init_error)
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -445,11 +465,7 @@ Please provide a JSON response with:
             
         except Exception as e:
             print(f"Error generating group consensus: {str(e)}")
-            return {
-                "error": str(e),
-                "consensus_preferences": {},
-                "note": "Unable to generate consensus due to error"
-            }
+            return self._mock_group_consensus(member_preferences, error=str(e))
     
     def create_itinerary_description(
         self,
@@ -489,6 +505,9 @@ Generate a compelling description that:
 Keep it under 300 words and make it inspiring!
 """
         
+        if self.use_mock:
+            return self._fallback_itinerary_description(destination, activities, duration_days, preferences, error=self._client_init_error)
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -510,7 +529,7 @@ Keep it under 300 words and make it inspiring!
             
         except Exception as e:
             print(f"Error generating itinerary description: {str(e)}")
-            return f"Explore {destination} over {duration_days} days with exciting activities including {', '.join(activities)}."
+            return self._fallback_itinerary_description(destination, activities, duration_days, preferences, error=str(e))
     
     def answer_travel_question(self, question: str, context: Optional[Dict] = None) -> str:
         """
@@ -533,6 +552,9 @@ Question: {question}
 
 Please provide a helpful, accurate answer to this travel question.
 """
+        
+        if self.use_mock:
+            return self._fallback_answer(question, context, error=self._client_init_error)
         
         try:
             response = self.client.chat.completions.create(
@@ -558,5 +580,368 @@ Please provide a helpful, accurate answer to this travel question.
             
         except Exception as e:
             print(f"Error answering question: {str(e)}")
-            return "I apologize, but I'm unable to answer that question at the moment. Please try again later."
+            return self._fallback_answer(question, context, error=str(e))
+
+    # ---------------------------------------------------------------------
+    # Mock / fallback helpers
+    # ---------------------------------------------------------------------
+
+    def _mock_consolidation_response(
+        self,
+        flights: List[Dict[str, Any]],
+        hotels: List[Dict[str, Any]],
+        activities: List[Dict[str, Any]],
+        preferences: Dict[str, Any],
+        error: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Generate deterministic recommendations when OpenAI is unavailable."""
+        def rank_items(items, id_field: str, fallback_fields: List[str], price_field: str, label: str):
+            ranked = []
+            sorted_items = sorted(
+                items, key=lambda item: self._safe_number(item.get(price_field) or item.get('total_price') or item.get('price'))
+            )[:5]
+            for idx, item in enumerate(sorted_items, 1):
+                identifier = self._extract_identifier(item, [id_field] + fallback_fields, f"{label.upper()}-{idx}")
+                price_value = self._safe_number(item.get(price_field) or item.get('total_price') or item.get('price'))
+                reason_bits = []
+                if label == 'flight':
+                    reason_bits.append(item.get('airline') or item.get('airline_name') or 'Flight')
+                    reason_bits.append(f"${price_value:,.0f}" if price_value else "price not provided")
+                elif label == 'hotel':
+                    reason_bits.append(item.get('name', 'Hotel'))
+                    rating = item.get('rating')
+                    if rating:
+                        reason_bits.append(f"{rating}★")
+                    if price_value:
+                        reason_bits.append(f"${price_value:,.0f} total")
+                else:
+                    reason_bits.append(item.get('name', 'Activity'))
+                    if price_value:
+                        reason_bits.append(f"${price_value:,.0f}")
+                ranked.append({
+                    'rank': idx,
+                    f'{label}_id': identifier,
+                    'reason': " • ".join(reason_bits),
+                    'score': max(40, 95 - (idx - 1) * 8)
+                })
+            return ranked
+        
+        avg_flight = self._average_price(flights, 'price')
+        avg_hotel = self._average_price(hotels, 'total_price') or self._average_price(hotels, 'price_per_night')
+        avg_activity = self._average_price(activities, 'price')
+        estimated_total = round(avg_flight + avg_hotel + avg_activity, 2)
+        
+        summary_destination = preferences.get('destination') or 'your chosen destination'
+        summary = (
+            f"Showing the best mock-ranked options for {preferences.get('adults', 1)} traveler(s) headed to "
+            f"{summary_destination}. Prices are based on locally generated sample data."
+        )
+        
+        warning_msg = "OpenAI API unavailable — using offline scoring logic."
+        if error:
+            warning_msg += f" (Reason: {error})"
+        
+        itinerary = []
+        if flights and hotels:
+            itinerary.append(
+                f"Arrive via {flights[0].get('airline', 'top flight')} and stay at {hotels[0].get('name', 'a recommended hotel')}."
+            )
+        if activities:
+            itinerary.append(f"Plan to enjoy {activities[0].get('name', 'a highlighted activity')} on day 2.")
+        
+        return {
+            "summary": summary,
+            "recommended_flights": rank_items(flights, 'id', ['external_id'], 'price', 'flight'),
+            "recommended_hotels": rank_items(hotels, 'id', ['external_id'], 'total_price', 'hotel'),
+            "recommended_activities": rank_items(activities, 'id', ['external_id'], 'price', 'activity'),
+            "budget_analysis": {
+                "estimated_total": estimated_total,
+                "breakdown": {
+                    "flights": avg_flight,
+                    "hotels": avg_hotel,
+                    "activities": avg_activity
+                },
+                "savings_tips": "Adjust mock search filters (dates, stops, star rating) to see different price tiers."
+            },
+            "itinerary_suggestions": itinerary,
+            "warnings": [warning_msg]
+        }
+    
+    def _mock_itinerary_options(
+        self,
+        member_preferences: List[Dict[str, Any]],
+        flight_results: List[Dict[str, Any]],
+        hotel_results: List[Dict[str, Any]],
+        activity_results: List[Dict[str, Any]],
+        budget_stats: Dict[str, Any],
+        selected_dates: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Create three deterministic itinerary options for local development."""
+        tiers = [
+            ('A', 'Budget-Friendly Adventure', budget_stats['min'], "Focuses on savings while keeping everyone involved."),
+            ('B', 'Balanced Crowd-Pleaser', budget_stats['median'], "Balances cost, comfort, and activity variety."),
+            ('C', 'Premium Experience', budget_stats['max'], "Leans into flexible budgets for maximum comfort.")
+        ]
+        
+        flights_sorted = sorted(flight_results, key=lambda f: self._safe_number(f.get('price')))
+        hotels_sorted = sorted(hotel_results, key=lambda h: self._safe_number(h.get('total_price') or h.get('price_per_night')))
+        activities_sorted = sorted(activity_results, key=lambda a: self._safe_number(a.get('price')))
+        
+        members_summary = self._member_summary(member_preferences)
+        options = []
+        
+        for idx, (option_letter, title, target_budget, description) in enumerate(tiers):
+            flight = flights_sorted[min(idx, len(flights_sorted) - 1)] if flights_sorted else {}
+            hotel = hotels_sorted[min(idx, len(hotels_sorted) - 1)] if hotels_sorted else {}
+            acts = activities_sorted[idx * 2:(idx + 1) * 2] if activities_sorted else []
+            
+            flight_cost = self._safe_number(flight.get('price'))
+            hotel_cost = self._safe_number(hotel.get('total_price') or hotel.get('price_per_night'))
+            activity_cost = sum(self._safe_number(a.get('price')) for a in acts)
+            total_cost = round(flight_cost + hotel_cost + activity_cost, 2)
+            travelers = max(1, len(member_preferences) or 1)
+            
+            options.append({
+                "option_letter": option_letter,
+                "title": title,
+                "description": description,
+                "selected_flight_id": self._extract_identifier(flight, ['id', 'external_id'], f"MOCK-FLIGHT-{idx+1}"),
+                "selected_hotel_id": self._extract_identifier(hotel, ['id', 'external_id'], f"MOCK-HOTEL-{idx+1}"),
+                "selected_activity_ids": [
+                    self._extract_identifier(act, ['id', 'external_id'], f"MOCK-ACT-{option_letter}-{i+1}")
+                    for i, act in enumerate(acts)
+                ],
+                "estimated_total_cost": total_cost if total_cost else target_budget,
+                "cost_per_person": round((total_cost if total_cost else target_budget) / travelers, 2),
+                "ai_reasoning": (
+                    f"Targets approximately ${target_budget:,.0f} by pairing {flight.get('airline', 'a flight')} "
+                    f"with {hotel.get('name', 'a hotel')} and {len(acts)} curated activities."
+                ),
+                "compromise_explanation": (
+                    f"Balances needs for {members_summary}. Each tier rotates destinations/price points "
+                    "so every member sees their preferences reflected somewhere."
+                ),
+                "pros": [
+                    "Uses locally generated sample data",
+                    "No external API dependencies",
+                    "Keeps all members involved in planning"
+                ],
+                "cons": [
+                    "Exact availability not guaranteed",
+                    "Prices are illustrative only"
+                ]
+            })
+        
+        voting_guidance = (
+            "Have members rank Options A–C based on comfort with the estimated spend and highlighted activities. "
+            "Because costs are mock values, treat them as relative comparisons instead of quotes."
+        )
+        consensus_summary = (
+            f"All options include flights, lodging, and curated activities for {members_summary}. "
+            "Dates are aligned with the selection provided." if selected_dates else
+            f"Each option remains feasible for {members_summary} even without final dates."
+        )
+        
+        notes = []
+        if error:
+            notes.append(f"AI provider unavailable ({error}); showing generated mock data instead.")
+        if not (flight_results and hotel_results):
+            notes.append("Consider running another search to expand the mock catalog for richer options.")
+        
+        response = {
+            "options": options,
+            "voting_guidance": voting_guidance,
+            "consensus_summary": consensus_summary,
+            "notes": notes
+        }
+        if error:
+            response["error"] = error
+        return response
+    
+    def _mock_group_consensus(
+        self,
+        member_preferences: List[Dict[str, Any]],
+        error: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Produce a heuristic consensus summary when OpenAI cannot be reached."""
+        budget_stats = self._calculate_budget_stats(member_preferences)
+        destinations = [pref.get('destination') for pref in member_preferences if pref.get('destination')]
+        destination = destinations[0] if destinations else "Flexible – decide as a group"
+        
+        activity_sets = []
+        for pref in member_preferences:
+            activities = pref.get('activity_preferences')
+            if activities:
+                if isinstance(activities, str):
+                    activity_sets.extend([a.strip() for a in activities.split(',') if a.strip()])
+                else:
+                    activity_sets.extend(activities)
+        top_activities = list(dict.fromkeys(activity_sets))[:4]
+        
+        unanimous = []
+        if top_activities:
+            unanimous.append("Group enjoys a mix of " + ", ".join(top_activities))
+        
+        conflicting = []
+        if len(set(destinations)) > 1:
+            conflicting.append({
+                "aspect": "Destination",
+                "members_affected": [pref.get('user', 'member') for pref in member_preferences],
+                "suggestion": "Shortlist the most mentioned two cities and run a quick vote."
+            })
+        
+        compromise = [
+            {
+                "aspect": "Budget",
+                "options": [
+                    f"Stick close to ${budget_stats['min']:,.0f}",
+                    f"Aim for ${budget_stats['median']:,.0f}",
+                    f"Splurge up to ${budget_stats['max']:,.0f}"
+                ],
+                "recommendation": f"Use the median budget (${budget_stats['median']:,.0f}) as the default voting threshold."
+            }
+        ]
+        
+        notes = "Keep communication async-friendly so everyone can react to mock itineraries."
+        if error:
+            notes += f" (AI note: {error})"
+        
+        return {
+            "consensus_preferences": {
+                "destination": destination,
+                "date_range": "Based on each member's availability – align exact dates in the Trip Preferences form.",
+                "budget_range": f"${budget_stats['min']:,.0f} - ${budget_stats['max']:,.0f}",
+                "accommodation_type": "Modern mid-range hotel or rental that sleeps the full group.",
+                "activities": top_activities or ["City highlights tour", "Group dinner"],
+                "dietary_accommodations": list({
+                    pref.get('dietary_restrictions')
+                    for pref in member_preferences
+                    if pref.get('dietary_restrictions')
+                }),
+                "accessibility_needs": list({
+                    pref.get('accessibility_needs')
+                    for pref in member_preferences
+                    if pref.get('accessibility_needs')
+                })
+            },
+            "compromise_areas": compromise,
+            "unanimous_preferences": unanimous,
+            "conflicting_preferences": conflicting,
+            "group_dynamics_notes": notes
+        }
+    
+    def _fallback_itinerary_description(
+        self,
+        destination: str,
+        activities: List[str],
+        duration_days: int,
+        preferences: Optional[Dict],
+        error: Optional[str] = None
+    ) -> str:
+        """Return a deterministic description for offline mode."""
+        activity_text = ", ".join(activities) if activities else "your favorite activities"
+        base = (
+            f"Plan a {duration_days}-day escape to {destination}. "
+            f"Day 1 focuses on arrivals and a relaxed neighborhood walk. "
+            f"Mid-trip highlights include {activity_text}, while the final day reserves time "
+            f"for last-minute shopping and farewells."
+        )
+        if preferences:
+            base += " Preferences considered: " + ", ".join(
+                f"{k}={v}" for k, v in preferences.items() if v
+            )
+        if error:
+            base += f" (AI note: {error})"
+        return base
+    
+    def _fallback_answer(
+        self,
+        question: str,
+        context: Optional[Dict],
+        error: Optional[str] = None
+    ) -> str:
+        """Provide a gentle reminder that the AI is offline with a helpful tip."""
+        answer = (
+            f"I can't reach the OpenAI API right now, but here are next steps for “{question}”: "
+            "cross-check current travel advisories, compare at least two airlines/hotels, "
+            "and keep the group's submitted preferences in mind."
+        )
+        if context:
+            answer += f" Context I considered: {json.dumps(context)[:200]}."
+        if error:
+            answer += f" (AI note: {error})"
+        return answer
+    
+    def _calculate_budget_stats(self, member_preferences: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Parse budgets from member preferences and provide summary statistics."""
+        budgets = []
+        for pref in member_preferences:
+            raw_budget = pref.get('budget')
+            if raw_budget is None:
+                continue
+            if isinstance(raw_budget, str):
+                cleaned = raw_budget.replace('$', '').replace(',', '').strip()
+            else:
+                cleaned = raw_budget
+            try:
+                value = float(cleaned)
+                if value > 0:
+                    budgets.append(value)
+            except (TypeError, ValueError):
+                continue
+        
+        if budgets:
+            budgets.sort()
+            mid = len(budgets) // 2
+            if len(budgets) % 2 == 0 and len(budgets) > 1:
+                median_budget = (budgets[mid - 1] + budgets[mid]) / 2
+            else:
+                median_budget = budgets[mid]
+            min_budget = budgets[0]
+            max_budget = budgets[-1]
+        else:
+            budgets = []
+            min_budget, median_budget, max_budget = 1000.0, 3000.0, 5000.0
+        
+        return {
+            "values": budgets,
+            "min": min_budget,
+            "median": median_budget,
+            "max": max_budget
+        }
+    
+    def _safe_number(self, value: Any, default: float = 0.0) -> float:
+        """Convert a value to float safely."""
+        if value in (None, '', 'N/A'):
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            cleaned = value.replace('$', '').replace(',', '').strip()
+            try:
+                return float(cleaned)
+            except ValueError:
+                return default
+        return default
+    
+    def _average_price(self, items: List[Dict[str, Any]], field: str) -> float:
+        values = [self._safe_number(item.get(field)) for item in items if self._safe_number(item.get(field))]
+        return round(sum(values) / len(values), 2) if values else 0.0
+    
+    def _extract_identifier(self, item: Dict[str, Any], fields: List[str], fallback: str) -> str:
+        for field in fields:
+            if item.get(field):
+                return str(item.get(field))
+        return fallback
+    
+    def _member_summary(self, member_preferences: List[Dict[str, Any]]) -> str:
+        names = [pref.get('user') for pref in member_preferences if pref.get('user')]
+        if not names:
+            return "the group"
+        if len(names) == 1:
+            return names[0]
+        if len(names) == 2:
+            return f"{names[0]} and {names[1]}"
+        return f"{', '.join(names[:-1])}, and {names[-1]}"
 

@@ -568,7 +568,7 @@ def view_itinerary(request, itinerary_id):
 
 @login_required
 def generate_voting_options(request, group_id):
-    """Generate 3 itinerary options for group voting based on member preferences"""
+    """Generate itinerary options for single-option group voting"""
     group = get_object_or_404(TravelGroup, id=group_id)
     
     # Verify user is a member
@@ -591,6 +591,11 @@ def generate_voting_options(request, group_id):
         # Get dates from JSON body or use None as fallback
         selected_start_date = body_data.get('start_date')
         selected_end_date = body_data.get('end_date')
+        start_location = (body_data.get('start_location') or '').strip()
+        if not start_location:
+            # Default to a well-connected hub so local development/tests work without extra input
+            start_location = 'JFK'
+            print("✈️  No start location provided. Defaulting to JFK for mock searches.")
         
         # Collect all member preferences
         trip_preferences = TripPreference.objects.filter(group=group, is_completed=True)
@@ -643,12 +648,17 @@ def generate_voting_options(request, group_id):
             print(f"📅 Using preference dates: {search_start_date} to {search_end_date}")
         
         try:
+            # Reset prior voting sessions for this group
+            GroupItineraryOption.objects.filter(group=group).delete()
+            ItineraryVote.objects.filter(group=group).delete()
+            
             # Create a search for the group with all destinations combined
             combined_destination = ", ".join(destinations_list)
             search = TravelSearch.objects.create(
                 user=request.user,
                 group=group,
                 destination=combined_destination,
+                origin=start_location,
                 start_date=search_start_date,
                 end_date=search_end_date,
                 adults=group.member_count,
@@ -668,7 +678,7 @@ def generate_voting_options(request, group_id):
                 
                 api_results = aggregator.search_all(
                     destination=destination,
-                    origin=None,
+                    origin=start_location,
                     start_date=search_start_date.strftime('%Y-%m-%d'),
                     end_date=search_end_date.strftime('%Y-%m-%d'),
                     adults=group.member_count,
@@ -789,7 +799,7 @@ def generate_voting_options(request, group_id):
                 raw_openai_response=json.dumps(consensus_data)
             )
             
-            # Generate 3 itinerary options with selected dates
+            # Generate itinerary options with selected dates
             options_data = openai_service.generate_three_itinerary_options(
                 member_preferences=member_prefs,
                 flight_results=api_results['flights'],
@@ -802,10 +812,11 @@ def generate_voting_options(request, group_id):
                 }
             )
             
-            # Create the 3 options in database
-            for option_data in options_data.get('options', []):
+            # Create the options in database (first becomes active; rest stay queued)
+            for idx, option_data in enumerate(options_data.get('options', [])):
                 # Get selected flight
                 selected_flight = None
+
                 if option_data.get('selected_flight_id'):
                     selected_flight = FlightResult.objects.filter(
                         search=search,
@@ -864,13 +875,26 @@ def generate_voting_options(request, group_id):
                     else:
                         print(f"  ❌ No hotels found at all for Option {option_data['option_letter']}")
                 
+                display_destination = option_destination or option_data.get('destination') or destination or destination_name
+                option_title = option_data.get('title') or 'Group Trip Option'
+                option_description = option_data.get('description') or ''
+                
+                if display_destination:
+                    if display_destination.lower() not in option_title.lower():
+                        option_title = f"{option_title} – {display_destination}"
+                    if display_destination.lower() not in option_description.lower():
+                        extra_context = f" This itinerary centers on {display_destination}."
+                        option_description = f"{option_description}{extra_context}" if option_description else extra_context.strip()
+                
                 # Create option
                 GroupItineraryOption.objects.create(
                     group=group,
                     consensus=consensus,
                     option_letter=option_data['option_letter'],
-                    title=option_data['title'],
-                    description=option_data['description'],
+                    round_number=idx + 1,
+                    status='active' if idx == 0 else 'queued',
+                    title=option_title,
+                    description=option_description,
                     destination=option_destination,  # Store the specific destination
                     search=search,
                     selected_flight=selected_flight,
@@ -882,11 +906,11 @@ def generate_voting_options(request, group_id):
                     compromise_explanation=option_data.get('compromise_explanation', ''),
                 )
             
-            print("✅ 3 itinerary options generated!")
+            print("✅ Itinerary options generated!")
             # Return JSON response for AJAX call instead of redirect
             return JsonResponse({
                 'success': True,
-                'message': '3 itinerary options generated! Group members can now vote.'
+                'message': 'Itinerary option ready! Group members can now vote.'
             })
             
         except Exception as e:
@@ -911,7 +935,7 @@ def generate_voting_options(request, group_id):
 
 @login_required
 def view_voting_options(request, group_id):
-    """Display the 3 itinerary options for group members to vote on"""
+    """Display a single itinerary option for members to vote YES/NO"""
     group = get_object_or_404(TravelGroup, id=group_id)
     
     # Verify user is a member
@@ -928,72 +952,67 @@ def view_voting_options(request, group_id):
         messages.warning(request, 'No voting options available yet. Generate options first.')
         return redirect('ai_implementation:generate_voting_options', group_id=group.id)
     
-    # Get the 3 options
-    options = GroupItineraryOption.objects.filter(
+    # Fetch available options for this consensus
+    options_qs = GroupItineraryOption.objects.filter(
         group=group,
         consensus=consensus
     ).select_related('selected_flight', 'selected_hotel')
     
-    if not options.exists():
+    if not options_qs.exists():
         messages.warning(request, 'No options found. Please generate them first.')
         return redirect('ai_implementation:generate_voting_options', group_id=group.id)
     
-    # Check if user has voted
-    user_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+    active_option = options_qs.filter(status='active').order_by('round_number').first()
     
-    # Get activities for each option (filtered by destination)
-    options_with_activities = []
-    for option in options:
-        activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
-        
-        # Get all activities, then filter by destination
-        if activity_ids:
-            all_activities = ActivityResult.objects.filter(
-                search=option.search,
-                external_id__in=activity_ids
-            )
-            
-            # Filter to match option's destination
-            activities = []
-            for activity in all_activities:
-                try:
-                    activity_raw = json.loads(activity.raw_data)
-                    activity_destination = activity_raw.get('searched_destination', '')
-                    
-                    # If option has destination, filter by it
-                    if option.destination:
-                        if activity_destination == option.destination:
-                            activities.append(activity)
-                    else:
-                        # No destination filtering - include all
-                        activities.append(activity)
-                except:
-                    # Fallback: include if can't parse
+    # Promote first queued option if none currently active
+    if not active_option:
+        next_queued = options_qs.filter(status='queued').order_by('round_number').first()
+        if next_queued:
+            next_queued.status = 'active'
+            next_queued.save(update_fields=['status', 'updated_at'])
+            active_option = next_queued
+    
+    if not active_option:
+        messages.warning(request, 'All options have been processed. Please generate new options.')
+        return redirect('ai_implementation:generate_voting_options', group_id=group.id)
+    
+    # Activities for the active option
+    activity_ids = json.loads(active_option.selected_activities) if active_option.selected_activities else []
+    activities = []
+    if activity_ids:
+        all_activities = ActivityResult.objects.filter(
+            search=active_option.search,
+            external_id__in=activity_ids
+        )
+        for activity in all_activities:
+            try:
+                activity_raw = json.loads(activity.raw_data)
+                destination = activity_raw.get('searched_destination', '')
+                if not active_option.destination or destination == active_option.destination:
                     activities.append(activity)
-            
-            # If no activities after filtering, fall back to showing all
-            if not activities and all_activities:
-                activities = list(all_activities)
-        else:
-            activities = []
-        
-        options_with_activities.append({
-            'option': option,
-            'activities': activities
-        })
+            except:
+                activities.append(activity)
+        if not activities and all_activities:
+            activities = list(all_activities)
     
-    # Get voting stats
+    # Voting stats (per active option)
     total_members = GroupMember.objects.filter(group=group).count()
-    votes_cast = ItineraryVote.objects.filter(group=group).count()
+    option_votes = ItineraryVote.objects.filter(option=active_option)
+    votes_cast = option_votes.count()
+    user_vote = option_votes.filter(user=request.user).first()
     
     context = {
         'group': group,
         'consensus': consensus,
-        'options_with_activities': options_with_activities,
+        'active_option': active_option,
+        'active_option_activities': activities,
         'user_vote': user_vote,
         'total_members': total_members,
         'votes_cast': votes_cast,
         'voting_complete': votes_cast >= total_members,
+        'queued_count': options_qs.filter(status='queued').count(),
+        'rejected_count': options_qs.filter(status='rejected').count(),
+        'approved_option': options_qs.filter(status='approved').first(),
     }
     return render(request, 'ai_implementation/view_voting_options.html', context)
 
@@ -1001,7 +1020,7 @@ def view_voting_options(request, group_id):
 @login_required
 @require_http_methods(["POST"])
 def cast_vote(request, group_id, option_id):
-    """Cast a vote for an itinerary option"""
+    """Cast a YES/NO vote for the active itinerary option"""
     group = get_object_or_404(TravelGroup, id=group_id)
     option = get_object_or_404(GroupItineraryOption, id=option_id, group=group)
     
@@ -1011,47 +1030,70 @@ def cast_vote(request, group_id, option_id):
     except GroupMember.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Not a group member'})
     
-    # Check if user already voted
-    existing_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+    if option.status != 'active':
+        return JsonResponse({'success': False, 'error': 'Voting for this option is closed.'}, status=400)
     
-    if existing_vote:
-        # Change vote
-        existing_vote.option = option
-        existing_vote.comment = request.POST.get('comment', '')
-        existing_vote.save()
-        message = 'Vote updated successfully!'
-    else:
-        # New vote
-        ItineraryVote.objects.create(
-            option=option,
-            user=request.user,
-            group=group,
-            comment=request.POST.get('comment', '')
-        )
-        message = 'Vote cast successfully!'
+    vote_choice = request.POST.get('vote')
+    if vote_choice not in ['yes', 'no']:
+        return JsonResponse({'success': False, 'error': 'Please choose yes or no.'}, status=400)
     
-    # Check if all members have voted
+    # Record / update vote for this option & user
+    ItineraryVote.objects.update_or_create(
+        option=option,
+        user=request.user,
+        defaults={
+            'group': group,
+            'vote_choice': vote_choice,
+            'comment': request.POST.get('comment', '')
+        }
+    )
+    
     total_members = GroupMember.objects.filter(group=group).count()
-    votes_cast = ItineraryVote.objects.filter(group=group).count()
+    option_votes = ItineraryVote.objects.filter(option=option)
+    votes_cast = option_votes.count()
+    
+    response = {
+        'success': True,
+        'votes_cast': votes_cast,
+        'total_members': total_members,
+        'option_status': option.status,
+        'message': 'Vote recorded!',
+    }
     
     if votes_cast >= total_members:
-        # Determine winner
-        winner = GroupItineraryOption.objects.filter(
-            group=group
-        ).order_by('-vote_count').first()
+        yes_votes = option_votes.filter(vote_choice='yes').count()
+        unanimous = yes_votes == total_members
         
-        if winner:
-            # Mark as winner
+        if unanimous:
             GroupItineraryOption.objects.filter(group=group).update(is_winner=False)
-            winner.is_winner = True
-            winner.save()
+            option.status = 'approved'
+            option.is_winner = True
+            option.save(update_fields=['status', 'is_winner', 'updated_at'])
+            response['option_status'] = 'approved'
+            response['message'] = 'Itinerary unanimously approved!'
+        else:
+            option.status = 'rejected'
+            option.is_winner = False
+            option.save(update_fields=['status', 'is_winner', 'updated_at'])
+            
+            next_option = GroupItineraryOption.objects.filter(
+                group=group,
+                consensus=option.consensus,
+                status='queued'
+            ).order_by('round_number').first()
+            
+            if next_option:
+                next_option.status = 'active'
+                next_option.save(update_fields=['status', 'updated_at'])
+                response['option_status'] = 'rejected'
+                response['has_next_option'] = True
+                response['message'] = 'Not unanimous. A new itinerary option is ready for voting.'
+            else:
+                response['option_status'] = 'rejected'
+                response['has_next_option'] = False
+                response['message'] = 'Not unanimous and no additional options remain. Please generate new options.'
     
-    return JsonResponse({
-        'success': True,
-        'message': message,
-        'votes_cast': votes_cast,
-        'total_members': total_members
-    })
+    return JsonResponse(response)
 
 
 @login_required

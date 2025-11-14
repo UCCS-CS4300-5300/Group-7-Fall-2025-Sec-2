@@ -173,7 +173,7 @@ if openai_key and duffel_key:
     print("  Test it:")
     print("  1. python manage.py runserver")
     print("  2. Go to group page")
-    print("  3. Click 'Manage Trips' tab")
+    print("  3. Click 'Find A Trip' tab")
     print("  4. Click 'Find Your Trip' button")
     print()
 

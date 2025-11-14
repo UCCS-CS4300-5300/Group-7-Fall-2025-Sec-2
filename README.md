@@ -21,13 +21,13 @@ A Django-based user account management system for the GroupGo travel application
 
 1. **Navigate to the project directory:**
    ```bash
-   cd /Group-7-Fall-2025-Sec-2/groupgo
+   cd /Users/devonwhite/Desktop/Github/Group-7-Fall-2025-Sec-2
    ```
 
-2. **Create a virtual environment (recommended):**
+2. **Create & activate a virtual environment (recommended):**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    ```
 
 3. **Install dependencies:**
@@ -35,25 +35,37 @@ A Django-based user account management system for the GroupGo travel application
    pip install -r requirements.txt
    ```
 
-4. **Run database migrations:**
+4. **Copy the sample env file and update any secrets/API keys:**
+   ```bash
+   cp env.sample .env
+   ```
+   Leaving the AI/travel keys blank automatically enables local-only mock data.
+
+5. **Run database migrations:**
    ```bash
    python manage.py makemigrations
    python manage.py migrate
    ```
 
-5. **Create a superuser (optional, for admin access):**
+6. **Create a superuser (optional, for admin access):**
    ```bash
    python manage.py createsuperuser
    ```
 
-6. **Start the development server:**
+7. **Start the development server:**
    ```bash
    python manage.py runserver
    ```
 
-7. **Access the application:**
-   - Homepage: https://groupgo.decisiveonion.com/
-   - Admin panel: https://groupgo.decisiveonion.com/admin
+8. **Access the application:**
+   - Homepage: http://127.0.0.1:8000/
+   - Admin panel: http://127.0.0.1:8000/admin/
+
+## Local Development Notes
+
+- If `OPENAI_API_KEY` is not set, the AI workflows fall back to deterministic, privacy-safe heuristics so searches, consensus, and itinerary generation continue to work offline.
+- External travel APIs (Duffel, Amadeus, hotel/activity providers) already provide mock data paths when keys are absent, so no vendor accounts are required to exercise the UI.
+- `env.sample` sets `CELERY_TASK_ALWAYS_EAGER=True`, which runs Celery tasks synchronously and removes the need to install Redis locally. Override these values in `.env` if you want to test the full async stack.
 
 ## User Flow
 

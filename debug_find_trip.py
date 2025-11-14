@@ -74,7 +74,7 @@ for group in groups:
             for opt in options:
                 print(f"   Option {opt.option_letter}: {opt.title}")
                 print(f"      Cost: ${opt.estimated_total_cost} (${opt.cost_per_person}/person)")
-                print(f"      Votes: {opt.vote_count}")
+                print(f"      YES Votes: {opt.vote_count}")
                 if opt.selected_flight:
                     print(f"      Flight: {opt.selected_flight.airline} - ${opt.selected_flight.price}")
                 if opt.selected_hotel:
@@ -99,7 +99,7 @@ for group in groups:
         print()
         print("   🔧 TO GENERATE OPTIONS:")
         print("      1. Ensure 2+ members have submitted preferences")
-        print("      2. Go to group page → 'Manage Trips' tab")
+        print("      2. Go to group page → 'Find A Trip' tab")
         print("      3. Click 'Find Your Trip' button")
         print("      4. Wait 30-60 seconds")
         print()
@@ -146,5 +146,8 @@ print("  1. Hard refresh browser (Ctrl+Shift+R)")
 print("  2. Check this script shows options exist")
 print("  3. Check server logs for template errors")
 print()
+
+
+
 
 

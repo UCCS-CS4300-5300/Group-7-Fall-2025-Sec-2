@@ -311,12 +311,21 @@ class GroupItineraryOption(models.Model):
         ('C', 'Option C'),
     ]
     
+    STATUS_CHOICES = [
+        ('queued', 'Queued'),
+        ('active', 'Active'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group = models.ForeignKey('travel_groups.TravelGroup', on_delete=models.CASCADE, related_name='itinerary_options')
     consensus = models.ForeignKey(GroupConsensus, on_delete=models.CASCADE, related_name='itinerary_options')
     
-    # Option identifier
+    # Option identifier / sequencing
     option_letter = models.CharField(max_length=1, choices=OPTION_CHOICES)
+    round_number = models.PositiveIntegerField(default=1, help_text="Sequence number for single-option voting flow")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
     
     # Itinerary details
     title = models.CharField(max_length=300)
@@ -348,7 +357,7 @@ class GroupItineraryOption(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['option_letter']
+        ordering = ['round_number', 'option_letter']
         unique_together = ['group', 'consensus', 'option_letter']
         verbose_name = "Group Itinerary Option"
         verbose_name_plural = "Group Itinerary Options"
@@ -357,13 +366,19 @@ class GroupItineraryOption(models.Model):
         return f"Option {self.option_letter} for {self.group.name} - {self.vote_count} votes"
     
     def update_vote_count(self):
-        """Update the vote count from related votes"""
-        self.vote_count = self.votes.count()
-        self.save()
+        """Update the vote count from related votes (counts YES votes by default)"""
+        yes_votes = self.votes.filter(vote_choice='yes').count()
+        self.vote_count = yes_votes
+        self.save(update_fields=['vote_count', 'updated_at'])
 
 
 class ItineraryVote(models.Model):
     """Model for tracking group member votes on itinerary options"""
+    
+    VOTE_CHOICES = [
+        ('yes', 'Yes'),
+        ('no', 'No'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     option = models.ForeignKey(GroupItineraryOption, on_delete=models.CASCADE, related_name='votes')
@@ -371,17 +386,18 @@ class ItineraryVote(models.Model):
     group = models.ForeignKey('travel_groups.TravelGroup', on_delete=models.CASCADE, related_name='member_votes')
     
     # Vote details
+    vote_choice = models.CharField(max_length=3, choices=VOTE_CHOICES, default='yes')
     voted_at = models.DateTimeField(auto_now_add=True)
     comment = models.TextField(blank=True, null=True, help_text="Optional comment about their choice")
     
     class Meta:
-        unique_together = ['group', 'user']  # One vote per user per voting session
+        unique_together = ['option', 'user']  # One vote per user per active option
         ordering = ['-voted_at']
         verbose_name = "Itinerary Vote"
         verbose_name_plural = "Itinerary Votes"
     
     def __str__(self):
-        return f"{self.user.username} voted for Option {self.option.option_letter}"
+        return f"{self.user.username} voted {self.vote_choice.upper()} for Option {self.option.option_letter}"
     
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
