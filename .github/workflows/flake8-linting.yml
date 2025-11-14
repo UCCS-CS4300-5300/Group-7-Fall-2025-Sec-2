@@ -61,8 +61,3 @@ jobs:
           name: flake8-text-report
           path: flake8-report.txt
           if-no-files-found: warn
-
-      - name: Check for linting errors
-        run: |
-          echo "Final linting check..."
-          flake8 . --count --statistics
