@@ -1,0 +1,32 @@
+[flake8]
+# Black-compatible configuration
+max-line-length = 88
+extend-ignore = E203, E501, W503, W293
+
+# Exclude patterns
+exclude = 
+    */migrations/*,
+    */venv/*,
+    */__pycache__/*,
+    .git,
+    .pytest_cache,
+    db.sqlite3,
+    *.egg-info,
+    build/,
+    dist/
+
+# Per-file ignores
+per-file-ignores =
+    # Django settings files can have wildcard imports and long lines
+    */settings.py:F403,F405,E501
+    # __init__.py files can have unused imports
+    */__init__.py:F401
+
+# Report settings
+format = default
+show-source = True
+statistics = True
+count = True
+
+# HTML report output directory
+htmldir = flake8-report
