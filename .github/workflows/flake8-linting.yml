@@ -60,48 +60,48 @@ jobs:
 
           # Generate comment directly
           if [ "$TOTAL_COUNT" -eq "0" ]; then
-            cat > comment.txt << 'EOF'
-## 🔍 Flake8 Linting Report
-
-✅ **No linting issues found!** Great job! 🎉
-
----
-📊 Full HTML report available in workflow artifacts
-EOF
+            {
+              echo "## 🔍 Flake8 Linting Report"
+              echo ""
+              echo "✅ **No linting issues found!** Great job! 🎉"
+              echo ""
+              echo "---"
+              echo "📊 Full HTML report available in workflow artifacts"
+            } > comment.txt
           else
             # Get a preview of issues (first 30 lines)
             ISSUES=$(flake8 . --format=default 2>&1 | head -n 30 || true)
             ISSUE_LINE_COUNT=$(flake8 . --format=default 2>&1 | wc -l || echo "0")
             
             # Start writing the comment
-            cat > comment.txt << EOF
-## 🔍 Flake8 Linting Report
-
-⚠️ **Found $TOTAL_COUNT linting issue(s)**
-
-<details>
-<summary>Click to see linting issues (showing first 30)</summary>
-
-\`\`\`
-$ISSUES
-EOF
+            {
+              echo "## 🔍 Flake8 Linting Report"
+              echo ""
+              echo "⚠️ **Found $TOTAL_COUNT linting issue(s)**"
+              echo ""
+              echo "<details>"
+              echo "<summary>Click to see linting issues (showing first 30)</summary>"
+              echo ""
+              echo '```'
+              echo "$ISSUES"
+            } > comment.txt
             
             # Add truncation notice if needed
             if [ "$ISSUE_LINE_COUNT" -gt 30 ]; then
-              cat >> comment.txt << 'EOF'
-...
-(Check the full HTML report in artifacts for all issues)
-EOF
+              {
+                echo "..."
+                echo "(Check the full HTML report in artifacts for all issues)"
+              } >> comment.txt
             fi
             
             # Close the details block
-            cat >> comment.txt << 'EOF'
-```
-</details>
-
----
-📊 Full HTML report available in workflow artifacts
-EOF
+            {
+              echo '```'
+              echo "</details>"
+              echo ""
+              echo "---"
+              echo "📊 Full HTML report available in workflow artifacts"
+            } >> comment.txt
           fi
 
       - name: Post PR comment
