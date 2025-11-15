@@ -92,3 +92,4 @@ local_settings.py
 .env
 staticfiles/
 venv/
+flake8-results.txt

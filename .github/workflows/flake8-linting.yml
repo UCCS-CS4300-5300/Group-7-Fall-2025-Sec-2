@@ -24,7 +24,6 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 flake8-django flake8-bugbear flake8-black
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run Flake8 linting
@@ -37,4 +36,4 @@ jobs:
         with:
           name: flake8-linting-results
           path: flake8-results.txt
-          retention-days: 30
+          if-no-files-found: ignore
