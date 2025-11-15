@@ -13,6 +13,8 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    # Run on pull requests OR on push events that are not part of a pull request
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !github.event.pull_request)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,26 +28,26 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 flake8-django flake8-html flake8-bugbear flake8-black
+          pip install flake8 flake8-django flake8-bugbear flake8-black
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Flake8 linting and generate HTML report
+      - name: Run Flake8 linting and generate text report
         if: always()
         run: |
-          echo "Running Flake8 linting and generating HTML report..."
+          echo "Running Flake8 linting and generating text report..."
 
           # Run flake8 and display in console for immediate feedback
           flake8 . --format=default --statistics --count || true
 
-          # Generate HTML report
-          flake8 . --format=html --htmldir=flake8-report 2>&1 || true
+          # Generate text report
+          flake8 . --format=default --tee --output-file=flake8-report.txt 2>&1 || true
 
-      - name: Upload HTML report
+      - name: Upload text report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flake8-html-report
-          path: flake8-report/
+          name: flake8-report
+          path: flake8-report.txt
           if-no-files-found: warn
 
       - name: Generate PR comment
@@ -58,6 +60,9 @@ jobs:
           FLAKE8_OUTPUT=$(flake8 . --count 2>&1 || true)
           TOTAL_COUNT=$(echo "$FLAKE8_OUTPUT" | tail -n 1 | grep -oE '^[0-9]+$' || echo "0")
 
+          # Build artifact URL
+          ARTIFACT_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
           # Generate comment directly
           if [ "$TOTAL_COUNT" -eq "0" ]; then
             {
@@ -66,7 +71,7 @@ jobs:
               echo "✅ **No linting issues found!** Great job! 🎉"
               echo ""
               echo "---"
-              echo "📊 Full HTML report available in workflow artifacts"
+              echo "📊 [View full report in workflow artifacts]($ARTIFACT_URL)"
             } > comment.txt
           else
             # Get a preview of issues (first 30 lines)
@@ -90,7 +95,7 @@ jobs:
             if [ "$ISSUE_LINE_COUNT" -gt 30 ]; then
               {
                 echo "..."
-                echo "(Check the full HTML report in artifacts for all issues)"
+                echo "(Check the full report in artifacts for all issues)"
               } >> comment.txt
             fi
             
@@ -100,7 +105,7 @@ jobs:
               echo "</details>"
               echo ""
               echo "---"
-              echo "📊 Full HTML report available in workflow artifacts"
+              echo "📊 [View full report in workflow artifacts]($ARTIFACT_URL)"
             } >> comment.txt
           fi
 
