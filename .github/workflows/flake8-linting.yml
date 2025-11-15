@@ -58,52 +58,51 @@ jobs:
           FLAKE8_OUTPUT=$(flake8 . --count 2>&1 || true)
           TOTAL_COUNT=$(echo "$FLAKE8_OUTPUT" | tail -n 1 | grep -oE '^[0-9]+$' || echo "0")
 
-          # Generate summary
+          # Generate comment directly
           if [ "$TOTAL_COUNT" -eq "0" ]; then
-            SUMMARY="✅ **No linting issues found!** Great job! 🎉"
-            DETAILS=""
+            cat > comment.txt << 'EOF'
+## 🔍 Flake8 Linting Report
+
+✅ **No linting issues found!** Great job! 🎉
+
+---
+📊 Full HTML report available in workflow artifacts
+EOF
           else
-            SUMMARY="⚠️ **Found $TOTAL_COUNT linting issue(s)**"
-            
             # Get a preview of issues (first 30 lines)
-            ISSUES=$(flake8 . --format=default | head -n 30)
+            ISSUES=$(flake8 . --format=default 2>&1 | head -n 30 || true)
+            ISSUE_LINE_COUNT=$(flake8 . --format=default 2>&1 | wc -l || echo "0")
             
-            if [ $(flake8 . --count 2>&1 | wc -l) -gt 35 ]; then
-              DETAILS="<details>
-          <summary>Click to see linting issues (showing first 30)</summary>
+            # Start writing the comment
+            cat > comment.txt << EOF
+## 🔍 Flake8 Linting Report
 
-          \`\`\`
-          $ISSUES
-          ...
-          (Check the full HTML report in artifacts for all issues)
-          \`\`\`
-          </details>"
-            else
-              DETAILS="<details>
-          <summary>Click to see linting issues</summary>
+⚠️ **Found $TOTAL_COUNT linting issue(s)**
 
-          \`\`\`
-          $ISSUES
-          \`\`\`
-          </details>"
+<details>
+<summary>Click to see linting issues (showing first 30)</summary>
+
+\`\`\`
+$ISSUES
+EOF
+            
+            # Add truncation notice if needed
+            if [ "$ISSUE_LINE_COUNT" -gt 30 ]; then
+              cat >> comment.txt << 'EOF'
+...
+(Check the full HTML report in artifacts for all issues)
+EOF
             fi
+            
+            # Close the details block
+            cat >> comment.txt << 'EOF'
+```
+</details>
+
+---
+📊 Full HTML report available in workflow artifacts
+EOF
           fi
-
-          # Create comment body
-          cat > comment.txt << 'EOF'
-          ## 🔍 Flake8 Linting Report
-
-          $SUMMARY
-
-          $DETAILS
-
-          ---
-          📊 Full HTML report available in workflow artifacts
-          EOF
-
-          # Replace variables
-          sed -i "s|\$SUMMARY|$SUMMARY|g" comment.txt
-          sed -i "s|\$DETAILS|$DETAILS|g" comment.txt
 
       - name: Post PR comment
         if: github.event_name == 'pull_request'
