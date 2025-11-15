@@ -46,3 +46,12 @@ jobs:
         run: |
           coverage combine
           coverage report -m --fail-under=80
+          coverage xml
+
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
