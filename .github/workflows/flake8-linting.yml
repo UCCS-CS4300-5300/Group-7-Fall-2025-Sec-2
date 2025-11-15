@@ -29,4 +29,12 @@ jobs:
 
       - name: Run Flake8 linting
         run: |
-          flake8 . --format=default --statistics --count || true
+          flake8 . --format=default --statistics --count > flake8-results.txt 2>&1 || true
+
+      - name: Upload linting results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flake8-linting-results
+          path: flake8-results.txt
+          retention-days: 30
