@@ -3,14 +3,13 @@ name: Flake8 Linting
 on:
   push:
     branches: ["**"]
-  pull_request:
-    branches: ["**"]
 
 permissions:
   contents: read
 
 jobs:
   lint:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,39 +24,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 flake8-django flake8-html flake8-bugbear flake8-black
+          pip install flake8 flake8-django flake8-bugbear flake8-black
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run Flake8 linting
         run: |
-          echo "Running Flake8 linting..."
           flake8 . --format=default --statistics --count || true
-
-      - name: Generate HTML report
-        if: always()
-        run: |
-          echo "Generating HTML report..."
-          flake8 . --format=html --htmldir=flake8-report || true
-
-      - name: Generate detailed text report
-        if: always()
-        run: |
-          echo "Generating detailed text report..."
-          flake8 . --format=default --show-source --statistics --count > flake8-report.txt || true
-          cat flake8-report.txt
-
-      - name: Upload HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flake8-html-report
-          path: flake8-report/
-          if-no-files-found: warn
-
-      - name: Upload text report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flake8-text-report
-          path: flake8-report.txt
-          if-no-files-found: warn

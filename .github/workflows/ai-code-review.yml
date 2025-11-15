@@ -40,7 +40,7 @@ jobs:
           # Model and prompt
           MODEL: gpt-4o-mini
           PROMPT: |
-            You are an automated code reviewer analyzing Python/Django code changes in a pull request. Your task is to review the code provided and give structured feedback. This is NOT a conversation—you must immediately analyze any code provided and output a structured review.
+            You are an automated code reviewer analyzing Python/Django code changes in a pull request. Your task is to review the code provided and give structured feedback. This is NOT a conversation—you must immediately analyze any code provided and output a structured review. You MUST follow the instructions below EXACTLY.
 
             **CRITICAL INSTRUCTIONS AND GUIDELINES:**
             - If code is provided, you MUST review it and provide feedback in the format below

@@ -114,6 +114,46 @@ jobs:
 
             await waitForWorkflow('test-coverage.yml');
 
+      - name: Wait for Linting
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const waitForWorkflow = async (workflowId, timeout = 3600000) => {
+              const startTime = Date.now();
+              const checkInterval = 10000; // 10 seconds
+              
+              while (Date.now() - startTime < timeout) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflowId,
+                  branch: 'main',
+                  per_page: 1
+                });
+                
+                const run = data.workflow_runs[0];
+                
+                // Check if this run is for our commit
+                if (run?.head_sha === context.sha) {
+                  if (run.status === 'completed') {
+                    if (run.conclusion === 'success') {
+                      console.log(`✅ ${workflowId} completed successfully`);
+                      return true;
+                    }
+                    core.setFailed(`❌ ${workflowId} ${run.conclusion}`);
+                    return;
+                  }
+                  console.log(`⏳ ${workflowId} status: ${run.status}`);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+              }
+              
+              core.setFailed(`⏱️ Timeout waiting for ${workflowId}`);
+            };
+
+            await waitForWorkflow('flake8-linting.yml');
+
       - name: Verify AI Code Review passed
         uses: actions/github-script@v7
         env:
