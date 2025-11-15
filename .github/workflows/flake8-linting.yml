@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   lint:
@@ -28,23 +29,16 @@ jobs:
           pip install flake8 flake8-django flake8-html flake8-bugbear flake8-black
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Flake8 linting
+      - name: Run Flake8 linting and generate HTML report
+        if: always()
         run: |
-          echo "Running Flake8 linting..."
+          echo "Running Flake8 linting and generating HTML report..."
+
+          # Run flake8 and display in console for immediate feedback
           flake8 . --format=default --statistics --count || true
 
-      - name: Generate HTML report
-        if: always()
-        run: |
-          echo "Generating HTML report..."
-          flake8 . --format=html --htmldir=flake8-report || true
-
-      - name: Generate detailed text report
-        if: always()
-        run: |
-          echo "Generating detailed text report..."
-          flake8 . --format=default --show-source --statistics --count > flake8-report.txt || true
-          cat flake8-report.txt
+          # Generate HTML report
+          flake8 . --format=html --htmldir=flake8-report 2>&1 || true
 
       - name: Upload HTML report
         if: always()
@@ -54,10 +48,98 @@ jobs:
           path: flake8-report/
           if-no-files-found: warn
 
-      - name: Upload text report
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Generate PR comment
+        if: github.event_name == 'pull_request'
+        id: lint-report
+        run: |
+          echo "Generating PR comment..."
+
+          # Get issue count from flake8 (just for the summary)
+          FLAKE8_OUTPUT=$(flake8 . --count 2>&1 || true)
+          TOTAL_COUNT=$(echo "$FLAKE8_OUTPUT" | tail -n 1 | grep -oE '^[0-9]+$' || echo "0")
+
+          # Generate summary
+          if [ "$TOTAL_COUNT" -eq "0" ]; then
+            SUMMARY="✅ **No linting issues found!** Great job! 🎉"
+            DETAILS=""
+          else
+            SUMMARY="⚠️ **Found $TOTAL_COUNT linting issue(s)**"
+            
+            # Get a preview of issues (first 30 lines)
+            ISSUES=$(flake8 . --format=default | head -n 30)
+            
+            if [ $(flake8 . --count 2>&1 | wc -l) -gt 35 ]; then
+              DETAILS="<details>
+          <summary>Click to see linting issues (showing first 30)</summary>
+
+          \`\`\`
+          $ISSUES
+          ...
+          (Check the full HTML report in artifacts for all issues)
+          \`\`\`
+          </details>"
+            else
+              DETAILS="<details>
+          <summary>Click to see linting issues</summary>
+
+          \`\`\`
+          $ISSUES
+          \`\`\`
+          </details>"
+            fi
+          fi
+
+          # Create comment body
+          cat > comment.txt << 'EOF'
+          ## 🔍 Flake8 Linting Report
+
+          $SUMMARY
+
+          $DETAILS
+
+          ---
+          📊 Full HTML report available in workflow artifacts
+          EOF
+
+          # Replace variables
+          sed -i "s|\$SUMMARY|$SUMMARY|g" comment.txt
+          sed -i "s|\$DETAILS|$DETAILS|g" comment.txt
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
         with:
-          name: flake8-text-report
-          path: flake8-report.txt
-          if-no-files-found: warn
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('comment.txt', 'utf8');
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('🔍 Flake8 Linting Report')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
