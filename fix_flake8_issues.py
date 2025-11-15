@@ -10,32 +10,32 @@ from pathlib import Path
 
 def fix_trailing_whitespace(content):
     """Remove trailing whitespace from lines"""
-    lines = content.split('\n')
-    return '\n'.join(line.rstrip() for line in lines)
+    lines = content.split("\n")
+    return "\n".join(line.rstrip() for line in lines)
 
 
 def fix_blank_lines_at_end(content):
     """Ensure exactly one newline at end of file"""
-    content = content.rstrip('\n')
-    return content + '\n'
+    content = content.rstrip("\n")
+    return content + "\n"
 
 
 def fix_tabs_to_spaces(content):
     """Replace tabs with 4 spaces"""
-    return content.replace('\t', '    ')
+    return content.replace("\t", "    ")
 
 
 def fix_bare_except(content):
     """Replace bare except with except Exception"""
     # Match 'except:' but not 'except Exception:' or 'except SomeClass:'
-    pattern = r'(\s+)(except)(\s*)(:)'
-    replacement = r'\1except Exception\4'
+    pattern = r"(\s+)(except)(\s*)(:)"
+    replacement = r"\1except Exception\4"
     return re.sub(pattern, replacement, content)
 
 
 def fix_f_string_placeholders(content):
     """Fix f-strings without placeholders to regular strings"""
-    lines = content.split('\n')
+    lines = content.split("\n")
     fixed_lines = []
 
     for line in lines:
@@ -47,17 +47,17 @@ def fix_f_string_placeholders(content):
                 quote = match.group(1)
                 text = match.group(2)
                 # If no placeholders, remove the f
-                if '{' not in text:
-                    line = line.replace(f'f{quote}', quote)
+                if "{" not in text:
+                    line = line.replace(f"f{quote}", quote)
         fixed_lines.append(line)
 
-    return '\n'.join(fixed_lines)
+    return "\n".join(fixed_lines)
 
 
 def process_file(filepath):
     """Process a single file to fix flake8 issues"""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
 
         original_content = content
@@ -71,7 +71,7 @@ def process_file(filepath):
 
         # Only write if changed
         if content != original_content:
-            with open(filepath, 'w', encoding='utf-8') as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             print(f"Fixed: {filepath}")
             return True
@@ -89,10 +89,14 @@ def main():
 
     for root, dirs, files in os.walk(base_dir):
         # Skip venv, __pycache__, migrations, etc.
-        dirs[:] = [d for d in dirs if d not in ['venv', '__pycache__', '.git', 'node_modules', 'staticfiles']]
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in ["venv", "__pycache__", ".git", "node_modules", "staticfiles"]
+        ]
 
         for file in files:
-            if file.endswith('.py'):
+            if file.endswith(".py"):
                 filepath = os.path.join(root, file)
                 python_files.append(filepath)
 
@@ -108,5 +112,5 @@ def main():
     print(f"Fixed {fixed_count} files")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

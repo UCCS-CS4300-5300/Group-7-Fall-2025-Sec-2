@@ -9,7 +9,7 @@ import django
 from travel_groups.models import TravelGroup, TripPreference
 from ai_implementation.models import GroupConsensus, GroupItineraryOption, ItineraryVote
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'groupgo.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "groupgo.settings")
 django.setup()
 
 print("=" * 70)
@@ -58,7 +58,11 @@ for group in groups:
         print()
 
     # Check if voting options exist
-    consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
+    consensus = (
+        GroupConsensus.objects.filter(group=group, is_active=True)
+        .order_by("-created_at")
+        .first()
+    )
 
     if consensus:
         print(f"   📊 Group Consensus: ✅ EXISTS (created {consensus.created_at})")
@@ -71,12 +75,18 @@ for group in groups:
             print()
             for opt in options:
                 print(f"   Option {opt.option_letter}: {opt.title}")
-                print(f"      Cost: ${opt.estimated_total_cost} (${opt.cost_per_person}/person)")
+                print(
+                    f"      Cost: ${opt.estimated_total_cost} (${opt.cost_per_person}/person)"
+                )
                 print(f"      Votes: {opt.vote_count}")
                 if opt.selected_flight:
-                    print(f"      Flight: {opt.selected_flight.airline} - ${opt.selected_flight.price}")
+                    print(
+                        f"      Flight: {opt.selected_flight.airline} - ${opt.selected_flight.price}"
+                    )
                 if opt.selected_hotel:
-                    print(f"      Hotel: {opt.selected_hotel.name} - ${opt.selected_hotel.total_price}")
+                    print(
+                        f"      Hotel: {opt.selected_hotel.name} - ${opt.selected_hotel.total_price}"
+                    )
                 print()
         else:
             print(f"   ⚠️  ISSUE: Expected 3 options, found {options.count()}")
@@ -88,7 +98,9 @@ for group in groups:
         print(f"   📊 Votes Cast: {votes.count()} of {group.member_count} members")
         if votes.exists():
             for vote in votes:
-                print(f"      - {vote.user.username} voted for Option {vote.option.option_letter}")
+                print(
+                    f"      - {vote.user.username} voted for Option {vote.option.option_letter}"
+                )
         print()
 
     else:
@@ -114,8 +126,12 @@ print()
 
 all_groups_ok = True
 for group in groups:
-    prefs_ok = TripPreference.objects.filter(group=group, is_completed=True).count() >= 2
-    consensus_exists = GroupConsensus.objects.filter(group=group, is_active=True).exists()
+    prefs_ok = (
+        TripPreference.objects.filter(group=group, is_completed=True).count() >= 2
+    )
+    consensus_exists = GroupConsensus.objects.filter(
+        group=group, is_active=True
+    ).exists()
 
     print(f"Group: {group.name}")
     print(f"  Preferences: {'✅ OK' if prefs_ok else '❌ Need more'}")

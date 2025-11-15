@@ -11,7 +11,7 @@ from travel_groups.models import TravelGroup, GroupItinerary
 from accounts.models import Itinerary
 
 # Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'groupgo.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "groupgo.settings")
 django.setup()
 
 
@@ -42,9 +42,9 @@ def check_trips():
         print()
 
         # Get trips for this group
-        group_itineraries = GroupItinerary.objects.filter(
-            group=group
-        ).select_related('itinerary', 'added_by')
+        group_itineraries = GroupItinerary.objects.filter(group=group).select_related(
+            "itinerary", "added_by"
+        )
 
         if group_itineraries.count() == 0:
             print("   ⚠️  NO TRIPS in this group")
@@ -56,7 +56,9 @@ def check_trips():
             for i, gi in enumerate(group_itineraries, 1):
                 print(f"   {i}. {gi.itinerary.title}")
                 print(f"      Destination: {gi.itinerary.destination}")
-                print(f"      Dates: {gi.itinerary.start_date} to {gi.itinerary.end_date}")
+                print(
+                    f"      Dates: {gi.itinerary.start_date} to {gi.itinerary.end_date}"
+                )
                 print(f"      Added by: {gi.added_by.username}")
                 print(f"      Added at: {gi.added_at.strftime('%Y-%m-%d %H:%M:%S')}")
                 print(f"      Approved: {'Yes' if gi.is_approved else 'No'}")
@@ -73,7 +75,7 @@ def check_trips():
     print()
 
     all_itineraries = Itinerary.objects.all()
-    linked_itinerary_ids = GroupItinerary.objects.values_list('itinerary_id', flat=True)
+    linked_itinerary_ids = GroupItinerary.objects.values_list("itinerary_id", flat=True)
     unlinked_itineraries = all_itineraries.exclude(id__in=linked_itinerary_ids)
 
     print(f"📊 Total itineraries in database: {all_itineraries.count()}")
@@ -101,5 +103,5 @@ def check_trips():
     print()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     check_trips()

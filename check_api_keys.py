@@ -10,7 +10,7 @@ from django.conf import settings
 from dotenv import load_dotenv
 
 # Setup Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'groupgo.settings')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "groupgo.settings")
 django.setup()
 
 # Load .env file
@@ -54,8 +54,7 @@ if openai_key:
 
         print("Asking OpenAI a test question...")
         result = service.answer_travel_question(
-            "What is the capital of France?",
-            context={"purpose": "API test"}
+            "What is the capital of France?", context={"purpose": "API test"}
         )
 
         if result and "Paris" in result:
@@ -90,15 +89,15 @@ if duffel_key:
         from datetime import datetime, timedelta
 
         # Search for flights 30 days from now
-        future_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
-        return_date = (datetime.now() + timedelta(days=37)).strftime('%Y-%m-%d')
+        future_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        return_date = (datetime.now() + timedelta(days=37)).strftime("%Y-%m-%d")
 
         flights = duffel.search_flights(
-            origin='LAX',
-            destination='JFK',
+            origin="LAX",
+            destination="JFK",
             departure_date=future_date,
             return_date=return_date,
-            adults=1
+            adults=1,
         )
 
         if flights:
@@ -107,13 +106,15 @@ if duffel_key:
 
             # Check if real or mock data
             first_flight = flights[0]
-            if first_flight.get('is_mock'):
+            if first_flight.get("is_mock"):
                 print("⚠️  WARNING: Returning MOCK data (not real Duffel data)")
                 print("   This means the API key might be invalid or API call failed")
                 print("   Check your Duffel API key")
             else:
                 print("   ✅ REAL Duffel data received!")
-                print(f"   First flight: {first_flight.get('airline_name', 'Unknown')} - ${first_flight.get('price', 0)}")
+                print(
+                    f"   First flight: {first_flight.get('airline_name', 'Unknown')} - ${first_flight.get('price', 0)}"
+                )
                 print(f"   Route: {first_flight.get('route', 'N/A')}")
         else:
             print("❌ No flights returned")
