@@ -18,7 +18,7 @@ except ImportError:
 def send_notification_email(recipient_email, recipient_name, notification_type, group_name, changed_by, change_details):
     """
     Send email notification about changes to travel plans
-    
+
     Args:
         recipient_email: Email address of the recipient
         recipient_name: Name of the recipient
@@ -29,12 +29,12 @@ def send_notification_email(recipient_email, recipient_name, notification_type, 
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # Validate email
     if not recipient_email:
-        logger.warning(f"Cannot send notification: recipient_email is empty")
-        return f"Error: recipient_email is empty"
-    
+        logger.warning("Cannot send notification: recipient_email is empty")
+        return "Error: recipient_email is empty"
+
     # Determine subject and template based on notification type
     templates = {
         'trip_preference_update': {
@@ -50,9 +50,9 @@ def send_notification_email(recipient_email, recipient_name, notification_type, 
             'template': 'notifications/email_itinerary_updated.html',
         },
     }
-    
+
     template_info = templates.get(notification_type, templates['trip_preference_update'])
-    
+
     try:
         # Render HTML email
         html_message = render_to_string(template_info['template'], {
@@ -62,10 +62,10 @@ def send_notification_email(recipient_email, recipient_name, notification_type, 
             'change_details': change_details,
             'notification_type': notification_type,
         })
-        
+
         # Create plain text version
         plain_message = strip_tags(html_message)
-        
+
         # Send email
         send_mail(
             subject=template_info['subject'],
@@ -81,4 +81,3 @@ def send_notification_email(recipient_email, recipient_name, notification_type, 
         # Log error but don't raise - we don't want to break the main flow
         logger.error(f"Error sending email to {recipient_email}: {str(e)}")
         return f"Error sending email: {str(e)}"
-

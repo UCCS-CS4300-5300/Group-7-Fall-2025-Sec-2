@@ -17,7 +17,7 @@ class TravelSearchAdmin(admin.ModelAdmin):
     search_fields = ['destination', 'origin', 'user__username']
     readonly_fields = ['id', 'created_at', 'updated_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'user', 'group', 'destination', 'origin')
@@ -40,7 +40,7 @@ class ConsolidatedResultAdmin(admin.ModelAdmin):
     search_fields = ['search__destination', 'summary']
     readonly_fields = ['id', 'created_at', 'updated_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'search')
@@ -68,7 +68,7 @@ class FlightResultAdmin(admin.ModelAdmin):
     search_fields = ['airline', 'external_id', 'search__destination']
     readonly_fields = ['id', 'created_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'search', 'external_id', 'airline')
@@ -99,7 +99,7 @@ class HotelResultAdmin(admin.ModelAdmin):
     search_fields = ['name', 'address', 'external_id', 'search__destination']
     readonly_fields = ['id', 'created_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'search', 'external_id', 'name', 'address')
@@ -108,8 +108,8 @@ class HotelResultAdmin(admin.ModelAdmin):
             'fields': ('price_per_night', 'total_price', 'currency')
         }),
         ('Hotel Details', {
-            'fields': ('rating', 'review_count', 'room_type', 'amenities', 'distance_from_center', 
-                      'breakfast_included', 'cancellation_policy')
+            'fields': ('rating', 'review_count', 'room_type', 'amenities', 'distance_from_center',
+                       'breakfast_included', 'cancellation_policy')
         }),
         ('AI Recommendation', {
             'fields': ('ai_score', 'ai_reason')
@@ -131,7 +131,7 @@ class ActivityResultAdmin(admin.ModelAdmin):
     search_fields = ['name', 'category', 'description', 'external_id']
     readonly_fields = ['id', 'created_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'search', 'external_id', 'name', 'category', 'description')
@@ -140,8 +140,8 @@ class ActivityResultAdmin(admin.ModelAdmin):
             'fields': ('price', 'currency', 'duration_hours')
         }),
         ('Activity Details', {
-            'fields': ('rating', 'review_count', 'included', 'meeting_point', 
-                      'max_group_size', 'languages', 'cancellation_policy')
+            'fields': ('rating', 'review_count', 'included', 'meeting_point',
+                       'max_group_size', 'languages', 'cancellation_policy')
         }),
         ('AI Recommendation', {
             'fields': ('ai_score', 'ai_reason')
@@ -163,14 +163,14 @@ class GroupConsensusAdmin(admin.ModelAdmin):
     search_fields = ['group__name', 'generated_by__username']
     readonly_fields = ['id', 'created_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'group', 'generated_by', 'is_active')
         }),
         ('Consensus Data', {
-            'fields': ('consensus_preferences', 'compromise_areas', 'unanimous_preferences', 
-                      'conflicting_preferences', 'group_dynamics_notes')
+            'fields': ('consensus_preferences', 'compromise_areas', 'unanimous_preferences',
+                       'conflicting_preferences', 'group_dynamics_notes')
         }),
         ('Raw Data', {
             'fields': ('raw_openai_response',),
@@ -189,7 +189,7 @@ class AIGeneratedItineraryAdmin(admin.ModelAdmin):
     search_fields = ['title', 'destination', 'user__username']
     readonly_fields = ['id', 'created_at', 'updated_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'user', 'search', 'title', 'destination', 'description', 'duration_days')
@@ -213,7 +213,7 @@ class SearchHistoryAdmin(admin.ModelAdmin):
     search_fields = ['user__username', 'search__destination', 'feedback_text']
     readonly_fields = ['id', 'created_at']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'user', 'search')
@@ -237,7 +237,7 @@ class GroupItineraryOptionAdmin(admin.ModelAdmin):
     search_fields = ['title', 'group__name', 'description']
     readonly_fields = ['id', 'created_at', 'updated_at', 'vote_count']
     date_hierarchy = 'created_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'group', 'consensus', 'option_letter', 'title', 'description')
@@ -267,7 +267,7 @@ class ItineraryVoteAdmin(admin.ModelAdmin):
     search_fields = ['user__username', 'group__name', 'option__title', 'comment']
     readonly_fields = ['id', 'voted_at']
     date_hierarchy = 'voted_at'
-    
+
     fieldsets = (
         ('Basic Information', {
             'fields': ('id', 'option', 'user', 'group')
@@ -276,4 +276,3 @@ class ItineraryVoteAdmin(admin.ModelAdmin):
             'fields': ('comment', 'voted_at')
         }),
     )
-

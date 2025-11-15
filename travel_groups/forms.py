@@ -34,12 +34,12 @@ class JoinGroupForm(forms.Form):
         }),
         help_text="Enter the group password"
     )
-    
+
     def clean(self):
         cleaned_data = super().clean()
         group_id = cleaned_data.get('group_id')
         password = cleaned_data.get('password')
-        
+
         if group_id and password:
             group_id = group_id.upper()
             try:
@@ -50,7 +50,7 @@ class JoinGroupForm(forms.Form):
                 cleaned_data['group'] = group
             except TravelGroup.DoesNotExist:
                 raise forms.ValidationError("Group not found. Please check the group code.")
-        
+
         return cleaned_data
 
 class SearchGroupForm(forms.Form):
@@ -105,7 +105,7 @@ class TripPreferenceForm(forms.ModelForm):
     class Meta:
         model = TripPreference
         fields = [
-            'start_date', 'end_date', 'destination', 'budget', 'travel_method', 
+            'start_date', 'end_date', 'destination', 'budget', 'travel_method',
             'rental_car', 'accommodation_preference', 'activity_preferences',
             'dietary_restrictions', 'accessibility_needs', 'additional_notes'
         ]
@@ -122,16 +122,16 @@ class TripPreferenceForm(forms.ModelForm):
             'accessibility_needs': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Any accessibility requirements?'}),
             'additional_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Any additional notes or preferences?'}),
         }
-    
+
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
-        
+
         if start_date and end_date:
             if start_date >= end_date:
                 raise forms.ValidationError("End date must be after start date.")
-        
+
         return cleaned_data
 
 
@@ -148,14 +148,14 @@ class ItineraryForm(forms.ModelForm):
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
-    
+
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
         end_date = cleaned_data.get('end_date')
-        
+
         if start_date and end_date:
             if end_date < start_date:
                 raise forms.ValidationError("End date must be after or equal to start date.")
-        
+
         return cleaned_data

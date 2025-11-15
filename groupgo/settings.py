@@ -21,8 +21,8 @@ load_dotenv()
 # Detect if we're running tests
 # Check for test command in sys.argv, coverage test runner, or test environment variable
 TESTING = (
-    'test' in sys.argv or 
-    'pytest' in sys.argv[0] or 
+    'test' in sys.argv or
+    'pytest' in sys.argv[0] or
     any('test' in arg.lower() for arg in sys.argv) or
     os.environ.get('DJANGO_TESTING', '').lower() == 'true' or
     'coverage' in sys.argv[0] and 'test' in ' '.join(sys.argv)

@@ -12,7 +12,7 @@ from django.conf import settings
 
 class OpenAIService:
     """Service class for interacting with OpenAI API"""
-    
+
     def __init__(self):
         """Initialize OpenAI client with API key from environment or settings"""
         api_key = os.environ.get('OPENAI_API_KEY', getattr(settings, 'OPENAI_API_KEY', None))
@@ -23,7 +23,7 @@ class OpenAIService:
             )
         self.client = OpenAI(api_key=api_key)
         self.model = getattr(settings, 'OPENAI_MODEL', 'gpt-4-turbo-preview')
-    
+
     def consolidate_travel_results(
         self,
         flight_results: List[Dict[str, Any]],
@@ -33,22 +33,22 @@ class OpenAIService:
     ) -> Dict[str, Any]:
         """
         Use OpenAI to consolidate and rank travel search results based on user preferences.
-        
+
         Args:
             flight_results: List of flight search results
             hotel_results: List of hotel search results
             activity_results: List of activity search results
             user_preferences: Dictionary containing user/group preferences
-            
+
         Returns:
             Dictionary containing consolidated and ranked results with AI recommendations
         """
-        
+
         # Prepare the prompt for OpenAI
         prompt = self._create_consolidation_prompt(
             flight_results, hotel_results, activity_results, user_preferences
         )
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -71,11 +71,11 @@ class OpenAIService:
                 max_tokens=2000,
                 response_format={"type": "json_object"}
             )
-            
+
             # Parse the response
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error calling OpenAI API: {str(e)}")
             return {
@@ -84,7 +84,7 @@ class OpenAIService:
                 "hotels": hotel_results,
                 "activities": activity_results
             }
-    
+
     def _create_consolidation_prompt(
         self,
         flights: List[Dict],
@@ -93,8 +93,8 @@ class OpenAIService:
         preferences: Dict
     ) -> str:
         """Create a detailed prompt for OpenAI to consolidate travel results"""
-        
-        prompt = f"""
+
+        prompt = """
 Please analyze the following travel options and provide consolidated recommendations.
 
 USER PREFERENCES:
@@ -151,7 +151,7 @@ Rank items by how well they match the preferences, with scores from 0-100.
 Include only the top 5 recommendations for each category.
 """
         return prompt
-    
+
     def generate_three_itinerary_options(
         self,
         member_preferences: List[Dict[str, Any]],
@@ -163,18 +163,18 @@ Include only the top 5 recommendations for each category.
         """
         Generate 3 different itinerary options for group voting.
         Each option balances member preferences differently.
-        
+
         Args:
             member_preferences: List of preference dictionaries from group members
             flight_results: Available flight options
             hotel_results: Available hotel options
             activity_results: Available activity options
             selected_dates: Optional dict with start_date, end_date, duration_days
-            
+
         Returns:
             Dictionary containing 3 different itinerary options with reasoning
         """
-        
+
         # Calculate budget statistics from all members
         budgets = []
         for pref in member_preferences:
@@ -188,7 +188,7 @@ Include only the top 5 recommendations for each category.
                     budgets.append(budget)
             except (ValueError, TypeError):
                 continue
-        
+
         # Calculate min, median, max budgets
         if budgets:
             budgets.sort()
@@ -200,11 +200,11 @@ Include only the top 5 recommendations for each category.
             min_budget = 1000
             median_budget = 3000
             max_budget = 5000
-        
+
         # Build date info string
         date_info = ""
         if selected_dates:
-            date_info = f"""
+            date_info = """
 SELECTED TRAVEL DATES:
 - Start Date: {selected_dates.get('start_date')}
 - End Date: {selected_dates.get('end_date')}
@@ -212,14 +212,14 @@ SELECTED TRAVEL DATES:
 
 IMPORTANT: All flights and hotels MUST match these dates. Filter your selections to match this date range.
 """
-        
+
         # Build individual member summary
         member_summary = "\n".join([
             f"- {pref.get('user', 'Member')}: Budget ${pref.get('budget', 'N/A')}, Destination: {pref.get('destination', 'N/A')}, Activities: {pref.get('activity_preferences', 'N/A')}"
             for pref in member_preferences
         ])
-        
-        prompt = f"""
+
+        prompt = """
 Analyze these {len(member_preferences)} group members' travel preferences and create 3 DIFFERENT itinerary options for them to vote on.
 
 {date_info}
@@ -265,13 +265,13 @@ DESTINATION SELECTION STRATEGY:
    - Select the cheapest flight, hotel, and activities FOR THAT DESTINATION
    - Must fit within ${min_budget:.2f} budget
    - Explain which member's destination preference this option prioritizes
-   
+
 2. **Option B - Balanced**: Target the MEDIAN budget (${median_budget:.2f})
    - Choose a DIFFERENT destination from Option A (if multiple destinations available)
    - Balance between cost and quality FOR THAT DESTINATION
    - Must fit within ${median_budget:.2f} budget
    - Explain which member's destination preference this option prioritizes
-   
+
 3. **Option C - Premium**: Target the HIGHEST budget (${max_budget:.2f})
    - Choose a DIFFERENT destination from Options A and B (if multiple destinations available)
    - Select the best quality flight, hotel, and activities FOR THAT DESTINATION
@@ -324,17 +324,17 @@ CRITICAL REMINDERS:
 
 Make each option genuinely different in cost but similar in how well it serves ALL members!
 """
-        
+
         # Log budget analysis for debugging
-        print(f"\n💰 BUDGET ANALYSIS:")
+        print("\n💰 BUDGET ANALYSIS:")
         print(f"   All member budgets: {budgets}")
         print(f"   Min Budget: ${min_budget:.2f}")
         print(f"   Median Budget: ${median_budget:.2f}")
         print(f"   Max Budget: ${max_budget:.2f}")
-        print(f"\n📋 MEMBER PREFERENCES:")
+        print("\n📋 MEMBER PREFERENCES:")
         for i, pref in enumerate(member_preferences, 1):
             print(f"   {i}. {pref.get('user')}: ${pref.get('budget')} - {pref.get('destination')} - {pref.get('activity_preferences', '')[:50]}...")
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -359,10 +359,10 @@ Make each option genuinely different in cost but similar in how well it serves A
                 max_tokens=2500,
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error generating itinerary options: {str(e)}")
             return {
@@ -370,19 +370,19 @@ Make each option genuinely different in cost but similar in how well it serves A
                 "options": [],
                 "note": "Unable to generate options due to error"
             }
-    
+
     def generate_group_consensus(self, member_preferences: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Analyze multiple group members' preferences and generate a consensus.
-        
+
         Args:
             member_preferences: List of preference dictionaries from group members
-            
+
         Returns:
             Dictionary containing consensus preferences and recommendations
         """
-        
-        prompt = f"""
+
+        prompt = """
 Analyze the following travel preferences from {len(member_preferences)} group members and find the best consensus.
 
 GROUP MEMBER PREFERENCES:
@@ -417,7 +417,7 @@ Please provide a JSON response with:
     "group_dynamics_notes": "Notes about group compatibility and suggestions"
 }}
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -439,10 +439,10 @@ Please provide a JSON response with:
                 max_tokens=1500,
                 response_format={"type": "json_object"}
             )
-            
+
             result = json.loads(response.choices[0].message.content)
             return result
-            
+
         except Exception as e:
             print(f"Error generating group consensus: {str(e)}")
             return {
@@ -450,7 +450,7 @@ Please provide a JSON response with:
                 "consensus_preferences": {},
                 "note": "Unable to generate consensus due to error"
             }
-    
+
     def create_itinerary_description(
         self,
         destination: str,
@@ -460,20 +460,20 @@ Please provide a JSON response with:
     ) -> str:
         """
         Generate a compelling itinerary description using OpenAI.
-        
+
         Args:
             destination: Travel destination
             activities: List of selected activities
             duration_days: Number of days for the trip
             preferences: Optional user preferences
-            
+
         Returns:
             Generated itinerary description
         """
-        
+
         prefs_text = json.dumps(preferences, indent=2) if preferences else "No specific preferences"
-        
-        prompt = f"""
+
+        prompt = """
 Create an engaging, detailed itinerary description for a {duration_days}-day trip to {destination}.
 
 Activities to include: {', '.join(activities)}
@@ -488,7 +488,7 @@ Generate a compelling description that:
 
 Keep it under 300 words and make it inspiring!
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -505,35 +505,35 @@ Keep it under 300 words and make it inspiring!
                 temperature=0.8,
                 max_tokens=500
             )
-            
+
             return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"Error generating itinerary description: {str(e)}")
             return f"Explore {destination} over {duration_days} days with exciting activities including {', '.join(activities)}."
-    
+
     def answer_travel_question(self, question: str, context: Optional[Dict] = None) -> str:
         """
         Answer travel-related questions using OpenAI.
-        
+
         Args:
             question: User's question
             context: Optional context about the trip/search
-            
+
         Returns:
             AI-generated answer
         """
-        
+
         context_text = json.dumps(context, indent=2) if context else "No specific context"
-        
-        prompt = f"""
+
+        prompt = """
 Context: {context_text}
 
 Question: {question}
 
 Please provide a helpful, accurate answer to this travel question.
 """
-        
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -553,10 +553,9 @@ Please provide a helpful, accurate answer to this travel question.
                 temperature=0.7,
                 max_tokens=500
             )
-            
+
             return response.choices[0].message.content.strip()
-            
+
         except Exception as e:
             print(f"Error answering question: {str(e)}")
             return "I apologize, but I'm unable to answer that question at the moment. Please try again later."
-

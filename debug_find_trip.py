@@ -6,13 +6,11 @@ Checks what's happening when you click the button
 
 import os
 import django
+from travel_groups.models import TravelGroup, TripPreference
+from ai_implementation.models import GroupConsensus, GroupItineraryOption, ItineraryVote
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'groupgo.settings')
 django.setup()
-
-from travel_groups.models import TravelGroup, GroupMember, TripPreference
-from ai_implementation.models import GroupConsensus, GroupItineraryOption, ItineraryVote
-from django.contrib.auth.models import User
 
 print("=" * 70)
 print("🔍 DEBUGGING 'FIND YOUR TRIP' FEATURE")
@@ -35,15 +33,15 @@ for group in groups:
     print(f"   ID: {group.id}")
     print(f"   Members: {group.member_count}")
     print()
-    
+
     # Check trip preferences
     trip_prefs = TripPreference.objects.filter(group=group, is_completed=True)
     print(f"   📝 Trip Preferences: {trip_prefs.count()} completed")
-    
+
     if trip_prefs.count() < 2:
         print("   ⚠️  ISSUE: Need at least 2 members with preferences!")
         print(f"      Currently have: {trip_prefs.count()}")
-        print(f"      Need: 2 or more")
+        print("      Need: 2 or more")
         print()
         print("   🔧 FIX: Have more members submit preferences at:")
         print(f"      /groups/{group.id}/add-trip-preferences/")
@@ -58,16 +56,16 @@ for group in groups:
             print(f"      Dates: {pref.start_date} to {pref.end_date}")
             print(f"      Budget: {pref.budget}")
         print()
-    
+
     # Check if voting options exist
     consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
-    
+
     if consensus:
         print(f"   📊 Group Consensus: ✅ EXISTS (created {consensus.created_at})")
-        
+
         options = GroupItineraryOption.objects.filter(group=group, consensus=consensus)
         print(f"   🗳️  Voting Options: {options.count()} options")
-        
+
         if options.count() == 3:
             print("   ✅ All 3 options created successfully!")
             print()
@@ -84,7 +82,7 @@ for group in groups:
             print(f"   ⚠️  ISSUE: Expected 3 options, found {options.count()}")
             print("   Try regenerating by clicking 'Find Your Trip' again")
             print()
-        
+
         # Check votes
         votes = ItineraryVote.objects.filter(group=group)
         print(f"   📊 Votes Cast: {votes.count()} of {group.member_count} members")
@@ -92,7 +90,7 @@ for group in groups:
             for vote in votes:
                 print(f"      - {vote.user.username} voted for Option {vote.option.option_letter}")
         print()
-        
+
     else:
         print("   ⚠️  No voting options generated yet")
         print("   This is normal if you haven't clicked 'Find Your Trip' yet")
@@ -118,12 +116,12 @@ all_groups_ok = True
 for group in groups:
     prefs_ok = TripPreference.objects.filter(group=group, is_completed=True).count() >= 2
     consensus_exists = GroupConsensus.objects.filter(group=group, is_active=True).exists()
-    
+
     print(f"Group: {group.name}")
     print(f"  Preferences: {'✅ OK' if prefs_ok else '❌ Need more'}")
     print(f"  Options Generated: {'✅ Yes' if consensus_exists else '⏳ Not yet'}")
     print()
-    
+
     if not prefs_ok:
         all_groups_ok = False
 
@@ -146,5 +144,3 @@ print("  1. Hard refresh browser (Ctrl+Shift+R)")
 print("  2. Check this script shows options exist")
 print("  3. Check server logs for template errors")
 print()
-
-

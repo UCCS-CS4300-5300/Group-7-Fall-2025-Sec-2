@@ -6,4 +6,3 @@ try:
 except ImportError:
     # Celery not installed, skip initialization
     __all__ = ()
-

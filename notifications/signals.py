@@ -17,13 +17,13 @@ def notify_trip_preference_changes(sender, instance, created, **kwargs):
     """Send email notifications when trip preferences are created or updated"""
     group = instance.group
     user = instance.user
-    
+
     # Get all other members of the group
     from travel_groups.models import GroupMember
     other_members = GroupMember.objects.filter(
         group=group
     ).exclude(user=user).select_related('user')
-    
+
     # Only notify if preferences are completed
     if instance.is_completed and NOTIFICATIONS_ENABLED:
         for member in other_members:
@@ -73,13 +73,13 @@ def notify_itinerary_added_to_group(sender, instance, created, **kwargs):
     if created and NOTIFICATIONS_ENABLED:
         group = instance.group
         user = instance.added_by
-        
+
         # Get all other members of the group
         from travel_groups.models import GroupMember
         other_members = GroupMember.objects.filter(
             group=group
         ).exclude(user=user).select_related('user')
-        
+
         for member in other_members:
             # Only send if user has an email
             if member.user.email:
@@ -130,17 +130,17 @@ def notify_itinerary_changes(sender, instance, created, **kwargs):
     if not created and NOTIFICATIONS_ENABLED:
         # Find all groups this itinerary is linked to
         group_links = GroupItinerary.objects.filter(itinerary=instance).select_related('group')
-        
+
         for link in group_links:
             group = link.group
             user = instance.user
-            
+
             # Get all other members of the group
             from travel_groups.models import GroupMember
             other_members = GroupMember.objects.filter(
                 group=group
             ).exclude(user=user).select_related('user')
-            
+
             for member in other_members:
                 # Only send if user has an email
                 if member.user.email:
@@ -182,4 +182,3 @@ def notify_itinerary_changes(sender, instance, created, **kwargs):
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.error(f"Error queuing email notification: {str(e)}")
-

@@ -15,25 +15,25 @@ class TravelGroup(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     max_members = models.PositiveIntegerField(default=10, help_text="Maximum number of members allowed in the group")
-    
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Travel Group"
         verbose_name_plural = "Travel Groups"
-    
+
     def __str__(self):
         return self.name
-    
+
     @property
     def member_count(self):
         """Return the number of members in the group"""
         return self.members.count()
-    
+
     @property
     def is_full(self):
         """Check if the group has reached maximum capacity"""
         return self.member_count >= self.max_members
-    
+
     def get_unique_identifier(self):
         """Return a shorter, user-friendly identifier for the group"""
         return str(self.id)[:8].upper()
@@ -44,22 +44,22 @@ class GroupMember(models.Model):
         ('admin', 'Admin'),
         ('member', 'Member'),
     ]
-    
+
     group = models.ForeignKey(TravelGroup, on_delete=models.CASCADE, related_name='members')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='group_memberships')
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='member')
     joined_at = models.DateTimeField(auto_now_add=True)
     has_travel_preferences = models.BooleanField(default=False, help_text="Whether the member has added their travel preferences")
-    
+
     class Meta:
         unique_together = ['group', 'user']
         ordering = ['joined_at']
         verbose_name = "Group Member"
         verbose_name_plural = "Group Members"
-    
+
     def __str__(self):
         return f"{self.user.username} in {self.group.name}"
-    
+
     def is_admin(self):
         """Check if the member is an admin of the group"""
         return self.role == 'admin'
@@ -71,13 +71,13 @@ class GroupItinerary(models.Model):
     added_by = models.ForeignKey(User, on_delete=models.CASCADE)
     added_at = models.DateTimeField(auto_now_add=True)
     is_approved = models.BooleanField(default=False, help_text="Whether the itinerary is approved by group admins")
-    
+
     class Meta:
         unique_together = ['group', 'itinerary']
         ordering = ['-added_at']
         verbose_name = "Group Itinerary"
         verbose_name_plural = "Group Itineraries"
-    
+
     def __str__(self):
         return f"{self.itinerary.title} in {self.group.name}"
 
@@ -92,11 +92,11 @@ class TravelPreference(models.Model):
     notes = models.TextField(blank=True, null=True, help_text="Additional notes or preferences")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name = "Travel Preference"
         verbose_name_plural = "Travel Preferences"
-    
+
     def __str__(self):
         return f"Preferences for {self.member.user.username} in {self.member.group.name}"
 
@@ -109,7 +109,7 @@ class TripPreference(models.Model):
         ('bus', 'Bus'),
         ('other', 'Other'),
     ]
-    
+
     group = models.ForeignKey(TravelGroup, on_delete=models.CASCADE, related_name='trip_preferences')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='trip_preferences')
     start_date = models.DateField(help_text="Preferred start date for the trip")
@@ -126,12 +126,12 @@ class TripPreference(models.Model):
     is_completed = models.BooleanField(default=False, help_text="Whether user has completed entering preferences")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = ['group', 'user']
         ordering = ['-created_at']
         verbose_name = "Trip Preference"
         verbose_name_plural = "Trip Preferences"
-    
+
     def __str__(self):
         return f"Trip preferences for {self.user.username} in {self.group.name}"

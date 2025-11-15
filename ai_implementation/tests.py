@@ -3,7 +3,7 @@ Comprehensive Tests for AI Implementation
 
 To run tests:
     python manage.py test ai_implementation
-    
+
 To run with coverage:
     coverage run --source='ai_implementation' manage.py test ai_implementation
     coverage report
@@ -22,7 +22,7 @@ from django.http import JsonResponse
 
 from travel_groups.models import TravelGroup, GroupMember, TripPreference
 from .models import (
-    TravelSearch, ConsolidatedResult, FlightResult, HotelResult, 
+    TravelSearch, ConsolidatedResult, FlightResult, HotelResult,
     ActivityResult, GroupConsensus, AIGeneratedItinerary, SearchHistory,
     GroupItineraryOption, ItineraryVote
 )
@@ -40,10 +40,10 @@ from .duffel_connector import DuffelAggregator, DuffelAPIConnector, DuffelFlight
 
 class TravelSearchModelTest(TestCase):
     """Tests for TravelSearch model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-    
+
     def test_create_travel_search(self):
         """Test creating a travel search"""
         search = TravelSearch.objects.create(
@@ -58,7 +58,7 @@ class TravelSearchModelTest(TestCase):
         self.assertEqual(search.destination, 'Paris, France')
         self.assertEqual(search.adults, 2)
         self.assertFalse(search.is_completed)
-    
+
     def test_travel_search_str(self):
         """Test string representation"""
         search = TravelSearch.objects.create(
@@ -91,7 +91,7 @@ class TravelSearchModelTest(TestCase):
 
 class FlightResultModelTest(TestCase):
     """Tests for FlightResult model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -101,7 +101,7 @@ class FlightResultModelTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
     def test_create_flight_result(self):
         """Test creating a flight result"""
         flight = FlightResult.objects.create(
@@ -119,7 +119,7 @@ class FlightResultModelTest(TestCase):
         self.assertEqual(flight.airline, 'Delta')
         self.assertEqual(flight.stops, 1)
         self.assertEqual(float(flight.price), 450.00)
-        
+
     def test_flight_result_with_ai_score(self):
         """Test flight with AI scoring"""
         flight = FlightResult.objects.create(
@@ -141,7 +141,7 @@ class FlightResultModelTest(TestCase):
 
 class HotelResultModelTest(TestCase):
     """Tests for HotelResult model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -151,7 +151,7 @@ class HotelResultModelTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
     def test_create_hotel_result(self):
         """Test creating a hotel result"""
         hotel = HotelResult.objects.create(
@@ -175,7 +175,7 @@ class HotelResultModelTest(TestCase):
 
 class ActivityResultModelTest(TestCase):
     """Tests for ActivityResult model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -185,7 +185,7 @@ class ActivityResultModelTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
     def test_create_activity_result(self):
         """Test creating an activity result"""
         activity = ActivityResult.objects.create(
@@ -207,7 +207,7 @@ class ActivityResultModelTest(TestCase):
 
 class GroupConsensusModelTest(TestCase):
     """Tests for GroupConsensus model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.group = TravelGroup.objects.create(
@@ -215,7 +215,7 @@ class GroupConsensusModelTest(TestCase):
             created_by=self.user,
             password='group123'
         )
-        
+
     def test_create_group_consensus(self):
         """Test creating a group consensus"""
         consensus_prefs = {'destination': 'Paris', 'budget_range': '2000-3000'}
@@ -230,7 +230,7 @@ class GroupConsensusModelTest(TestCase):
         )
         self.assertTrue(consensus.is_active)
         self.assertEqual(consensus.group, self.group)
-        
+
     def test_consensus_str(self):
         """Test string representation"""
         consensus = GroupConsensus.objects.create(
@@ -244,7 +244,7 @@ class GroupConsensusModelTest(TestCase):
 
 class GroupItineraryOptionModelTest(TestCase):
     """Tests for GroupItineraryOption model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.group = TravelGroup.objects.create(
@@ -264,7 +264,7 @@ class GroupItineraryOptionModelTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
     def test_create_itinerary_option(self):
         """Test creating an itinerary option"""
         option = GroupItineraryOption.objects.create(
@@ -283,7 +283,7 @@ class GroupItineraryOptionModelTest(TestCase):
         self.assertEqual(option.destination, 'Sicily, Italy')
         self.assertEqual(option.vote_count, 0)
         self.assertFalse(option.is_winner)
-        
+
     def test_option_str(self):
         """Test string representation"""
         option = GroupItineraryOption.objects.create(
@@ -302,7 +302,7 @@ class GroupItineraryOptionModelTest(TestCase):
 
 class ItineraryVoteModelTest(TestCase):
     """Tests for ItineraryVote model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.group = TravelGroup.objects.create(
@@ -325,7 +325,7 @@ class ItineraryVoteModelTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
     def test_create_vote(self):
         """Test creating a vote"""
         vote = ItineraryVote.objects.create(
@@ -337,7 +337,7 @@ class ItineraryVoteModelTest(TestCase):
         self.assertEqual(vote.user, self.user)
         self.assertEqual(vote.option, self.option)
         self.assertEqual(vote.comment, 'Great choice!')
-        
+
     def test_vote_str(self):
         """Test string representation"""
         vote = ItineraryVote.objects.create(
@@ -351,7 +351,7 @@ class ItineraryVoteModelTest(TestCase):
 
 class AIGeneratedItineraryModelTest(TestCase):
     """Tests for AIGeneratedItinerary model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -361,7 +361,7 @@ class AIGeneratedItineraryModelTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
     def test_create_itinerary(self):
         """Test creating an AI generated itinerary"""
         itinerary = AIGeneratedItinerary.objects.create(
@@ -381,7 +381,7 @@ class AIGeneratedItineraryModelTest(TestCase):
 
 class SearchHistoryModelTest(TestCase):
     """Tests for SearchHistory model"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -391,7 +391,7 @@ class SearchHistoryModelTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
     def test_create_search_history(self):
         """Test creating search history"""
         history = SearchHistory.objects.create(
@@ -410,7 +410,7 @@ class SearchHistoryModelTest(TestCase):
 
 class TravelSearchFormTest(TestCase):
     """Tests for TravelSearchForm"""
-    
+
     def test_valid_form(self):
         """Test form with valid data"""
         form_data = {
@@ -423,7 +423,7 @@ class TravelSearchFormTest(TestCase):
         }
         form = TravelSearchForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
     def test_invalid_dates(self):
         """Test form with end date before start date"""
         form_data = {
@@ -434,7 +434,7 @@ class TravelSearchFormTest(TestCase):
         }
         form = TravelSearchForm(data=form_data)
         self.assertFalse(form.is_valid())
-        
+
     def test_required_fields(self):
         """Test form with missing required fields"""
         form = TravelSearchForm(data={})
@@ -445,7 +445,7 @@ class TravelSearchFormTest(TestCase):
 
 class QuickSearchFormTest(TestCase):
     """Tests for QuickSearchForm"""
-    
+
     def test_valid_quick_search(self):
         """Test quick search form with valid data"""
         form_data = {
@@ -460,7 +460,7 @@ class QuickSearchFormTest(TestCase):
 
 class SaveItineraryFormTest(TestCase):
     """Tests for SaveItineraryForm"""
-    
+
     def test_valid_save_form(self):
         """Test save itinerary form"""
         form_data = {
@@ -476,23 +476,23 @@ class SaveItineraryFormTest(TestCase):
 
 class SearchViewsTest(TestCase):
     """Tests for search-related views"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_search_home_requires_login(self):
         """Test that search home requires authentication"""
         response = self.client.get(reverse('ai_implementation:search_home'))
         self.assertEqual(response.status_code, 302)  # Redirect to login
-        
+
     def test_search_home_authenticated(self):
         """Test search home with authenticated user"""
         self.client.login(username='testuser', password='pass123')
         response = self.client.get(reverse('ai_implementation:search_home'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'ai_implementation/search_home.html')
-        
+
     def test_advanced_search_get(self):
         """Test GET request to advanced search"""
         self.client.login(username='testuser', password='pass123')
@@ -503,12 +503,12 @@ class SearchViewsTest(TestCase):
 
 class VotingViewsTest(TestCase):
     """Tests for voting-related views"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.user2 = User.objects.create_user('testuser2', 'test2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Test Group',
             created_by=self.user,
@@ -516,7 +516,7 @@ class VotingViewsTest(TestCase):
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
-        
+
         # Create trip preferences
         TripPreference.objects.create(
             user=self.user,
@@ -536,13 +536,13 @@ class VotingViewsTest(TestCase):
             budget=3000,
             is_completed=True
         )
-        
+
     def test_generate_voting_options_requires_login(self):
         """Test generate voting options requires authentication"""
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # Redirect to login
-        
+
     def test_generate_voting_options_requires_membership(self):
         """Test that only group members can generate options"""
         non_member = User.objects.create_user('nonmember', 'non@test.com', 'pass123')
@@ -550,27 +550,27 @@ class VotingViewsTest(TestCase):
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # Redirect away
-        
+
     @patch('ai_implementation.views.OpenAIService')
     @patch('ai_implementation.views.DuffelAggregator')
     def test_generate_voting_options_insufficient_preferences(self, mock_duffel, mock_openai):
         """Test generation fails with insufficient preferences"""
         # Remove one preference to have only 1
         TripPreference.objects.filter(user=self.user2).delete()
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
-        
+
         response = self.client.post(
             url,
             data=json.dumps({'start_date': '2026-06-01', 'end_date': '2026-06-08'}),
             content_type='application/json'
         )
-        
+
         self.assertEqual(response.status_code, 400)
         data = json.loads(response.content)
         self.assertFalse(data['success'])
-        
+
     @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
     def test_cast_vote(self, mock_openai, mock_duffel):
@@ -600,16 +600,16 @@ class VotingViewsTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Best budget option'
         )
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:cast_vote', args=[self.group.id, option.id])
-        
+
         response = self.client.post(url, {'comment': 'Great choice!'})
-        
+
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data['success'])
-        
+
         # Verify vote was created
         vote = ItineraryVote.objects.filter(user=self.user, option=option).first()
         self.assertIsNotNone(vote)
@@ -622,14 +622,14 @@ class VotingViewsTest(TestCase):
 
 class OpenAIServiceTest(TestCase):
     """Tests for OpenAI service"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     def test_service_initialization(self):
         """Test OpenAI service can be initialized"""
         with patch('ai_implementation.openai_service.OpenAI'):
             service = OpenAIService()
             self.assertIsNotNone(service)
-            
+
     def test_service_requires_api_key(self):
         """Test service raises error without API key"""
         with patch.dict('os.environ', {'OPENAI_API_KEY': ''}, clear=True):
@@ -645,7 +645,7 @@ class OpenAIServiceTest(TestCase):
                 except ValueError:
                     # This is the expected behavior
                     pass
-                    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_generate_three_itinerary_options(self, mock_openai_client):
@@ -699,13 +699,13 @@ class OpenAIServiceTest(TestCase):
                 }
             ]
         })
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         member_prefs = [
             {'user': 'user1', 'destination': 'Paris', 'budget': '2000'},
             {'user': 'user2', 'destination': 'Rome', 'budget': '3000'}
@@ -713,14 +713,14 @@ class OpenAIServiceTest(TestCase):
         flights = [{'id': 'flight_1', 'price': 500}]
         hotels = [{'id': 'hotel_1', 'price': 1000}]
         activities = [{'id': 'act_1', 'price': 50}]
-        
+
         result = service.generate_three_itinerary_options(
             member_preferences=member_prefs,
             flight_results=flights,
             hotel_results=hotels,
             activity_results=activities
         )
-        
+
         self.assertIn('options', result)
         self.assertEqual(len(result['options']), 3)
         self.assertEqual(result['options'][0]['option_letter'], 'A')
@@ -734,12 +734,12 @@ class OpenAIServiceTest(TestCase):
 
 class DuffelConnectorTest(TestCase):
     """Tests for Duffel API connector"""
-    
+
     def test_connector_without_api_key(self):
         """Test connector works without API key (mock mode)"""
         connector = DuffelAPIConnector()
         self.assertIsNotNone(connector)
-        
+
     def test_flight_search_mock_data(self):
         """Test flight search returns mock data when no API key"""
         search = DuffelFlightSearch()
@@ -751,7 +751,7 @@ class DuffelConnectorTest(TestCase):
         )
         self.assertIsInstance(results, list)
         self.assertGreater(len(results), 0)
-        
+
     def test_aggregator_search_all(self):
         """Test aggregator searches all services"""
         aggregator = DuffelAggregator()
@@ -763,7 +763,7 @@ class DuffelConnectorTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIn('flights', results)
         self.assertIn('hotels', results)
         self.assertIn('activities', results)
@@ -778,21 +778,21 @@ class DuffelConnectorTest(TestCase):
 
 class VotingIntegrationTest(TestCase):
     """Integration tests for the full voting workflow"""
-    
+
     def setUp(self):
         """Set up test data"""
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Integration Test Group',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
-        
+
         # Create preferences
         TripPreference.objects.create(
             user=self.user1,
@@ -812,7 +812,7 @@ class VotingIntegrationTest(TestCase):
             budget=3000,
             is_completed=True
         )
-        
+
     def test_full_voting_workflow(self):
         """Test complete voting workflow"""
         # Create consensus
@@ -821,7 +821,7 @@ class VotingIntegrationTest(TestCase):
             generated_by=self.user1,
             consensus_preferences=json.dumps({'destination': 'Europe', 'budget': '2000-3000'})
         )
-        
+
         # Create search
         search = TravelSearch.objects.create(
             user=self.user1,
@@ -831,7 +831,7 @@ class VotingIntegrationTest(TestCase):
             end_date=date.today() + timedelta(days=37),
             adults=2
         )
-        
+
         # Create options
         option_a = GroupItineraryOption.objects.create(
             group=self.group,
@@ -845,7 +845,7 @@ class VotingIntegrationTest(TestCase):
             cost_per_person=1250.00,
             ai_reasoning='Best budget option'
         )
-        
+
         option_b = GroupItineraryOption.objects.create(
             group=self.group,
             consensus=consensus,
@@ -858,7 +858,7 @@ class VotingIntegrationTest(TestCase):
             cost_per_person=1500.00,
             ai_reasoning='Best balance'
         )
-        
+
         # Cast votes
         vote1 = ItineraryVote.objects.create(
             option=option_a,
@@ -866,29 +866,29 @@ class VotingIntegrationTest(TestCase):
             group=self.group,
             comment='Love Paris!'
         )
-        
+
         vote2 = ItineraryVote.objects.create(
             option=option_a,
             user=self.user2,
             group=self.group,
             comment='Paris sounds great!'
         )
-        
+
         # Verify workflow
         self.assertEqual(ItineraryVote.objects.filter(group=self.group).count(), 2)
         self.assertEqual(ItineraryVote.objects.filter(option=option_a).count(), 2)
         self.assertEqual(ItineraryVote.objects.filter(option=option_b).count(), 0)
-        
+
         # Option A should be the winner
         option_a.vote_count = 2
         option_a.is_winner = True
         option_a.save()
-        
+
         winner = GroupItineraryOption.objects.filter(
             group=self.group,
             is_winner=True
         ).first()
-        
+
         self.assertEqual(winner, option_a)
         self.assertEqual(winner.vote_count, 2)
 
@@ -899,10 +899,10 @@ class VotingIntegrationTest(TestCase):
 
 class EdgeCaseTests(TestCase):
     """Tests for edge cases and error handling"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_search_with_past_dates(self):
         """Test handling of past dates"""
         search = TravelSearch.objects.create(
@@ -913,7 +913,7 @@ class EdgeCaseTests(TestCase):
             adults=1
         )
         self.assertIsNotNone(search)
-        
+
     def test_search_with_zero_adults(self):
         """Test search with invalid adult count"""
         search = TravelSearch.objects.create(
@@ -924,7 +924,7 @@ class EdgeCaseTests(TestCase):
             adults=0  # Invalid
         )
         self.assertEqual(search.adults, 0)  # Model allows it, validation should catch
-        
+
     def test_duplicate_votes(self):
         """Test handling of duplicate votes"""
         group = TravelGroup.objects.create(
@@ -955,20 +955,20 @@ class EdgeCaseTests(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
         # First vote
         vote1 = ItineraryVote.objects.create(
             option=option,
             user=self.user,
             group=group
         )
-        
+
         # Should be able to query for user's vote
         existing_vote = ItineraryVote.objects.filter(
             user=self.user,
             group=group
         ).first()
-        
+
         self.assertEqual(existing_vote, vote1)
 
 
@@ -978,7 +978,7 @@ class EdgeCaseTests(TestCase):
 
 class CodeCoverageTest(TestCase):
     """Tests to increase code coverage"""
-    
+
     def test_consolidated_result_model(self):
         """Test ConsolidatedResult model"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -989,7 +989,7 @@ class CodeCoverageTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         consolidated = ConsolidatedResult.objects.create(
             search=search,
             summary='Great options found',
@@ -1000,9 +1000,9 @@ class CodeCoverageTest(TestCase):
             recommended_hotel_ids=json.dumps([]),
             recommended_activity_ids=json.dumps([])
         )
-        
+
         self.assertEqual(consolidated.summary, 'Great options found')
-        
+
     def test_models_with_mock_flag(self):
         """Test models that track mock vs real data"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1013,7 +1013,7 @@ class CodeCoverageTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Test is_mock flag
         flight = FlightResult.objects.create(
             search=search,
@@ -1027,9 +1027,9 @@ class CodeCoverageTest(TestCase):
             stops=0,
             is_mock=True
         )
-        
+
         self.assertTrue(flight.is_mock)
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='mock_hotel',
@@ -1040,7 +1040,7 @@ class CodeCoverageTest(TestCase):
             currency='USD',
             is_mock=True
         )
-        
+
         self.assertTrue(hotel.is_mock)
 
 
@@ -1050,7 +1050,7 @@ class CodeCoverageTest(TestCase):
 
 class SearchResultsViewTest(TestCase):
     """Tests for search results view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1061,13 +1061,13 @@ class SearchResultsViewTest(TestCase):
             end_date=date.today() + timedelta(days=37),
             adults=2
         )
-        
+
     def test_search_results_requires_login(self):
         """Test search results requires authentication"""
         url = reverse('ai_implementation:search_results', args=[self.search.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_search_results_without_results(self):
         """Test search results redirects when no results exist"""
         self.client.login(username='testuser', password='pass123')
@@ -1075,11 +1075,11 @@ class SearchResultsViewTest(TestCase):
         response = self.client.get(url)
         # Should redirect to perform_search
         self.assertEqual(response.status_code, 302)
-        
+
     def test_search_results_with_results(self):
         """Test search results displays existing results"""
         self.client.login(username='testuser', password='pass123')
-        
+
         # Create consolidated result
         ConsolidatedResult.objects.create(
             search=self.search,
@@ -1088,7 +1088,7 @@ class SearchResultsViewTest(TestCase):
             itinerary_suggestions='[]',
             warnings='[]'
         )
-        
+
         # Create some flight results
         FlightResult.objects.create(
             search=self.search,
@@ -1101,7 +1101,7 @@ class SearchResultsViewTest(TestCase):
             duration='8h',
             stops=1
         )
-        
+
         url = reverse('ai_implementation:search_results', args=[self.search.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1110,7 +1110,7 @@ class SearchResultsViewTest(TestCase):
 
 class MyItinerariesViewTest(TestCase):
     """Tests for my itineraries view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1121,17 +1121,17 @@ class MyItinerariesViewTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
     def test_my_itineraries_requires_login(self):
         """Test my itineraries requires authentication"""
         url = reverse('ai_implementation:my_itineraries')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_my_itineraries_authenticated(self):
         """Test viewing saved itineraries"""
         self.client.login(username='testuser', password='pass123')
-        
+
         # Create saved itinerary
         AIGeneratedItinerary.objects.create(
             user=self.user,
@@ -1143,7 +1143,7 @@ class MyItinerariesViewTest(TestCase):
             estimated_total_cost=3000.00,
             is_saved=True
         )
-        
+
         url = reverse('ai_implementation:my_itineraries')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1152,7 +1152,7 @@ class MyItinerariesViewTest(TestCase):
 
 class ViewItineraryTest(TestCase):
     """Tests for view itinerary detail"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1173,13 +1173,13 @@ class ViewItineraryTest(TestCase):
             estimated_total_cost=2500.00,
             is_saved=True
         )
-        
+
     def test_view_itinerary_requires_login(self):
         """Test viewing itinerary requires authentication"""
         url = reverse('ai_implementation:view_itinerary', args=[self.itinerary.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_view_itinerary_authenticated(self):
         """Test viewing own itinerary"""
         self.client.login(username='testuser', password='pass123')
@@ -1191,7 +1191,7 @@ class ViewItineraryTest(TestCase):
 
 class VotingResultsViewTest(TestCase):
     """Tests for voting results view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1201,19 +1201,19 @@ class VotingResultsViewTest(TestCase):
             password='group123'
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
         self.consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
     def test_voting_results_requires_login(self):
         """Test voting results requires authentication"""
         url = reverse('ai_implementation:voting_results', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_voting_results_requires_membership(self):
         """Test voting results requires group membership"""
         non_member = User.objects.create_user('nonmember', 'non@test.com', 'pass123')
@@ -1221,11 +1221,11 @@ class VotingResultsViewTest(TestCase):
         url = reverse('ai_implementation:voting_results', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_voting_results_with_winner(self):
         """Test viewing voting results with winner"""
         self.client.login(username='testuser', password='pass123')
-        
+
         # Create search
         search = TravelSearch.objects.create(
             user=self.user,
@@ -1235,7 +1235,7 @@ class VotingResultsViewTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Create option
         option = GroupItineraryOption.objects.create(
             group=self.group,
@@ -1250,7 +1250,7 @@ class VotingResultsViewTest(TestCase):
             is_winner=True,
             vote_count=2
         )
-        
+
         url = reverse('ai_implementation:voting_results', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1259,7 +1259,7 @@ class VotingResultsViewTest(TestCase):
 
 class ViewVotingOptionsTest(TestCase):
     """Tests for view voting options"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1269,31 +1269,31 @@ class ViewVotingOptionsTest(TestCase):
             password='group123'
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
     def test_view_voting_options_requires_login(self):
         """Test viewing voting options requires authentication"""
         url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_view_voting_options_no_consensus(self):
         """Test redirect when no consensus exists"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # Redirects to generate
-        
+
     def test_view_voting_options_with_options(self):
         """Test viewing voting options when they exist"""
         self.client.login(username='testuser', password='pass123')
-        
+
         # Create consensus
         consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
         # Create search
         search = TravelSearch.objects.create(
             user=self.user,
@@ -1303,7 +1303,7 @@ class ViewVotingOptionsTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Create options
         for letter in ['A', 'B', 'C']:
             GroupItineraryOption.objects.create(
@@ -1317,7 +1317,7 @@ class ViewVotingOptionsTest(TestCase):
                 cost_per_person=1000.00 * ord(letter) - ord('A') + 1,
                 ai_reasoning=f'Reasoning {letter}'
             )
-        
+
         url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1332,7 +1332,7 @@ class ViewVotingOptionsTest(TestCase):
 
 class OpenAIServiceExtendedTest(TestCase):
     """Extended tests for OpenAI service methods"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_consolidate_travel_results(self, mock_openai_client):
@@ -1347,28 +1347,28 @@ class OpenAIServiceExtendedTest(TestCase):
             'recommended_hotels': [{'hotel_id': 'h1', 'score': 90}],
             'recommended_activities': [{'activity_id': 'a1', 'score': 88}]
         })
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         flights = [{'id': 'f1', 'price': 500, 'airline': 'Delta'}]
         hotels = [{'id': 'h1', 'price': 1000, 'name': 'Grand Hotel'}]
         activities = [{'id': 'a1', 'price': 50, 'name': 'City Tour'}]
         preferences = {'budget_min': 2000, 'budget_max': 4000}
-        
+
         result = service.consolidate_travel_results(
             flight_results=flights,
             hotel_results=hotels,
             activity_results=activities,
             user_preferences=preferences
         )
-        
+
         self.assertIn('summary', result)
         self.assertEqual(result['summary'], 'Great options available')
-        
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_generate_group_consensus(self, mock_openai_client):
@@ -1386,20 +1386,20 @@ class OpenAIServiceExtendedTest(TestCase):
             'conflicting_preferences': [],
             'group_dynamics_notes': 'Group agrees on Paris'
         })
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         member_prefs = [
             {'user': 'user1', 'destination': 'Paris', 'budget': '2000'},
             {'user': 'user2', 'destination': 'Paris', 'budget': '3000'}
         ]
-        
+
         result = service.generate_group_consensus(member_prefs)
-        
+
         self.assertIn('consensus_preferences', result)
         self.assertEqual(result['consensus_preferences']['destination'], 'Paris')
 
@@ -1410,12 +1410,12 @@ class OpenAIServiceExtendedTest(TestCase):
 
 class APIConnectorExtendedTest(TestCase):
     """Extended tests for API connectors"""
-    
+
     def test_mock_flight_generation(self):
         """Test mock flight data generation"""
         search = DuffelFlightSearch()
         results = search._get_mock_flight_data('JFK', 'LHR', '2026-06-01', '2026-06-08', 2)
-        
+
         self.assertIsInstance(results, list)
         self.assertGreater(len(results), 0)
         for flight in results:
@@ -1423,18 +1423,18 @@ class APIConnectorExtendedTest(TestCase):
             self.assertIn('airline', flight)
             self.assertIn('price', flight)
             self.assertTrue(flight.get('is_mock', False))
-            
+
     def test_aggregator_with_preferences(self):
         """Test aggregator with detailed preferences"""
         aggregator = DuffelAggregator()
-        
+
         preferences = {
             'budget_min': 1000,
             'budget_max': 5000,
             'accommodation_type': 'hotel',
             'activity_preferences': ['museums', 'food']
         }
-        
+
         results = aggregator.search_all(
             destination='Rome',
             origin=None,
@@ -1444,7 +1444,7 @@ class APIConnectorExtendedTest(TestCase):
             rooms=1,
             preferences=preferences
         )
-        
+
         self.assertIn('flights', results)
         self.assertIn('hotels', results)
         self.assertIn('activities', results)
@@ -1456,7 +1456,7 @@ class APIConnectorExtendedTest(TestCase):
 
 class GenerateConsensusViewTest(TestCase):
     """Tests for generate consensus view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1466,20 +1466,20 @@ class GenerateConsensusViewTest(TestCase):
             password='group123'
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
     def test_generate_consensus_requires_login(self):
         """Test generate consensus requires authentication"""
         url = reverse('ai_implementation:generate_group_consensus', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_generate_consensus_get(self):
         """Test GET request shows form"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:generate_group_consensus', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        
+
     def test_generate_consensus_no_preferences(self):
         """Test generation with no member preferences"""
         self.client.login(username='testuser', password='pass123')
@@ -1491,7 +1491,7 @@ class GenerateConsensusViewTest(TestCase):
 
 class ViewGroupConsensusTest(TestCase):
     """Tests for view group consensus"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1501,18 +1501,18 @@ class ViewGroupConsensusTest(TestCase):
             password='group123'
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
     def test_view_consensus_no_consensus(self):
         """Test redirect when no consensus exists"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:view_group_consensus', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)
-        
+
     def test_view_consensus_with_consensus(self):
         """Test viewing existing consensus"""
         self.client.login(username='testuser', password='pass123')
-        
+
         consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
@@ -1521,7 +1521,7 @@ class ViewGroupConsensusTest(TestCase):
             unanimous_preferences=json.dumps(['destination']),
             conflicting_preferences=json.dumps([])
         )
-        
+
         url = reverse('ai_implementation:view_group_consensus', args=[self.group.id])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1533,7 +1533,7 @@ class ViewGroupConsensusTest(TestCase):
 
 class ModelPropertyTest(TestCase):
     """Tests for model properties and methods"""
-    
+
     def test_flight_result_properties(self):
         """Test FlightResult with various properties"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1544,7 +1544,7 @@ class ModelPropertyTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         flight = FlightResult.objects.create(
             search=search,
             external_id='test_flight',
@@ -1560,11 +1560,11 @@ class ModelPropertyTest(TestCase):
             raw_data=json.dumps({'extra': 'data'}),
             is_mock=False
         )
-        
+
         self.assertEqual(flight.booking_class, 'Business')
         self.assertEqual(flight.seats_available, '5')
         self.assertFalse(flight.is_mock)
-        
+
     def test_hotel_result_amenities(self):
         """Test HotelResult with amenities"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1575,7 +1575,7 @@ class ModelPropertyTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='hotel_test',
@@ -1590,7 +1590,7 @@ class ModelPropertyTest(TestCase):
             breakfast_included=True,
             cancellation_policy='Free cancellation'
         )
-        
+
         self.assertIn('Pool', hotel.amenities)
         self.assertTrue(hotel.breakfast_included)
         self.assertEqual(hotel.cancellation_policy, 'Free cancellation')
@@ -1602,7 +1602,7 @@ class ModelPropertyTest(TestCase):
 
 class HelperFunctionTest(TestCase):
     """Tests for helper functions and utilities"""
-    
+
     def test_json_parsing_in_results(self):
         """Test JSON data handling in results"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1613,12 +1613,12 @@ class HelperFunctionTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         raw_data = {
             'test_field': 'test_value',
             'nested': {'key': 'value'}
         }
-        
+
         activity = ActivityResult.objects.create(
             search=search,
             external_id='activity_test',
@@ -1630,7 +1630,7 @@ class HelperFunctionTest(TestCase):
             duration_hours=2,
             raw_data=json.dumps(raw_data)
         )
-        
+
         # Parse raw_data
         parsed = json.loads(activity.raw_data)
         self.assertEqual(parsed['test_field'], 'test_value')
@@ -1643,7 +1643,7 @@ class HelperFunctionTest(TestCase):
 
 class PerformSearchViewTest(TestCase):
     """Tests for perform search view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -1656,7 +1656,7 @@ class PerformSearchViewTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
     def test_perform_search_get_shows_loading(self):
         """Test GET request shows loading page"""
         self.client.login(username='testuser', password='pass123')
@@ -1672,15 +1672,15 @@ class PerformSearchViewTest(TestCase):
 
 class AdvancedSearchPostTest(TestCase):
     """Tests for advanced search POST requests"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_advanced_search_post_creates_search(self):
         """Test POST to advanced search creates search object"""
         self.client.login(username='testuser', password='pass123')
-        
+
         form_data = {
             'destination': 'Madrid',
             'origin': 'New York',
@@ -1689,13 +1689,13 @@ class AdvancedSearchPostTest(TestCase):
             'adults': 2,
             'rooms': 1,
         }
-        
+
         url = reverse('ai_implementation:advanced_search')
         response = self.client.post(url, form_data)
-        
+
         # Should redirect to results
         self.assertEqual(response.status_code, 302)
-        
+
         # Verify search was created
         search = TravelSearch.objects.filter(user=self.user, destination='Madrid').first()
         self.assertIsNotNone(search)
@@ -1708,29 +1708,29 @@ class AdvancedSearchPostTest(TestCase):
 
 class VoteCountTest(TestCase):
     """Tests for vote counting and winner selection"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
         self.user3 = User.objects.create_user('user3', 'user3@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Vote Test Group',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
         GroupMember.objects.create(group=self.group, user=self.user3, role='member')
-        
+
         consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user1,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=self.user1,
             group=self.group,
@@ -1739,7 +1739,7 @@ class VoteCountTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=3
         )
-        
+
         self.option_a = GroupItineraryOption.objects.create(
             group=self.group,
             consensus=consensus,
@@ -1751,7 +1751,7 @@ class VoteCountTest(TestCase):
             cost_per_person=667.00,
             ai_reasoning='Budget option'
         )
-        
+
         self.option_b = GroupItineraryOption.objects.create(
             group=self.group,
             consensus=consensus,
@@ -1763,7 +1763,7 @@ class VoteCountTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Balanced option'
         )
-        
+
     def test_multiple_votes_for_same_option(self):
         """Test multiple users voting for same option"""
         # All vote for option A
@@ -1782,19 +1782,19 @@ class VoteCountTest(TestCase):
             user=self.user3,
             group=self.group
         )
-        
+
         votes_for_a = ItineraryVote.objects.filter(option=self.option_a).count()
         self.assertEqual(votes_for_a, 3)
-        
+
     def test_split_votes(self):
         """Test votes split between options"""
         ItineraryVote.objects.create(option=self.option_a, user=self.user1, group=self.group)
         ItineraryVote.objects.create(option=self.option_a, user=self.user2, group=self.group)
         ItineraryVote.objects.create(option=self.option_b, user=self.user3, group=self.group)
-        
+
         votes_a = ItineraryVote.objects.filter(option=self.option_a).count()
         votes_b = ItineraryVote.objects.filter(option=self.option_b).count()
-        
+
         self.assertEqual(votes_a, 2)
         self.assertEqual(votes_b, 1)
 
@@ -1805,7 +1805,7 @@ class VoteCountTest(TestCase):
 
 class FormValidationTest(TestCase):
     """Extended form validation tests"""
-    
+
     def test_travel_search_form_past_dates(self):
         """Test form rejects past start dates"""
         form_data = {
@@ -1817,7 +1817,7 @@ class FormValidationTest(TestCase):
         form = TravelSearchForm(data=form_data)
         self.assertFalse(form.is_valid())
         self.assertIn('Start date cannot be in the past', str(form.errors))
-        
+
     def test_travel_search_form_long_duration(self):
         """Test form rejects trips over 30 days"""
         form_data = {
@@ -1829,7 +1829,7 @@ class FormValidationTest(TestCase):
         form = TravelSearchForm(data=form_data)
         self.assertFalse(form.is_valid())
         self.assertIn('cannot exceed 30 days', str(form.errors))
-        
+
     def test_travel_search_form_budget_validation(self):
         """Test budget min/max validation"""
         form_data = {
@@ -1842,7 +1842,7 @@ class FormValidationTest(TestCase):
         }
         form = TravelSearchForm(data=form_data)
         self.assertFalse(form.is_valid())
-        
+
     def test_quick_search_form_validation(self):
         """Test QuickSearchForm date validation"""
         form_data = {
@@ -1861,7 +1861,7 @@ class FormValidationTest(TestCase):
 
 class RefineSearchFormTest(TestCase):
     """Tests for RefineSearchForm"""
-    
+
     def test_valid_refine_form(self):
         """Test valid refine search form"""
         form_data = {
@@ -1871,7 +1871,7 @@ class RefineSearchFormTest(TestCase):
         }
         form = RefineSearchForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
     def test_refine_form_with_filters(self):
         """Test refine form with filters"""
         form_data = {
@@ -1885,12 +1885,12 @@ class RefineSearchFormTest(TestCase):
 
 
 # ============================================================================
-# GROUP CONSENSUS FORM TESTS  
+# GROUP CONSENSUS FORM TESTS
 # ============================================================================
 
 class GroupConsensusFormTest(TestCase):
     """Tests for GroupConsensusForm"""
-    
+
     def test_consensus_form_all_options(self):
         """Test consensus form with all options"""
         form_data = {
@@ -1901,7 +1901,7 @@ class GroupConsensusFormTest(TestCase):
         }
         form = GroupConsensusForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
     def test_consensus_form_minimal(self):
         """Test consensus form with minimal options"""
         form_data = {}  # All fields are optional
@@ -1915,7 +1915,7 @@ class GroupConsensusFormTest(TestCase):
 
 class ItineraryFeedbackFormTest(TestCase):
     """Tests for ItineraryFeedbackForm"""
-    
+
     def test_feedback_form_positive(self):
         """Test feedback form with positive response"""
         form_data = {
@@ -1924,7 +1924,7 @@ class ItineraryFeedbackFormTest(TestCase):
         }
         form = ItineraryFeedbackForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
     def test_feedback_form_negative(self):
         """Test feedback form with negative response"""
         form_data = {
@@ -1933,7 +1933,7 @@ class ItineraryFeedbackFormTest(TestCase):
         }
         form = ItineraryFeedbackForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
     def test_feedback_form_no_text(self):
         """Test feedback form without text (optional)"""
         form_data = {
@@ -1949,7 +1949,7 @@ class ItineraryFeedbackFormTest(TestCase):
 
 class ModelRelationshipTest(TestCase):
     """Tests for model relationships and foreign keys"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -1959,7 +1959,7 @@ class ModelRelationshipTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
     def test_search_to_flights_relationship(self):
         """Test one-to-many relationship from search to flights"""
         FlightResult.objects.create(
@@ -1984,10 +1984,10 @@ class ModelRelationshipTest(TestCase):
             duration='2h 15m',
             stops=0
         )
-        
+
         flights = FlightResult.objects.filter(search=self.search)
         self.assertEqual(flights.count(), 2)
-        
+
     def test_search_to_hotels_relationship(self):
         """Test one-to-many relationship from search to hotels"""
         for i in range(3):
@@ -2000,10 +2000,10 @@ class ModelRelationshipTest(TestCase):
                 total_price=500.00 + (i * 250),
                 currency='EUR'
             )
-        
+
         hotels = HotelResult.objects.filter(search=self.search)
         self.assertEqual(hotels.count(), 3)
-        
+
     def test_group_to_options_relationship(self):
         """Test relationship from group to itinerary options"""
         group = TravelGroup.objects.create(
@@ -2011,13 +2011,13 @@ class ModelRelationshipTest(TestCase):
             created_by=self.user,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
         for letter in ['A', 'B', 'C']:
             GroupItineraryOption.objects.create(
                 group=group,
@@ -2029,7 +2029,7 @@ class ModelRelationshipTest(TestCase):
                 cost_per_person=1000.00,
                 ai_reasoning='Reasoning'
             )
-        
+
         options = GroupItineraryOption.objects.filter(group=group)
         self.assertEqual(options.count(), 3)
 
@@ -2040,12 +2040,12 @@ class ModelRelationshipTest(TestCase):
 
 class BudgetCalculationTest(TestCase):
     """Tests for budget calculation logic"""
-    
+
     def test_budget_parsing_with_dollar_signs(self):
         """Test parsing budgets with $ symbols"""
         budgets_input = ['$2000', '$3,000', '5000']
         budgets = []
-        
+
         for budget_str in budgets_input:
             if isinstance(budget_str, str):
                 budget_str = budget_str.replace('$', '').replace(',', '').strip()
@@ -2055,21 +2055,21 @@ class BudgetCalculationTest(TestCase):
                     budgets.append(budget)
             except (ValueError, TypeError):
                 continue
-        
+
         self.assertEqual(len(budgets), 3)
         self.assertEqual(budgets[0], 2000.0)
         self.assertEqual(budgets[1], 3000.0)
         self.assertEqual(budgets[2], 5000.0)
-        
+
     def test_budget_statistics_calculation(self):
         """Test min/median/max budget calculation"""
         budgets = [1500.0, 2000.0, 2500.0, 3000.0, 5000.0]
         budgets.sort()
-        
+
         min_budget = budgets[0]
         max_budget = budgets[-1]
         median_budget = budgets[len(budgets) // 2]
-        
+
         self.assertEqual(min_budget, 1500.0)
         self.assertEqual(max_budget, 5000.0)
         self.assertEqual(median_budget, 2500.0)
@@ -2081,19 +2081,19 @@ class BudgetCalculationTest(TestCase):
 
 class DestinationExtractionTest(TestCase):
     """Tests for destination extraction from preferences"""
-    
+
     def test_unique_destinations_extraction(self):
         """Test extracting unique destinations from preferences"""
         user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
         user3 = User.objects.create_user('user3', 'user3@test.com', 'pass123')
-        
+
         group = TravelGroup.objects.create(
             name='Destination Test',
             created_by=user1,
             password='group123'
         )
-        
+
         TripPreference.objects.create(
             user=user1,
             group=group,
@@ -2103,7 +2103,7 @@ class DestinationExtractionTest(TestCase):
             budget=2000,
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=user2,
             group=group,
@@ -2113,7 +2113,7 @@ class DestinationExtractionTest(TestCase):
             budget=3000,
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=user3,
             group=group,
@@ -2123,16 +2123,16 @@ class DestinationExtractionTest(TestCase):
             budget=2500,
             is_completed=True
         )
-        
+
         # Extract unique destinations
         prefs = TripPreference.objects.filter(group=group, is_completed=True)
         destinations = set()
         for pref in prefs:
             if pref.destination:
                 destinations.add(pref.destination.strip())
-        
+
         destinations_list = list(destinations)
-        
+
         # Should have 2 unique destinations (Rome appears twice)
         self.assertEqual(len(destinations_list), 2)
         self.assertIn('Rome, Italy', destinations_list)
@@ -2145,7 +2145,7 @@ class DestinationExtractionTest(TestCase):
 
 class ErrorHandlingTest(TestCase):
     """Tests for error handling in various scenarios"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_openai_api_error_handling(self, mock_openai_client):
@@ -2154,19 +2154,19 @@ class ErrorHandlingTest(TestCase):
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.side_effect = Exception('API Error')
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         result = service.generate_three_itinerary_options(
             member_preferences=[],
             flight_results=[],
             hotel_results=[],
             activity_results=[]
         )
-        
+
         # Should return error dict instead of raising
         self.assertIn('error', result)
-        
+
     def test_json_parsing_error_handling(self):
         """Test handling of invalid JSON in raw_data"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2177,7 +2177,7 @@ class ErrorHandlingTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         activity = ActivityResult.objects.create(
             search=search,
             external_id='test_activity',
@@ -2189,7 +2189,7 @@ class ErrorHandlingTest(TestCase):
             duration_hours=2,
             raw_data='invalid json {'  # Invalid JSON
         )
-        
+
         # Should not raise when accessing
         self.assertIsNotNone(activity.raw_data)
 
@@ -2200,11 +2200,11 @@ class ErrorHandlingTest(TestCase):
 
 class TimezoneDateTimeTest(TestCase):
     """Tests for timezone-aware datetime handling"""
-    
+
     def test_flight_with_timezone_aware_datetime(self):
         """Test FlightResult with timezone-aware datetime"""
         from django.utils import timezone
-        
+
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         search = TravelSearch.objects.create(
             user=user,
@@ -2213,7 +2213,7 @@ class TimezoneDateTimeTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         flight = FlightResult.objects.create(
             search=search,
             external_id='tz_flight',
@@ -2225,7 +2225,7 @@ class TimezoneDateTimeTest(TestCase):
             duration='15h',
             stops=0
         )
-        
+
         self.assertIsNotNone(flight.departure_time)
         self.assertIsNotNone(flight.arrival_time)
 
@@ -2236,21 +2236,21 @@ class TimezoneDateTimeTest(TestCase):
 
 class GenerateVotingOptionsFullTest(TestCase):
     """Comprehensive tests for generate_voting_options view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Full Test Group',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
-        
+
         # Create sufficient preferences
         TripPreference.objects.create(
             user=self.user1,
@@ -2264,7 +2264,7 @@ class GenerateVotingOptionsFullTest(TestCase):
             activity_preferences='museums, food',
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=self.user2,
             group=self.group,
@@ -2277,13 +2277,13 @@ class GenerateVotingOptionsFullTest(TestCase):
             activity_preferences='history, food',
             is_completed=True
         )
-    
+
     def test_generate_voting_options_get_request(self):
         """Test GET request to generate voting options"""
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
         response = self.client.get(url)
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'ai_implementation/generate_voting_options.html')
         self.assertContains(response, str(self.group.name))
@@ -2295,11 +2295,11 @@ class GenerateVotingOptionsFullTest(TestCase):
 
 class APIConnectorsComprehensiveTest(TestCase):
     """Comprehensive tests for API connectors"""
-    
+
     def test_hotel_api_mock_data(self):
         """Test hotel API mock data generation"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
         hotels = connector.search_hotels(
             destination='Barcelona',
@@ -2308,21 +2308,21 @@ class APIConnectorsComprehensiveTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIsInstance(hotels, list)
         self.assertGreater(len(hotels), 0)
-        
+
         # Verify hotel structure
         if hotels:
             hotel = hotels[0]
             self.assertIn('id', hotel)
             self.assertIn('name', hotel)
             self.assertIn('price_per_night', hotel)
-            
+
     def test_activity_api_mock_data(self):
         """Test activity API mock data generation"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         activities = connector.search_activities(
             destination='Amsterdam',
@@ -2330,23 +2330,23 @@ class APIConnectorsComprehensiveTest(TestCase):
             end_date='2026-06-08',
             categories=['museums', 'culture']
         )
-        
+
         self.assertIsInstance(activities, list)
         self.assertGreater(len(activities), 0)
-        
+
         # Verify activity structure
         if activities:
             activity = activities[0]
             self.assertIn('id', activity)
             self.assertIn('name', activity)
             self.assertIn('price', activity)
-            
+
     def test_travel_aggregator_multiple_calls(self):
         """Test aggregator with multiple search calls"""
         from ai_implementation.api_connectors import TravelAPIAggregator
-        
+
         aggregator = TravelAPIAggregator()
-        
+
         # First search
         results1 = aggregator.search_all(
             destination='Prague',
@@ -2356,7 +2356,7 @@ class APIConnectorsComprehensiveTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Second search
         results2 = aggregator.search_all(
             destination='Budapest',
@@ -2366,7 +2366,7 @@ class APIConnectorsComprehensiveTest(TestCase):
             adults=3,
             rooms=2
         )
-        
+
         self.assertIsInstance(results1, dict)
         self.assertIsInstance(results2, dict)
         self.assertIn('flights', results1)
@@ -2379,13 +2379,13 @@ class APIConnectorsComprehensiveTest(TestCase):
 
 class DuffelConnectorExtendedTest(TestCase):
     """Extended tests for Duffel connector"""
-    
+
     def test_duffel_aggregator_initialization(self):
         """Test Duffel aggregator can be initialized"""
         aggregator = DuffelAggregator()
         self.assertIsNotNone(aggregator)
         self.assertIsNotNone(aggregator.flight_search)
-        
+
     def test_search_with_origin_specified(self):
         """Test search with specific origin"""
         aggregator = DuffelAggregator()
@@ -2397,11 +2397,11 @@ class DuffelConnectorExtendedTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIn('flights', results)
         # Mock data should still be generated
         self.assertGreater(len(results['flights']), 0)
-        
+
     def test_search_with_no_origin(self):
         """Test search without origin (should still work)"""
         aggregator = DuffelAggregator()
@@ -2413,14 +2413,14 @@ class DuffelConnectorExtendedTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIn('hotels', results)
         self.assertIn('activities', results)
-        
+
     def test_search_with_different_passenger_counts(self):
         """Test searches with various passenger counts"""
         aggregator = DuffelAggregator()
-        
+
         # Solo traveler
         results1 = aggregator.search_all(
             destination='Paris',
@@ -2430,7 +2430,7 @@ class DuffelConnectorExtendedTest(TestCase):
             adults=1,
             rooms=1
         )
-        
+
         # Large group
         results2 = aggregator.search_all(
             destination='Paris',
@@ -2440,7 +2440,7 @@ class DuffelConnectorExtendedTest(TestCase):
             adults=8,
             rooms=4
         )
-        
+
         # Both should have hotels and activities at minimum
         self.assertGreater(len(results1['hotels']), 0)
         self.assertGreater(len(results2['hotels']), 0)
@@ -2454,7 +2454,7 @@ class DuffelConnectorExtendedTest(TestCase):
 
 class SearchFilteringTest(TestCase):
     """Tests for search result filtering"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -2464,7 +2464,7 @@ class SearchFilteringTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         # Create multiple hotels with different prices and ratings
         for i in range(5):
             HotelResult.objects.create(
@@ -2477,7 +2477,7 @@ class SearchFilteringTest(TestCase):
                 currency='EUR',
                 rating=3.0 + (i * 0.3)
             )
-    
+
     def test_filter_hotels_by_price(self):
         """Test filtering hotels by maximum price"""
         max_price = 1000
@@ -2485,10 +2485,10 @@ class SearchFilteringTest(TestCase):
             search=self.search,
             total_price__lte=max_price
         )
-        
+
         for hotel in hotels:
             self.assertLessEqual(float(hotel.total_price), max_price)
-            
+
     def test_filter_hotels_by_rating(self):
         """Test filtering hotels by minimum rating"""
         min_rating = 4.0
@@ -2496,16 +2496,16 @@ class SearchFilteringTest(TestCase):
             search=self.search,
             rating__gte=min_rating
         )
-        
+
         for hotel in hotels:
             self.assertGreaterEqual(float(hotel.rating), min_rating)
-            
+
     def test_sort_hotels_by_price(self):
         """Test sorting hotels by price"""
         hotels_low_to_high = HotelResult.objects.filter(
             search=self.search
         ).order_by('total_price')
-        
+
         prices = [float(h.total_price) for h in hotels_low_to_high]
         self.assertEqual(prices, sorted(prices))
 
@@ -2516,7 +2516,7 @@ class SearchFilteringTest(TestCase):
 
 class ModelCascadeTest(TestCase):
     """Tests for model deletion cascades"""
-    
+
     def test_delete_search_cascades_to_results(self):
         """Test deleting search deletes related results"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2527,7 +2527,7 @@ class ModelCascadeTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         # Create related results
         FlightResult.objects.create(
             search=search,
@@ -2540,7 +2540,7 @@ class ModelCascadeTest(TestCase):
             duration='2h',
             stops=0
         )
-        
+
         HotelResult.objects.create(
             search=search,
             external_id='hotel_1',
@@ -2550,14 +2550,14 @@ class ModelCascadeTest(TestCase):
             total_price=750.00,
             currency='EUR'
         )
-        
+
         # Verify results exist
         self.assertEqual(FlightResult.objects.filter(search=search).count(), 1)
         self.assertEqual(HotelResult.objects.filter(search=search).count(), 1)
-        
+
         # Delete search
         search.delete()
-        
+
         # Results should be deleted (cascade)
         self.assertEqual(FlightResult.objects.all().count(), 0)
         self.assertEqual(HotelResult.objects.all().count(), 0)
@@ -2569,7 +2569,7 @@ class ModelCascadeTest(TestCase):
 
 class WinnerSelectionTest(TestCase):
     """Tests for winner selection logic"""
-    
+
     def test_winner_with_most_votes(self):
         """Test option with most votes is winner"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2578,13 +2578,13 @@ class WinnerSelectionTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Vienna',
@@ -2592,7 +2592,7 @@ class WinnerSelectionTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         option_a = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -2605,7 +2605,7 @@ class WinnerSelectionTest(TestCase):
             ai_reasoning='Budget',
             vote_count=3
         )
-        
+
         option_b = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -2618,12 +2618,12 @@ class WinnerSelectionTest(TestCase):
             ai_reasoning='Balanced',
             vote_count=1
         )
-        
+
         # Winner should be option with highest vote_count
         winner = GroupItineraryOption.objects.filter(
             group=group
         ).order_by('-vote_count').first()
-        
+
         self.assertEqual(winner, option_a)
         self.assertEqual(winner.vote_count, 3)
 
@@ -2634,12 +2634,12 @@ class WinnerSelectionTest(TestCase):
 
 class MockDataStructureTest(TestCase):
     """Tests for mock data structure and format"""
-    
+
     def test_mock_flight_data_structure(self):
         """Test mock flight data has correct structure"""
         search = DuffelFlightSearch()
         flights = search._get_mock_flight_data('JFK', 'CDG', '2026-06-01', '2026-06-08', 2)
-        
+
         for flight in flights:
             # Required fields
             self.assertIn('id', flight)
@@ -2651,7 +2651,7 @@ class MockDataStructureTest(TestCase):
             self.assertIn('duration', flight)
             self.assertIn('stops', flight)
             self.assertTrue(flight['is_mock'])
-            
+
     def test_mock_hotel_data_structure(self):
         """Test mock hotel data has correct structure"""
         aggregator = DuffelAggregator()
@@ -2663,17 +2663,17 @@ class MockDataStructureTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         hotels = results['hotels']
         self.assertGreater(len(hotels), 0)
-        
+
         for hotel in hotels:
             self.assertIn('id', hotel)
             self.assertIn('name', hotel)
             self.assertIn('price_per_night', hotel)
             self.assertIn('total_price', hotel)
             self.assertIn('rating', hotel)
-            
+
     def test_mock_activity_data_structure(self):
         """Test mock activity data has correct structure"""
         aggregator = DuffelAggregator()
@@ -2685,10 +2685,10 @@ class MockDataStructureTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         activities = results['activities']
         self.assertGreater(len(activities), 0)
-        
+
         for activity in activities:
             self.assertIn('id', activity)
             self.assertIn('name', activity)
@@ -2702,7 +2702,7 @@ class MockDataStructureTest(TestCase):
 
 class OpenAIPromptTest(TestCase):
     """Tests for OpenAI prompt generation"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_prompt_includes_all_members(self, mock_openai_client):
@@ -2710,33 +2710,33 @@ class OpenAIPromptTest(TestCase):
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps({'options': []})
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         member_prefs = [
             {'user': 'alice', 'destination': 'Paris', 'budget': '2000'},
             {'user': 'bob', 'destination': 'Rome', 'budget': '3000'},
             {'user': 'carol', 'destination': 'Venice', 'budget': '4000'}
         ]
-        
+
         service.generate_three_itinerary_options(
             member_preferences=member_prefs,
             flight_results=[{'id': 'f1', 'price': 500}],
             hotel_results=[{'id': 'h1', 'price': 1000}],
             activity_results=[{'id': 'a1', 'price': 50}]
         )
-        
+
         # Verify the API was called
         mock_client_instance.chat.completions.create.assert_called_once()
-        
+
         # Get the call arguments
         call_args = mock_client_instance.chat.completions.create.call_args
         messages = call_args[1]['messages']
-        
+
         # Verify user message contains member preferences
         user_message = messages[1]['content']
         self.assertIn('alice', user_message)
@@ -2750,7 +2750,7 @@ class OpenAIPromptTest(TestCase):
 
 class ActivityFilteringByDestinationTest(TestCase):
     """Tests for activity filtering by destination"""
-    
+
     def test_activities_filtered_by_destination(self):
         """Test that activities are filtered to match option destination"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2759,7 +2759,7 @@ class ActivityFilteringByDestinationTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             group=group,
@@ -2768,7 +2768,7 @@ class ActivityFilteringByDestinationTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Create activities for different destinations
         activity_rome = ActivityResult.objects.create(
             search=search,
@@ -2781,7 +2781,7 @@ class ActivityFilteringByDestinationTest(TestCase):
             duration_hours=3,
             raw_data=json.dumps({'searched_destination': 'Rome, Italy'})
         )
-        
+
         activity_sicily = ActivityResult.objects.create(
             search=search,
             external_id='activity_sicily',
@@ -2793,20 +2793,20 @@ class ActivityFilteringByDestinationTest(TestCase):
             duration_hours=4,
             raw_data=json.dumps({'searched_destination': 'Sicily, Italy'})
         )
-        
+
         # Filter activities by destination
         rome_activities = []
         all_activities = ActivityResult.objects.filter(search=search)
-        
+
         for activity in all_activities:
             try:
                 activity_raw = json.loads(activity.raw_data)
                 activity_destination = activity_raw.get('searched_destination', '')
                 if activity_destination == 'Rome, Italy':
                     rome_activities.append(activity)
-            except:
+            except Exception:
                 pass
-        
+
         # Should only get Rome activity
         self.assertEqual(len(rome_activities), 1)
         self.assertEqual(rome_activities[0].name, 'Colosseum Tour')
@@ -2818,14 +2818,14 @@ class ActivityFilteringByDestinationTest(TestCase):
 
 class MultiDestinationSearchTest(TestCase):
     """Tests for multi-destination search logic"""
-    
+
     def test_multiple_destinations_combined(self):
         """Test combining results from multiple destinations"""
         # Simulate the multi-destination search logic
         destinations_list = ['Paris, France', 'Rome, Italy', 'Barcelona, Spain']
-        
+
         all_hotels = []
-        
+
         # Mock adding hotels from each destination
         for i, dest in enumerate(destinations_list):
             hotel_data = {
@@ -2835,13 +2835,13 @@ class MultiDestinationSearchTest(TestCase):
                 'price': 100 + (i * 50)
             }
             all_hotels.append(hotel_data)
-        
+
         # Verify we have hotels from all destinations
         self.assertEqual(len(all_hotels), 3)
-        
+
         destinations_in_results = set(h['searched_destination'] for h in all_hotels)
         self.assertEqual(len(destinations_in_results), 3)
-        
+
     def test_destination_tagging(self):
         """Test that results are tagged with their source destination"""
         hotel_data = {
@@ -2849,10 +2849,10 @@ class MultiDestinationSearchTest(TestCase):
             'name': 'Test Hotel',
             'price': 200
         }
-        
+
         # Tag with destination
         hotel_data['searched_destination'] = 'Barcelona, Spain'
-        
+
         self.assertEqual(hotel_data['searched_destination'], 'Barcelona, Spain')
 
 
@@ -2862,34 +2862,34 @@ class MultiDestinationSearchTest(TestCase):
 
 class CostCalculationTest(TestCase):
     """Tests for cost calculation logic"""
-    
+
     def test_total_cost_calculation(self):
         """Test calculating total trip cost"""
         flight_price = 500.00
         hotel_total = 1400.00
         activity_prices = [50.00, 75.00, 30.00]
-        
+
         total = flight_price + hotel_total + sum(activity_prices)
-        
+
         self.assertEqual(total, 2055.00)
-        
+
     def test_per_person_cost_calculation(self):
         """Test calculating cost per person"""
         total_cost = 3000.00
         num_people = 2
-        
+
         per_person = total_cost / num_people
-        
+
         self.assertEqual(per_person, 1500.00)
-        
+
     def test_cost_with_multiple_activities(self):
         """Test cost with varying numbers of activities"""
         base_cost = 2000.00
-        
+
         # With 2 activities
         cost_2_activities = base_cost + (50.00 * 2)
         self.assertEqual(cost_2_activities, 2100.00)
-        
+
         # With 5 activities
         cost_5_activities = base_cost + (50.00 * 5)
         self.assertEqual(cost_5_activities, 2250.00)
@@ -2901,11 +2901,11 @@ class CostCalculationTest(TestCase):
 
 class SearchHistoryExtendedTest(TestCase):
     """Extended tests for search history"""
-    
+
     def test_multiple_searches_tracked(self):
         """Test tracking multiple searches for a user"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         searches = []
         for i in range(3):
             search = TravelSearch.objects.create(
@@ -2916,16 +2916,16 @@ class SearchHistoryExtendedTest(TestCase):
                 adults=2
             )
             searches.append(search)
-            
+
             SearchHistory.objects.create(
                 user=user,
                 search=search,
                 viewed_results=True
             )
-        
+
         history = SearchHistory.objects.filter(user=user)
         self.assertEqual(history.count(), 3)
-        
+
     def test_search_history_with_saved_itinerary(self):
         """Test search history tracking saved itineraries"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2936,14 +2936,14 @@ class SearchHistoryExtendedTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         history = SearchHistory.objects.create(
             user=user,
             search=search,
             viewed_results=True,
             saved_itinerary=True
         )
-        
+
         self.assertTrue(history.saved_itinerary)
 
 
@@ -2953,7 +2953,7 @@ class SearchHistoryExtendedTest(TestCase):
 
 class PerformSearchPostTest(TestCase):
     """Comprehensive tests for perform_search POST"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -2968,7 +2968,7 @@ class PerformSearchPostTest(TestCase):
             budget_min=2000,
             budget_max=5000
         )
-        
+
     @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
     def test_perform_search_post_success(self, mock_openai, mock_duffel):
@@ -2981,7 +2981,7 @@ class PerformSearchPostTest(TestCase):
             'activities': [{'id': 'a1', 'name': 'Desert Safari', 'price': 100, 'is_mock': True}]
         }
         mock_duffel.return_value = mock_aggregator
-        
+
         # Mock OpenAI results
         mock_openai_service = Mock()
         mock_openai_service.consolidate_travel_results.return_value = {
@@ -2994,12 +2994,12 @@ class PerformSearchPostTest(TestCase):
             'recommended_activities': []
         }
         mock_openai.return_value = mock_openai_service
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:perform_search', args=[self.search.id])
-        
+
         response = self.client.post(url, content_type='application/json')
-        
+
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data['success'])
@@ -3011,21 +3011,21 @@ class PerformSearchPostTest(TestCase):
 
 class GenerateVotingOptionsPostTest(TestCase):
     """Comprehensive POST tests for generate_voting_options"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='POST Test Group',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
-        
+
         # Create preferences
         TripPreference.objects.create(
             user=self.user1,
@@ -3037,7 +3037,7 @@ class GenerateVotingOptionsPostTest(TestCase):
             travel_method='flight',
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=self.user2,
             group=self.group,
@@ -3048,7 +3048,7 @@ class GenerateVotingOptionsPostTest(TestCase):
             travel_method='flight',
             is_completed=True
         )
-    
+
     @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
     def test_generate_voting_options_post_success(self, mock_openai, mock_duffel):
@@ -3070,7 +3070,7 @@ class GenerateVotingOptionsPostTest(TestCase):
             ]
         }
         mock_duffel.return_value = mock_aggregator
-        
+
         # Mock OpenAI service
         mock_service = Mock()
         mock_service.generate_group_consensus.return_value = {
@@ -3121,10 +3121,10 @@ class GenerateVotingOptionsPostTest(TestCase):
             ]
         }
         mock_openai.return_value = mock_service
-        
+
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
-        
+
         response = self.client.post(
             url,
             data=json.dumps({
@@ -3133,11 +3133,11 @@ class GenerateVotingOptionsPostTest(TestCase):
             }),
             content_type='application/json'
         )
-        
+
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data['success'])
-        
+
         # Verify options were created
         options = GroupItineraryOption.objects.filter(group=self.group)
         self.assertEqual(options.count(), 3)
@@ -3149,7 +3149,7 @@ class GenerateVotingOptionsPostTest(TestCase):
 
 class DuffelAggregatorMethodTest(TestCase):
     """Tests for specific Duffel aggregator methods"""
-    
+
     # def test_search_flights_method(self):
     #     """Test direct flight search method"""
     #     search = DuffelFlightSearch()
@@ -3160,16 +3160,16 @@ class DuffelAggregatorMethodTest(TestCase):
     #         return_date='2026-06-08',
     #         adults=2
     #     )
-        
+
     #     self.assertIsInstance(flights, list)
     #     # Should get mock data
     #     if len(flights) > 0:
     #         self.assertTrue(flights[0].get('is_mock', False))
-            
+
     def test_hotel_search_various_durations(self):
         """Test hotel search with different stay durations"""
         aggregator = DuffelAggregator()
-        
+
         # Short stay (3 days)
         results_short = aggregator.search_all(
             destination='Prague',
@@ -3179,7 +3179,7 @@ class DuffelAggregatorMethodTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Long stay (14 days)
         results_long = aggregator.search_all(
             destination='Prague',
@@ -3189,7 +3189,7 @@ class DuffelAggregatorMethodTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Both should return hotels
         self.assertGreater(len(results_short['hotels']), 0)
         self.assertGreater(len(results_long['hotels']), 0)
@@ -3201,7 +3201,7 @@ class DuffelAggregatorMethodTest(TestCase):
 
 class OpenAIErrorHandlingTest(TestCase):
     """Tests for OpenAI service error handling"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_consolidate_with_api_failure(self, mock_openai_client):
@@ -3210,19 +3210,19 @@ class OpenAIErrorHandlingTest(TestCase):
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.side_effect = Exception('API timeout')
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         result = service.consolidate_travel_results(
             flight_results=[],
             hotel_results=[],
             activity_results=[],
             user_preferences={}
         )
-        
+
         # Should return empty dict or error dict without crashing
         self.assertIsInstance(result, dict)
-        
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_consensus_with_invalid_json_response(self, mock_openai_client):
@@ -3231,13 +3231,13 @@ class OpenAIErrorHandlingTest(TestCase):
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = 'not valid json'
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         # Should handle gracefully
         try:
             result = service.generate_group_consensus([])
@@ -3254,26 +3254,26 @@ class OpenAIErrorHandlingTest(TestCase):
 
 class AdminConfigTest(TestCase):
     """Tests for admin configuration"""
-    
+
     def test_travel_search_admin_exists(self):
         """Test TravelSearch is registered in admin"""
         from django.contrib import admin
         from ai_implementation.models import TravelSearch
-        
+
         self.assertTrue(admin.site.is_registered(TravelSearch))
-        
+
     def test_flight_result_admin_exists(self):
         """Test FlightResult is registered in admin"""
         from django.contrib import admin
         from ai_implementation.models import FlightResult
-        
+
         self.assertTrue(admin.site.is_registered(FlightResult))
-        
+
     def test_group_itinerary_option_admin_exists(self):
         """Test GroupItineraryOption is registered in admin"""
         from django.contrib import admin
         from ai_implementation.models import GroupItineraryOption
-        
+
         self.assertTrue(admin.site.is_registered(GroupItineraryOption))
 
 
@@ -3283,7 +3283,7 @@ class AdminConfigTest(TestCase):
 
 class QuerySetFilteringTest(TestCase):
     """Tests for complex queryset filtering"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.group = TravelGroup.objects.create(
@@ -3291,7 +3291,7 @@ class QuerySetFilteringTest(TestCase):
             created_by=self.user,
             password='group123'
         )
-        
+
     def test_active_consensus_filtering(self):
         """Test filtering for active consensus only"""
         # Create multiple consensus records
@@ -3301,18 +3301,18 @@ class QuerySetFilteringTest(TestCase):
             consensus_preferences='{}',
             is_active=True
         )
-        
+
         consensus2 = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
             consensus_preferences='{}',
             is_active=False
         )
-        
+
         active = GroupConsensus.objects.filter(group=self.group, is_active=True)
         self.assertEqual(active.count(), 1)
         self.assertEqual(active.first(), consensus1)
-        
+
     def test_filter_options_by_consensus(self):
         """Test filtering options by consensus"""
         consensus1 = GroupConsensus.objects.create(
@@ -3320,13 +3320,13 @@ class QuerySetFilteringTest(TestCase):
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
         consensus2 = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=self.user,
             destination='Oslo',
@@ -3334,7 +3334,7 @@ class QuerySetFilteringTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Create options for consensus1
         for letter in ['A', 'B']:
             GroupItineraryOption.objects.create(
@@ -3348,7 +3348,7 @@ class QuerySetFilteringTest(TestCase):
                 cost_per_person=1000.00,
                 ai_reasoning='Test'
             )
-        
+
         # Create options for consensus2
         GroupItineraryOption.objects.create(
             group=self.group,
@@ -3361,7 +3361,7 @@ class QuerySetFilteringTest(TestCase):
             cost_per_person=1500.00,
             ai_reasoning='Test'
         )
-        
+
         # Filter by consensus1
         options_c1 = GroupItineraryOption.objects.filter(consensus=consensus1)
         self.assertEqual(options_c1.count(), 2)
@@ -3373,7 +3373,7 @@ class QuerySetFilteringTest(TestCase):
 
 class QueryOptimizationTest(TestCase):
     """Tests for query optimization with select_related"""
-    
+
     def test_options_with_select_related(self):
         """Test options query with select_related"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3382,13 +3382,13 @@ class QueryOptimizationTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Berlin',
@@ -3396,7 +3396,7 @@ class QueryOptimizationTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         flight = FlightResult.objects.create(
             search=search,
             external_id='flight_berlin',
@@ -3408,7 +3408,7 @@ class QueryOptimizationTest(TestCase):
             duration='2h',
             stops=0
         )
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='hotel_berlin',
@@ -3418,7 +3418,7 @@ class QueryOptimizationTest(TestCase):
             total_price=700.00,
             currency='EUR'
         )
-        
+
         option = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -3432,12 +3432,12 @@ class QueryOptimizationTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
         # Query with select_related
         options = GroupItineraryOption.objects.filter(
             group=group
         ).select_related('selected_flight', 'selected_hotel')
-        
+
         self.assertEqual(options.count(), 1)
         retrieved_option = options.first()
         self.assertEqual(retrieved_option.selected_flight, flight)
@@ -3450,11 +3450,11 @@ class QueryOptimizationTest(TestCase):
 
 class DateValidationTest(TestCase):
     """Tests for date validation in searches"""
-    
+
     def test_same_day_trip(self):
         """Test validation for same-day trips"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         # Model allows same-day, but form should validate
         search = TravelSearch.objects.create(
             user=user,
@@ -3463,13 +3463,13 @@ class DateValidationTest(TestCase):
             end_date=date.today() + timedelta(days=10),  # Same day
             adults=1
         )
-        
+
         self.assertIsNotNone(search)
-        
+
     def test_search_with_very_long_future_date(self):
         """Test search with date far in the future"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Mars',
@@ -3477,7 +3477,7 @@ class DateValidationTest(TestCase):
             end_date=date.today() + timedelta(days=372),
             adults=1
         )
-        
+
         self.assertIsNotNone(search)
 
 
@@ -3487,7 +3487,7 @@ class DateValidationTest(TestCase):
 
 class CurrencyHandlingTest(TestCase):
     """Tests for currency handling in results"""
-    
+
     def test_mixed_currency_results(self):
         """Test handling of multiple currencies"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3498,7 +3498,7 @@ class CurrencyHandlingTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # USD flight
         FlightResult.objects.create(
             search=search,
@@ -3511,7 +3511,7 @@ class CurrencyHandlingTest(TestCase):
             duration='10h',
             stops=1
         )
-        
+
         # EUR hotel
         HotelResult.objects.create(
             search=search,
@@ -3522,7 +3522,7 @@ class CurrencyHandlingTest(TestCase):
             total_price=1050.00,
             currency='EUR'
         )
-        
+
         # GBP activity
         ActivityResult.objects.create(
             search=search,
@@ -3534,12 +3534,12 @@ class CurrencyHandlingTest(TestCase):
             currency='GBP',
             duration_hours=3
         )
-        
+
         # Verify different currencies stored
         flight = FlightResult.objects.first()
         hotel = HotelResult.objects.first()
         activity = ActivityResult.objects.first()
-        
+
         self.assertEqual(flight.currency, 'USD')
         self.assertEqual(hotel.currency, 'EUR')
         self.assertEqual(activity.currency, 'GBP')
@@ -3551,7 +3551,7 @@ class CurrencyHandlingTest(TestCase):
 
 class SaveItineraryViewTest(TestCase):
     """Tests for save_itinerary view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3562,7 +3562,7 @@ class SaveItineraryViewTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=2
         )
-        
+
         self.flight = FlightResult.objects.create(
             search=self.search,
             external_id='flight_milan',
@@ -3574,7 +3574,7 @@ class SaveItineraryViewTest(TestCase):
             duration='2h',
             stops=0
         )
-        
+
         self.hotel = HotelResult.objects.create(
             search=self.search,
             external_id='hotel_milan',
@@ -3584,23 +3584,23 @@ class SaveItineraryViewTest(TestCase):
             total_price=600.00,
             currency='EUR'
         )
-        
+
     @patch('ai_implementation.views.OpenAIService')
     def test_save_itinerary_post(self, mock_openai):
         """Test saving an itinerary"""
         mock_service = Mock()
         mock_service.create_itinerary_description.return_value = 'Amazing Milan trip'
         mock_openai.return_value = mock_service
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:save_itinerary', args=[self.search.id])
-        
+
         response = self.client.post(url, {
             'title': 'My Milan Adventure',
             'selected_flight': str(self.flight.id),
             'selected_hotel': str(self.hotel.id),
         })
-        
+
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data['success'])
@@ -3612,18 +3612,18 @@ class SaveItineraryViewTest(TestCase):
 
 class APIConnectorDetailedTest(TestCase):
     """Detailed tests for API connectors"""
-    
+
     def test_base_api_connector_initialization(self):
         """Test base connector initialization"""
         from ai_implementation.api_connectors import BaseAPIConnector
-        
+
         connector = BaseAPIConnector()
         self.assertIsNotNone(connector)
-        
+
     def test_hotel_connector_search_with_rooms(self):
         """Test hotel search with multiple rooms"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
         hotels = connector.search_hotels(
             destination='Munich',
@@ -3632,13 +3632,13 @@ class APIConnectorDetailedTest(TestCase):
             adults=4,
             rooms=2
         )
-        
+
         self.assertIsInstance(hotels, list)
-        
+
     def test_activity_connector_with_categories(self):
         """Test activity search with specific categories"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         activities = connector.search_activities(
             destination='Florence',
@@ -3646,13 +3646,13 @@ class APIConnectorDetailedTest(TestCase):
             end_date='2026-06-08',
             categories=['art', 'museums', 'culture']
         )
-        
+
         self.assertIsInstance(activities, list)
-        
+
     def test_travel_aggregator_initialization(self):
         """Test travel aggregator initializes all connectors"""
         from ai_implementation.api_connectors import TravelAPIAggregator
-        
+
         aggregator = TravelAPIAggregator()
         self.assertIsNotNone(aggregator.flight_api)
         self.assertIsNotNone(aggregator.hotel_api)
@@ -3665,7 +3665,7 @@ class APIConnectorDetailedTest(TestCase):
 
 class ResultOrderingTest(TestCase):
     """Tests for ordering and ranking of results"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -3675,11 +3675,11 @@ class ResultOrderingTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
     def test_flights_ordered_by_price(self):
         """Test ordering flights by price"""
         prices = [600, 450, 800, 550, 700]
-        
+
         for i, price in enumerate(prices):
             FlightResult.objects.create(
                 search=self.search,
@@ -3692,19 +3692,19 @@ class ResultOrderingTest(TestCase):
                 duration='8h',
                 stops=1
             )
-        
+
         # Order by price
         flights_ordered = FlightResult.objects.filter(
             search=self.search
         ).order_by('price')
-        
+
         prices_ordered = [float(f.price) for f in flights_ordered]
         self.assertEqual(prices_ordered, sorted(prices))
-        
+
     def test_hotels_ordered_by_rating(self):
         """Test ordering hotels by rating"""
         ratings = [4.2, 3.8, 4.7, 4.0, 4.5]
-        
+
         for i, rating in enumerate(ratings):
             HotelResult.objects.create(
                 search=self.search,
@@ -3716,12 +3716,12 @@ class ResultOrderingTest(TestCase):
                 currency='CHF',
                 rating=rating
             )
-        
+
         # Order by rating descending
         hotels_ordered = HotelResult.objects.filter(
             search=self.search
         ).order_by('-rating')
-        
+
         ratings_ordered = [float(h.rating) for h in hotels_ordered]
         self.assertEqual(ratings_ordered, sorted(ratings, reverse=True))
 
@@ -3732,7 +3732,7 @@ class ResultOrderingTest(TestCase):
 
 class SearchResultsWithRefineTest(TestCase):
     """Tests for search results with refine form"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3743,7 +3743,7 @@ class SearchResultsWithRefineTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=2
         )
-        
+
         # Create consolidated result
         ConsolidatedResult.objects.create(
             search=self.search,
@@ -3752,7 +3752,7 @@ class SearchResultsWithRefineTest(TestCase):
             itinerary_suggestions='[]',
             warnings='[]'
         )
-        
+
         # Create results with various prices
         for i in range(3):
             HotelResult.objects.create(
@@ -3765,32 +3765,32 @@ class SearchResultsWithRefineTest(TestCase):
                 currency='NOK',
                 rating=3.5 + (i * 0.5)
             )
-        
+
     def test_search_results_with_max_price_filter(self):
         """Test filtering results by max price"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url, {'max_price': 750})
-        
+
         self.assertEqual(response.status_code, 200)
-        
+
     def test_search_results_with_rating_filter(self):
         """Test filtering results by minimum rating"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url, {'min_rating': 4.0})
-        
+
         self.assertEqual(response.status_code, 200)
-        
+
     def test_search_results_with_sorting(self):
         """Test sorting results"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url, {'sort_by': 'price_low'})
-        
+
         self.assertEqual(response.status_code, 200)
 
 
@@ -3800,19 +3800,19 @@ class SearchResultsWithRefineTest(TestCase):
 
 class ViewPermissionTest(TestCase):
     """Tests for view permissions and access control"""
-    
+
     def setUp(self):
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Permission Test',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
-        
+
     def test_non_member_cannot_access_group_consensus(self):
         """Test non-member cannot view group consensus"""
         consensus = GroupConsensus.objects.create(
@@ -3820,18 +3820,18 @@ class ViewPermissionTest(TestCase):
             generated_by=self.user1,
             consensus_preferences='{}'
         )
-        
+
         self.client.login(username='user2', password='pass123')  # Not a member
         url = reverse('ai_implementation:view_group_consensus', args=[self.group.id])
-        
+
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # Redirected
-        
+
     def test_non_member_cannot_generate_consensus(self):
         """Test non-member cannot generate consensus"""
         self.client.login(username='user2', password='pass123')  # Not a member
         url = reverse('ai_implementation:generate_group_consensus', args=[self.group.id])
-        
+
         response = self.client.get(url)
         self.assertEqual(response.status_code, 302)  # Redirected
 
@@ -3842,7 +3842,7 @@ class ViewPermissionTest(TestCase):
 
 class SearchWithGroupTest(TestCase):
     """Tests for searches associated with groups"""
-    
+
     def test_search_linked_to_group(self):
         """Test search can be linked to a group"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3851,7 +3851,7 @@ class SearchWithGroupTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             group=group,
@@ -3860,10 +3860,10 @@ class SearchWithGroupTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=4
         )
-        
+
         # Verify link
         self.assertEqual(search.group, group)
-        
+
         # Verify reverse relationship
         group_searches = TravelSearch.objects.filter(group=group)
         self.assertEqual(group_searches.count(), 1)
@@ -3876,7 +3876,7 @@ class SearchWithGroupTest(TestCase):
 
 class SearchCompletionTest(TestCase):
     """Tests for search completion status"""
-    
+
     def test_search_completion_status(self):
         """Test is_completed flag tracking"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3887,14 +3887,14 @@ class SearchCompletionTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         # Initially not completed
         self.assertFalse(search.is_completed)
-        
+
         # Mark as completed
         search.is_completed = True
         search.save()
-        
+
         # Verify status changed
         search.refresh_from_db()
         self.assertTrue(search.is_completed)
@@ -3906,7 +3906,7 @@ class SearchCompletionTest(TestCase):
 
 class WinnerFlagTest(TestCase):
     """Tests for is_winner flag handling"""
-    
+
     def test_single_winner_per_group(self):
         """Test that only one option should be marked as winner"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -3915,13 +3915,13 @@ class WinnerFlagTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Tallinn',
@@ -3929,7 +3929,7 @@ class WinnerFlagTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         # Create 3 options
         for letter in ['A', 'B', 'C']:
             GroupItineraryOption.objects.create(
@@ -3944,7 +3944,7 @@ class WinnerFlagTest(TestCase):
                 ai_reasoning='Test',
                 is_winner=(letter == 'B')  # Only B is winner
             )
-        
+
         # Check winners
         winners = GroupItineraryOption.objects.filter(group=group, is_winner=True)
         self.assertEqual(winners.count(), 1)
@@ -3957,13 +3957,13 @@ class WinnerFlagTest(TestCase):
 
 class APIConnectorPatternsTest(TestCase):
     """Tests for various API connector usage patterns"""
-    
+
     def test_hotel_search_different_check_in_days(self):
         """Test hotel search with various check-in/out patterns"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
-        
+
         # Weekend stay
         hotels_weekend = connector.search_hotels(
             destination='Brussels',
@@ -3972,7 +3972,7 @@ class APIConnectorPatternsTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Weekday stay
         hotels_weekday = connector.search_hotels(
             destination='Brussels',
@@ -3981,14 +3981,14 @@ class APIConnectorPatternsTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIsInstance(hotels_weekend, list)
         self.assertIsInstance(hotels_weekday, list)
-        
+
     def test_activity_search_without_categories(self):
         """Test activity search without specifying categories"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         activities = connector.search_activities(
             destination='Athens',
@@ -3996,14 +3996,14 @@ class APIConnectorPatternsTest(TestCase):
             end_date='2026-06-08',
             categories=None  # No categories specified
         )
-        
+
         self.assertIsInstance(activities, list)
         # Should return general activities
-        
+
     def test_aggregator_with_empty_preferences(self):
         """Test aggregator with minimal preferences"""
         from ai_implementation.api_connectors import TravelAPIAggregator
-        
+
         aggregator = TravelAPIAggregator()
         results = aggregator.search_all(
             destination='Dublin',
@@ -4014,7 +4014,7 @@ class APIConnectorPatternsTest(TestCase):
             rooms=1,
             preferences={}  # Empty preferences
         )
-        
+
         self.assertIn('hotels', results)
         self.assertIn('activities', results)
 
@@ -4025,10 +4025,10 @@ class APIConnectorPatternsTest(TestCase):
 
 class ModelStringRepresentationTest(TestCase):
     """Comprehensive tests for all model __str__ methods"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_consolidated_result_str(self):
         """Test ConsolidatedResult __str__"""
         search = TravelSearch.objects.create(
@@ -4038,7 +4038,7 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         consolidated = ConsolidatedResult.objects.create(
             search=search,
             summary='Test summary',
@@ -4046,10 +4046,10 @@ class ModelStringRepresentationTest(TestCase):
             itinerary_suggestions='[]',
             warnings='[]'
         )
-        
+
         expected = f"Results for {search.destination}"
         self.assertEqual(str(consolidated), expected)
-        
+
     def test_flight_result_str(self):
         """Test FlightResult __str__"""
         search = TravelSearch.objects.create(
@@ -4059,7 +4059,7 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         flight = FlightResult.objects.create(
             search=search,
             external_id='test_flight',
@@ -4071,10 +4071,10 @@ class ModelStringRepresentationTest(TestCase):
             duration='1h',
             stops=0
         )
-        
-        expected = f"SAS - $450.0 (0 stops)"
+
+        expected = "SAS - $450.0 (0 stops)"
         self.assertEqual(str(flight), expected)
-        
+
     def test_hotel_result_str(self):
         """Test HotelResult __str__"""
         search = TravelSearch.objects.create(
@@ -4084,7 +4084,7 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='test_hotel',
@@ -4094,10 +4094,10 @@ class ModelStringRepresentationTest(TestCase):
             total_price=1000.00,
             currency='SEK'
         )
-        
-        expected = f"Nordic Hotel - $1000.0"
+
+        expected = "Nordic Hotel - $1000.0"
         self.assertEqual(str(hotel), expected)
-        
+
     def test_activity_result_str(self):
         """Test ActivityResult __str__"""
         search = TravelSearch.objects.create(
@@ -4107,7 +4107,7 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         activity = ActivityResult.objects.create(
             search=search,
             external_id='test_activity',
@@ -4118,10 +4118,10 @@ class ModelStringRepresentationTest(TestCase):
             currency='ISK',
             duration_hours=4
         )
-        
-        expected = f"Northern Lights Tour - $150.0"
+
+        expected = "Northern Lights Tour - $150.0"
         self.assertEqual(str(activity), expected)
-        
+
     def test_ai_generated_itinerary_str(self):
         """Test AIGeneratedItinerary __str__"""
         search = TravelSearch.objects.create(
@@ -4131,7 +4131,7 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         itinerary = AIGeneratedItinerary.objects.create(
             user=self.user,
             search=search,
@@ -4141,10 +4141,10 @@ class ModelStringRepresentationTest(TestCase):
             duration_days=5,
             estimated_total_cost=1500.00
         )
-        
-        expected = f"Scotland Adventure - Edinburgh"
+
+        expected = "Scotland Adventure - Edinburgh"
         self.assertEqual(str(itinerary), expected)
-        
+
     def test_search_history_str(self):
         """Test SearchHistory __str__"""
         search = TravelSearch.objects.create(
@@ -4154,14 +4154,14 @@ class ModelStringRepresentationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         history = SearchHistory.objects.create(
             user=self.user,
             search=search,
             viewed_results=True
         )
-        
-        expected = f"testuser - Cardiff"
+
+        expected = "testuser - Cardif"
         self.assertEqual(str(history), expected)
 
 
@@ -4171,11 +4171,11 @@ class ModelStringRepresentationTest(TestCase):
 
 class ConnectorSearchMethodsTest(TestCase):
     """Tests for individual connector search methods"""
-    
+
     def test_flight_connector_search(self):
         """Test flight connector search method"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
         flights = connector.search_flights(
             origin='ORD',
@@ -4184,34 +4184,34 @@ class ConnectorSearchMethodsTest(TestCase):
             return_date='2026-06-08',
             adults=2
         )
-        
+
         self.assertIsInstance(flights, list)
-        
+
     def test_base_api_connector_methods(self):
         """Test base API connector shared functionality"""
         from ai_implementation.api_connectors import BaseAPIConnector
-        
+
         connector = BaseAPIConnector()
         # Test timeout property
         self.assertIsNotNone(connector.timeout)
 
 
 # ============================================================================
-# ADDITIONAL OPENAI SERVICE METHODS  
+# ADDITIONAL OPENAI SERVICE METHODS
 # ============================================================================
 
 class OpenAIServiceMethodsTest(TestCase):
     """Tests for additional OpenAI service methods"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_openai_service_model_attribute(self, mock_openai_client):
         """Test OpenAI service has model attribute"""
         mock_client_instance = Mock()
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         # Verify service has model attribute
         self.assertIsNotNone(service.model)
         self.assertIsInstance(service.model, str)
@@ -4223,7 +4223,7 @@ class OpenAIServiceMethodsTest(TestCase):
 
 class SearchResultsFiltersComprehensive(TestCase):
     """Comprehensive filter tests for search results"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -4234,7 +4234,7 @@ class SearchResultsFiltersComprehensive(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=2
         )
-        
+
         ConsolidatedResult.objects.create(
             search=self.search,
             summary='Options',
@@ -4242,7 +4242,7 @@ class SearchResultsFiltersComprehensive(TestCase):
             itinerary_suggestions='[]',
             warnings='[]'
         )
-        
+
         # Create varied results
         for i in range(5):
             FlightResult.objects.create(
@@ -4256,20 +4256,20 @@ class SearchResultsFiltersComprehensive(TestCase):
                 duration='2h',
                 stops=i % 2
             )
-        
+
     def test_search_results_sort_price_high(self):
         """Test sorting by price high to low"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url, {'sort_by': 'price_high'})
         self.assertEqual(response.status_code, 200)
-        
+
     def test_search_results_sort_rating(self):
         """Test sorting by rating"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url, {'sort_by': 'rating'})
         self.assertEqual(response.status_code, 200)
 
@@ -4280,11 +4280,11 @@ class SearchResultsFiltersComprehensive(TestCase):
 
 class ModelFieldsDetailTest(TestCase):
     """Tests for specific model field behaviors"""
-    
+
     def test_flight_with_all_fields(self):
         """Test FlightResult with all optional fields populated"""
         from django.utils import timezone
-        
+
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         search = TravelSearch.objects.create(
             user=user,
@@ -4293,7 +4293,7 @@ class ModelFieldsDetailTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         flight = FlightResult.objects.create(
             search=search,
             external_id='full_flight',
@@ -4311,11 +4311,11 @@ class ModelFieldsDetailTest(TestCase):
             ai_score=92.5,
             ai_reason='Excellent direct flight'
         )
-        
+
         self.assertEqual(flight.booking_class, 'Business')
         self.assertEqual(float(flight.ai_score), 92.5)
         self.assertFalse(flight.is_mock)
-        
+
     def test_hotel_with_all_amenities(self):
         """Test HotelResult with comprehensive amenities"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -4326,9 +4326,9 @@ class ModelFieldsDetailTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
         amenities_list = ['WiFi', 'Pool', 'Gym', 'Spa', 'Restaurant', 'Bar', 'Parking']
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='luxury_hotel',
@@ -4349,7 +4349,7 @@ class ModelFieldsDetailTest(TestCase):
             ai_score=98.0,
             ai_reason='Top rated luxury hotel'
         )
-        
+
         self.assertEqual(len(hotel.amenities.split(',')), 7)
         self.assertTrue(hotel.breakfast_included)
         self.assertEqual(float(hotel.ai_score), 98.0)
@@ -4361,7 +4361,7 @@ class ModelFieldsDetailTest(TestCase):
 
 class RoomCalculationTest(TestCase):
     """Tests for room number calculations"""
-    
+
     def test_room_calculation_logic(self):
         """Test room calculation based on travelers"""
         test_cases = [
@@ -4370,7 +4370,7 @@ class RoomCalculationTest(TestCase):
             (4, max(1, 4 // 2)),  # 4 adults -> 2 rooms
             (8, max(1, 8 // 2)),  # 8 adults -> 4 rooms
         ]
-        
+
         for adults, expected_rooms in test_cases:
             calculated = max(1, adults // 2)
             self.assertEqual(calculated, expected_rooms)
@@ -4382,7 +4382,7 @@ class RoomCalculationTest(TestCase):
 
 class RefineFormApplicationTest(TestCase):
     """Tests for applying RefineSearchForm filters"""
-    
+
     def test_refine_form_valid_data(self):
         """Test RefineSearchForm with all valid data"""
         form_data = {
@@ -4391,10 +4391,10 @@ class RefineFormApplicationTest(TestCase):
             'sort_by': 'price_low',
             'filter_type': ['free_cancellation', 'high_rating']
         }
-        
+
         form = RefineSearchForm(data=form_data)
         self.assertTrue(form.is_valid())
-        
+
         # Test cleaned data
         self.assertEqual(float(form.cleaned_data['max_price']), 2000.00)
         self.assertEqual(float(form.cleaned_data['min_rating']), 4.5)
@@ -4406,21 +4406,21 @@ class RefineFormApplicationTest(TestCase):
 
 class GroupAdminDetectionTest(TestCase):
     """Tests for detecting group admin/member roles"""
-    
+
     def test_admin_role_detection(self):
         """Test detecting if user is admin"""
         user1 = User.objects.create_user('admin', 'admin@test.com', 'pass123')
         user2 = User.objects.create_user('member', 'member@test.com', 'pass123')
-        
+
         group = TravelGroup.objects.create(
             name='Role Test',
             created_by=user1,
             password='group123'
         )
-        
+
         member1 = GroupMember.objects.create(group=group, user=user1, role='admin')
         member2 = GroupMember.objects.create(group=group, user=user2, role='member')
-        
+
         self.assertEqual(member1.role, 'admin')
         self.assertEqual(member2.role, 'member')
 
@@ -4431,7 +4431,7 @@ class GroupAdminDetectionTest(TestCase):
 
 class SearchResultsWithActivitiesTest(TestCase):
     """Tests for search results containing activities"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -4442,7 +4442,7 @@ class SearchResultsWithActivitiesTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=2
         )
-        
+
         ConsolidatedResult.objects.create(
             search=self.search,
             summary='Good options',
@@ -4450,7 +4450,7 @@ class SearchResultsWithActivitiesTest(TestCase):
             itinerary_suggestions='[]',
             warnings='[]'
         )
-        
+
         # Add activities
         for i in range(3):
             ActivityResult.objects.create(
@@ -4464,12 +4464,12 @@ class SearchResultsWithActivitiesTest(TestCase):
                 duration_hours=2 + i,
                 rating=4.0 + (i * 0.3)
             )
-        
+
     def test_search_results_shows_activities(self):
         """Test that activities are included in search results"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
-        
+
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         # Check that activities context is present
@@ -4482,7 +4482,7 @@ class SearchResultsWithActivitiesTest(TestCase):
 
 class AdditionalIntegrationTest(TestCase):
     """Additional integration test scenarios"""
-    
+
     def test_vote_change_scenario(self):
         """Test user changing their vote"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -4491,15 +4491,15 @@ class AdditionalIntegrationTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=group, user=user, role='admin')
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Nice',
@@ -4507,7 +4507,7 @@ class AdditionalIntegrationTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         option_a = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -4519,7 +4519,7 @@ class AdditionalIntegrationTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Budget'
         )
-        
+
         option_b = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -4531,7 +4531,7 @@ class AdditionalIntegrationTest(TestCase):
             cost_per_person=1500.00,
             ai_reasoning='Balanced'
         )
-        
+
         # First vote
         vote = ItineraryVote.objects.create(
             option=option_a,
@@ -4539,14 +4539,14 @@ class AdditionalIntegrationTest(TestCase):
             group=group,
             comment='Initial choice'
         )
-        
+
         self.assertEqual(vote.option, option_a)
-        
+
         # Change vote
         vote.option = option_b
         vote.comment = 'Changed my mind'
         vote.save()
-        
+
         vote.refresh_from_db()
         self.assertEqual(vote.option, option_b)
         self.assertEqual(vote.comment, 'Changed my mind')
@@ -4558,7 +4558,7 @@ class AdditionalIntegrationTest(TestCase):
 
 class MockDataDetailTest(TestCase):
     """Detailed tests for mock data generation"""
-    
+
     def test_mock_hotels_have_realistic_data(self):
         """Test mock hotels have realistic properties"""
         aggregator = DuffelAggregator()
@@ -4570,18 +4570,18 @@ class MockDataDetailTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         hotels = results['hotels']
-        
+
         for hotel in hotels:
             # Check realistic ranges
             price_per_night = hotel.get('price_per_night', 0)
             rating = hotel.get('rating', 0)
-            
+
             self.assertGreater(price_per_night, 0)
             self.assertGreater(rating, 0)
             self.assertLessEqual(rating, 5.0)
-            
+
     def test_mock_activities_have_durations(self):
         """Test mock activities include duration"""
         aggregator = DuffelAggregator()
@@ -4593,9 +4593,9 @@ class MockDataDetailTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         activities = results['activities']
-        
+
         for activity in activities:
             duration = activity.get('duration_hours', 0)
             self.assertGreater(duration, 0)
@@ -4607,23 +4607,23 @@ class MockDataDetailTest(TestCase):
 
 class VoteRetrievalTest(TestCase):
     """Tests for retrieving and querying votes"""
-    
+
     def setUp(self):
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Vote Retrieval Test',
             created_by=self.user1,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user1,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=self.user1,
             destination='Lyon',
@@ -4631,7 +4631,7 @@ class VoteRetrievalTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         self.option = GroupItineraryOption.objects.create(
             group=self.group,
             consensus=consensus,
@@ -4643,7 +4643,7 @@ class VoteRetrievalTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
     def test_get_user_vote(self):
         """Test retrieving a user's vote"""
         ItineraryVote.objects.create(
@@ -4651,15 +4651,15 @@ class VoteRetrievalTest(TestCase):
             user=self.user1,
             group=self.group
         )
-        
+
         user_vote = ItineraryVote.objects.filter(
             user=self.user1,
             group=self.group
         ).first()
-        
+
         self.assertIsNotNone(user_vote)
         self.assertEqual(user_vote.option, self.option)
-        
+
     def test_get_all_votes_for_group(self):
         """Test retrieving all votes for a group"""
         ItineraryVote.objects.create(
@@ -4667,13 +4667,13 @@ class VoteRetrievalTest(TestCase):
             user=self.user1,
             group=self.group
         )
-        
+
         ItineraryVote.objects.create(
             option=self.option,
             user=self.user2,
             group=self.group
         )
-        
+
         all_votes = ItineraryVote.objects.filter(group=self.group)
         self.assertEqual(all_votes.count(), 2)
 
@@ -4684,23 +4684,23 @@ class VoteRetrievalTest(TestCase):
 
 class TripPreferenceIntegrationTest(TestCase):
     """Tests for trip preference integration"""
-    
+
     def test_preferences_with_various_budgets(self):
         """Test preferences with different budget formats"""
         users = []
         for i in range(4):
             user = User.objects.create_user(f'user{i}', f'user{i}@test.com', 'pass123')
             users.append(user)
-        
+
         group = TravelGroup.objects.create(
             name='Budget Format Test',
             created_by=users[0],
             password='group123'
         )
-        
+
         # Different budget formats (one per user to avoid unique constraint)
         budgets = ['$2,000', '3000', '$4500', '1,200']
-        
+
         for i, budget_str in enumerate(budgets):
             TripPreference.objects.create(
                 user=users[i],  # Different user for each preference
@@ -4711,7 +4711,7 @@ class TripPreferenceIntegrationTest(TestCase):
                 budget=budget_str,
                 is_completed=True
             )
-        
+
         prefs = TripPreference.objects.filter(group=group)
         self.assertEqual(prefs.count(), 4)
 
@@ -4722,19 +4722,19 @@ class TripPreferenceIntegrationTest(TestCase):
 
 class FlightAPIConnectorDetailTest(TestCase):
     """Detailed tests for FlightAPIConnector"""
-    
+
     def test_flight_connector_initialization(self):
         """Test flight connector initializes properly"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
         self.assertIsNotNone(connector)
         self.assertIsNotNone(connector.api_key)
-        
+
     def test_flight_search_roundtrip(self):
         """Test flight search with return date"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
         flights = connector.search_flights(
             origin='SFO',
@@ -4744,13 +4744,13 @@ class FlightAPIConnectorDetailTest(TestCase):
             adults=2,
             max_results=10
         )
-        
+
         self.assertIsInstance(flights, list)
-        
+
     def test_flight_search_oneway(self):
         """Test one-way flight search"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
         flights = connector.search_flights(
             origin='BOS',
@@ -4759,24 +4759,24 @@ class FlightAPIConnectorDetailTest(TestCase):
             return_date=None,  # One-way
             adults=1
         )
-        
+
         self.assertIsInstance(flights, list)
 
 
 class HotelAPIConnectorDetailTest(TestCase):
     """Detailed tests for HotelAPIConnector"""
-    
+
     def test_hotel_connector_initialization(self):
         """Test hotel connector initializes properly"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
         self.assertIsNotNone(connector)
-        
+
     def test_hotel_search_single_room(self):
         """Test hotel search for single room"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
         hotels = connector.search_hotels(
             destination='Portland',
@@ -4785,13 +4785,13 @@ class HotelAPIConnectorDetailTest(TestCase):
             adults=1,
             rooms=1
         )
-        
+
         self.assertIsInstance(hotels, list)
-        
+
     def test_hotel_search_multiple_rooms(self):
         """Test hotel search for multiple rooms"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
         hotels = connector.search_hotels(
             destination='Seattle',
@@ -4800,24 +4800,24 @@ class HotelAPIConnectorDetailTest(TestCase):
             adults=6,
             rooms=3
         )
-        
+
         self.assertIsInstance(hotels, list)
 
 
 class ActivityAPIConnectorDetailTest(TestCase):
     """Detailed tests for ActivityAPIConnector"""
-    
+
     def test_activity_connector_initialization(self):
         """Test activity connector initializes properly"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         self.assertIsNotNone(connector)
-        
+
     def test_activity_search_with_max_results(self):
         """Test activity search with max results limit"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         activities = connector.search_activities(
             destination='Austin',
@@ -4825,14 +4825,14 @@ class ActivityAPIConnectorDetailTest(TestCase):
             end_date='2026-06-08',
             max_results=5
         )
-        
+
         self.assertIsInstance(activities, list)
         self.assertLessEqual(len(activities), 10)  # Should respect limit
-        
+
     def test_activity_search_with_multiple_categories(self):
         """Test activity search with multiple categories"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
         activities = connector.search_activities(
             destination='Denver',
@@ -4840,7 +4840,7 @@ class ActivityAPIConnectorDetailTest(TestCase):
             end_date='2026-06-08',
             categories=['outdoor', 'adventure', 'nature']
         )
-        
+
         self.assertIsInstance(activities, list)
 
 
@@ -4850,11 +4850,11 @@ class ActivityAPIConnectorDetailTest(TestCase):
 
 class AggregatorCombinedTest(TestCase):
     """Tests for aggregator combining multiple API results"""
-    
+
     def test_aggregator_returns_all_types(self):
         """Test aggregator returns flights, hotels, and activities"""
         from ai_implementation.api_connectors import TravelAPIAggregator
-        
+
         aggregator = TravelAPIAggregator()
         results = aggregator.search_all(
             destination='Nashville',
@@ -4864,12 +4864,12 @@ class AggregatorCombinedTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Should have all three types
         self.assertIn('flights', results)
         self.assertIn('hotels', results)
         self.assertIn('activities', results)
-        
+
         # All should be lists
         self.assertIsInstance(results['flights'], list)
         self.assertIsInstance(results['hotels'], list)
@@ -4882,11 +4882,11 @@ class AggregatorCombinedTest(TestCase):
 
 class ModelMetaTest(TestCase):
     """Tests for model meta options"""
-    
+
     def test_travel_search_ordering(self):
         """Test TravelSearch default ordering"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         # Create searches at different times
         search1 = TravelSearch.objects.create(
             user=user,
@@ -4895,7 +4895,7 @@ class ModelMetaTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         search2 = TravelSearch.objects.create(
             user=user,
             destination='Second',
@@ -4903,10 +4903,10 @@ class ModelMetaTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         # Get all searches
         searches = TravelSearch.objects.filter(user=user)
-        
+
         # Verify they're ordered (most recent first by default if there's ordering)
         self.assertEqual(searches.count(), 2)
 
@@ -4917,11 +4917,11 @@ class ModelMetaTest(TestCase):
 
 class ViewErrorPathTest(TestCase):
     """Tests for view error handling paths"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_search_results_wrong_user(self):
         """Test accessing another user's search results"""
         other_user = User.objects.create_user('other', 'other@test.com', 'pass123')
@@ -4932,14 +4932,14 @@ class ViewErrorPathTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[search.id])
-        
+
         # Should get 404 or redirect
         response = self.client.get(url)
         self.assertIn(response.status_code, [302, 404])
-        
+
     def test_view_itinerary_wrong_user(self):
         """Test accessing another user's itinerary"""
         other_user = User.objects.create_user('other', 'other@test.com', 'pass123')
@@ -4950,7 +4950,7 @@ class ViewErrorPathTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         itinerary = AIGeneratedItinerary.objects.create(
             user=other_user,
             search=search,
@@ -4960,10 +4960,10 @@ class ViewErrorPathTest(TestCase):
             duration_days=5,
             estimated_total_cost=2000.00
         )
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:view_itinerary', args=[itinerary.id])
-        
+
         response = self.client.get(url)
         self.assertIn(response.status_code, [302, 404])
 
@@ -4974,24 +4974,24 @@ class ViewErrorPathTest(TestCase):
 
 class DuffelMethodsTest(TestCase):
     """Tests for additional Duffel methods"""
-    
+
     def test_duffel_flight_search_direct(self):
         """Test Duffel flight search directly"""
         search = DuffelFlightSearch()
-        
+
         flights = search.search_flights(
             origin='ATL',
             destination='ORD',
             departure_date='2026-06-01',
             adults=1
         )
-        
+
         self.assertIsInstance(flights, list)
-        
+
     def test_duffel_aggregator_hotel_search(self):
         """Test Duffel aggregator hotel component"""
         aggregator = DuffelAggregator()
-        
+
         # The aggregator should have a method to search hotels
         results = aggregator.search_all(
             destination='Miami',
@@ -5001,7 +5001,7 @@ class DuffelMethodsTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         # Should return hotels
         self.assertIn('hotels', results)
         self.assertIsInstance(results['hotels'], list)
@@ -5013,11 +5013,11 @@ class DuffelMethodsTest(TestCase):
 
 class ComprehensiveEdgeCaseTest(TestCase):
     """Comprehensive edge case scenarios"""
-    
+
     def test_search_with_max_adults(self):
         """Test search with maximum number of adults"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Las Vegas',
@@ -5026,13 +5026,13 @@ class ComprehensiveEdgeCaseTest(TestCase):
             adults=20,  # Max adults
             rooms=10
         )
-        
+
         self.assertEqual(search.adults, 20)
-        
+
     def test_search_with_minimal_data(self):
         """Test search with minimal required data"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Nearby',
@@ -5040,7 +5040,7 @@ class ComprehensiveEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=2),
             adults=1
         )
-        
+
         self.assertIsNotNone(search)
         self.assertEqual(search.adults, 1)
 
@@ -5051,13 +5051,13 @@ class ComprehensiveEdgeCaseTest(TestCase):
 
 class FlightConnectorComprehensive(TestCase):
     """Comprehensive flight connector tests"""
-    
+
     def test_flight_api_with_max_results(self):
         """Test flight search with different max results"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
-        
+
         for max_res in [5, 10, 20]:
             flights = connector.search_flights(
                 origin='JFK',
@@ -5071,13 +5071,13 @@ class FlightConnectorComprehensive(TestCase):
 
 class HotelConnectorComprehensive(TestCase):
     """Comprehensive hotel connector tests"""
-    
+
     def test_hotel_search_various_room_counts(self):
         """Test hotel search with different room counts"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
-        
+
         for num_rooms in [1, 2, 3, 5]:
             hotels = connector.search_hotels(
                 destination='Chicago',
@@ -5091,15 +5091,15 @@ class HotelConnectorComprehensive(TestCase):
 
 class ActivityConnectorComprehensive(TestCase):
     """Comprehensive activity connector tests"""
-    
+
     def test_activity_search_different_destinations(self):
         """Test activity search for various destinations"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
-        
+
         destinations = ['Boston', 'Phoenix', 'Atlanta']
-        
+
         for dest in destinations:
             activities = connector.search_activities(
                 destination=dest,
@@ -5115,23 +5115,23 @@ class ActivityConnectorComprehensive(TestCase):
 
 class ViewIntegrationComprehensive(TestCase):
     """Comprehensive view integration tests"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     def test_complete_search_flow(self):
         """Test complete search workflow"""
         self.client.login(username='testuser', password='pass123')
-        
+
         # 1. Access search home
         response = self.client.get(reverse('ai_implementation:search_home'))
         self.assertEqual(response.status_code, 200)
-        
+
         # 2. Access advanced search
         response = self.client.get(reverse('ai_implementation:advanced_search'))
         self.assertEqual(response.status_code, 200)
-        
+
         # 3. Access my itineraries
         response = self.client.get(reverse('ai_implementation:my_itineraries'))
         self.assertEqual(response.status_code, 200)
@@ -5143,13 +5143,13 @@ class ViewIntegrationComprehensive(TestCase):
 
 class DuffelConnectorComprehensive(TestCase):
     """Comprehensive Duffel connector tests"""
-    
+
     def test_duffel_search_various_origins(self):
         """Test Duffel with various origin airports"""
         aggregator = DuffelAggregator()
-        
+
         origins = ['JFK', 'LAX', 'ORD', 'ATL']
-        
+
         for origin in origins:
             results = aggregator.search_all(
                 destination='Miami',
@@ -5160,13 +5160,13 @@ class DuffelConnectorComprehensive(TestCase):
                 rooms=1
             )
             self.assertIsInstance(results, dict)
-            
+
     def test_duffel_search_various_destinations(self):
         """Test Duffel with various destinations"""
         aggregator = DuffelAggregator()
-        
+
         destinations = ['Denver', 'Tampa', 'Phoenix']
-        
+
         for dest in destinations:
             results = aggregator.search_all(
                 destination=dest,
@@ -5187,15 +5187,15 @@ class DuffelConnectorComprehensive(TestCase):
 
 class ComprehensiveFormTest(TestCase):
     """Final comprehensive form tests"""
-    
+
     def test_save_itinerary_form_validation(self):
         """Test SaveItineraryForm validates title"""
         form = SaveItineraryForm(data={'title': 'Valid Title'})
         self.assertTrue(form.is_valid())
-        
+
         form_empty = SaveItineraryForm(data={'title': ''})
         self.assertFalse(form_empty.is_valid())
-        
+
     def test_group_consensus_form_all_false(self):
         """Test consensus form with all options false"""
         form_data = {
@@ -5214,7 +5214,7 @@ class ComprehensiveFormTest(TestCase):
 
 class ResultCreationTest(TestCase):
     """Tests for creating various result types"""
-    
+
     def setUp(self):
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         self.search = TravelSearch.objects.create(
@@ -5224,7 +5224,7 @@ class ResultCreationTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=2
         )
-        
+
     def test_create_multiple_flights(self):
         """Test creating multiple flight results"""
         for i in range(10):
@@ -5239,10 +5239,10 @@ class ResultCreationTest(TestCase):
                 duration='3h',
                 stops=0
             )
-        
+
         flights = FlightResult.objects.filter(search=self.search)
         self.assertEqual(flights.count(), 10)
-        
+
     def test_create_multiple_hotels(self):
         """Test creating multiple hotel results"""
         for i in range(8):
@@ -5255,7 +5255,7 @@ class ResultCreationTest(TestCase):
                 total_price=600.00 + (i * 150),
                 currency='USD'
             )
-        
+
         hotels = HotelResult.objects.filter(search=self.search)
         self.assertEqual(hotels.count(), 8)
 
@@ -5266,7 +5266,7 @@ class ResultCreationTest(TestCase):
 
 class BudgetAnalysisLogicTest(TestCase):
     """Tests for budget analysis logic in OpenAI service"""
-    
+
     def test_budget_extraction_from_preferences(self):
         """Test extracting budgets from preferences"""
         member_prefs = [
@@ -5274,7 +5274,7 @@ class BudgetAnalysisLogicTest(TestCase):
             {'user': 'user2', 'budget': '3000'},
             {'user': 'user3', 'budget': '$5,000'},
         ]
-        
+
         budgets = []
         for pref in member_prefs:
             budget_str = pref.get('budget', '0')
@@ -5286,7 +5286,7 @@ class BudgetAnalysisLogicTest(TestCase):
                     budgets.append(budget)
             except (ValueError, TypeError):
                 continue
-        
+
         self.assertEqual(len(budgets), 3)
         self.assertEqual(budgets[0], 2500.0)
         self.assertEqual(budgets[1], 3000.0)
@@ -5299,11 +5299,11 @@ class BudgetAnalysisLogicTest(TestCase):
 
 class ViewsEdgeCaseTest(TestCase):
     """Edge case tests for views.py to increase coverage"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
     @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
     def test_perform_search_with_no_results(self, mock_openai, mock_duffel):
@@ -5316,7 +5316,7 @@ class ViewsEdgeCaseTest(TestCase):
             'activities': []
         }
         mock_duffel.return_value = mock_aggregator
-        
+
         mock_service = Mock()
         mock_service.consolidate_travel_results.return_value = {
             'summary': 'No results found',
@@ -5328,7 +5328,7 @@ class ViewsEdgeCaseTest(TestCase):
             'recommended_activities': []
         }
         mock_openai.return_value = mock_service
-        
+
         search = TravelSearch.objects.create(
             user=self.user,
             destination='Remote Island',
@@ -5336,13 +5336,13 @@ class ViewsEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=1
         )
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:perform_search', args=[search.id])
-        
+
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
-        
+
     @patch('ai_implementation.views.DuffelAggregator')
     def test_perform_search_api_exception(self, mock_duffel):
         """Test perform_search handles API exceptions"""
@@ -5350,7 +5350,7 @@ class ViewsEdgeCaseTest(TestCase):
         mock_aggregator = Mock()
         mock_aggregator.search_all.side_effect = Exception('API Error')
         mock_duffel.return_value = mock_aggregator
-        
+
         search = TravelSearch.objects.create(
             user=self.user,
             destination='Error City',
@@ -5358,19 +5358,19 @@ class ViewsEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=1
         )
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:perform_search', args=[search.id])
-        
+
         response = self.client.post(url)
         # View returns 500 on exception
         self.assertEqual(response.status_code, 500)
-        
+
     def test_advanced_search_invalid_form(self):
         """Test advanced_search with invalid form data"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:advanced_search')
-        
+
         # Invalid data (end before start)
         response = self.client.post(url, {
             'destination': 'Paris',
@@ -5378,51 +5378,51 @@ class ViewsEdgeCaseTest(TestCase):
             'end_date': (date.today() + timedelta(days=10)).isoformat(),  # Before start
             'adults': 2
         })
-        
+
         # Should render form again with errors
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'ai_implementation/advanced_search.html')
-        
+
     def test_search_results_nonexistent_search(self):
         """Test accessing non-existent search"""
         self.client.login(username='testuser', password='pass123')
-        
+
         from uuid import uuid4
         fake_id = uuid4()
         url = reverse('ai_implementation:search_results', args=[fake_id])
-        
+
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
-        
+
     def test_view_itinerary_nonexistent(self):
         """Test accessing non-existent itinerary"""
         self.client.login(username='testuser', password='pass123')
-        
+
         from uuid import uuid4
         fake_id = uuid4()
         url = reverse('ai_implementation:view_itinerary', args=[fake_id])
-        
+
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
 
 class GenerateVotingEdgeCaseTest(TestCase):
     """Edge case tests for generate_voting_options"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
         self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Edge Case Group',
             created_by=self.user1,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
-        
+
     def test_generate_voting_invalid_json(self):
         """Test generate_voting_options with invalid JSON"""
         # Create preferences
@@ -5435,7 +5435,7 @@ class GenerateVotingEdgeCaseTest(TestCase):
             budget=2500,
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=self.user2,
             group=self.group,
@@ -5445,20 +5445,20 @@ class GenerateVotingEdgeCaseTest(TestCase):
             budget=3500,
             is_completed=True
         )
-        
+
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
-        
+
         # POST with invalid JSON
         response = self.client.post(
             url,
             data='invalid json {',
             content_type='application/json'
         )
-        
+
         # Should return error status
         self.assertIn(response.status_code, [400, 500])
-        
+
     @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
     def test_generate_voting_openai_error(self, mock_openai, mock_duffel):
@@ -5473,7 +5473,7 @@ class GenerateVotingEdgeCaseTest(TestCase):
             budget=2500,
             is_completed=True
         )
-        
+
         TripPreference.objects.create(
             user=self.user2,
             group=self.group,
@@ -5483,7 +5483,7 @@ class GenerateVotingEdgeCaseTest(TestCase):
             budget=3500,
             is_completed=True
         )
-        
+
         # Mock Duffel success
         mock_aggregator = Mock()
         mock_aggregator.search_all.return_value = {
@@ -5492,7 +5492,7 @@ class GenerateVotingEdgeCaseTest(TestCase):
             'activities': [{'id': 'a1', 'price': 50}]
         }
         mock_duffel.return_value = mock_aggregator
-        
+
         # Mock OpenAI failure
         mock_service = Mock()
         mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
@@ -5500,10 +5500,10 @@ class GenerateVotingEdgeCaseTest(TestCase):
             'error': 'OpenAI API failed'
         }
         mock_openai.return_value = mock_service
-        
+
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
-        
+
         response = self.client.post(
             url,
             data=json.dumps({
@@ -5512,32 +5512,32 @@ class GenerateVotingEdgeCaseTest(TestCase):
             }),
             content_type='application/json'
         )
-        
+
         # View should handle gracefully (returns 200 with error in JSON)
         self.assertIn(response.status_code, [200, 400, 500])
 
 
 class CastVoteEdgeCaseTest(TestCase):
     """Edge case tests for cast_vote view"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Vote Edge Test',
             created_by=self.user,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
         consensus = GroupConsensus.objects.create(
             group=self.group,
             generated_by=self.user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=self.user,
             destination='Paris',
@@ -5545,7 +5545,7 @@ class CastVoteEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         self.option = GroupItineraryOption.objects.create(
             group=self.group,
             consensus=consensus,
@@ -5557,43 +5557,43 @@ class CastVoteEdgeCaseTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
     def test_cast_vote_updates_existing_vote(self):
         """Test that casting vote again updates existing vote"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
-        
+
         # First vote
         response1 = self.client.post(url, {'comment': 'First choice'})
         self.assertEqual(response1.status_code, 200)
-        
+
         # Second vote (should update)
         response2 = self.client.post(url, {'comment': 'Changed my mind'})
         self.assertEqual(response2.status_code, 200)
-        
+
         # Should only have one vote
         votes = ItineraryVote.objects.filter(user=self.user, group=self.group)
         self.assertEqual(votes.count(), 1)
-        
+
     def test_cast_vote_nonexistent_option(self):
         """Test voting for non-existent option"""
         self.client.login(username='testuser', password='pass123')
-        
+
         from uuid import uuid4
         fake_id = uuid4()
         url = reverse('ai_implementation:cast_vote', args=[self.group.id, fake_id])
-        
+
         response = self.client.post(url)
         self.assertEqual(response.status_code, 404)
 
 
 class DuffelConnectorEdgeCaseTest(TestCase):
     """Edge case tests for Duffel connector"""
-    
+
     def test_search_with_very_short_trip(self):
         """Test search for 1-day trip"""
         aggregator = DuffelAggregator()
-        
+
         results = aggregator.search_all(
             destination='Philadelphia',
             origin='New York',
@@ -5602,14 +5602,14 @@ class DuffelConnectorEdgeCaseTest(TestCase):
             adults=1,
             rooms=1
         )
-        
+
         self.assertIsInstance(results, dict)
         self.assertIn('hotels', results)
-        
+
     def test_search_with_invalid_dates(self):
         """Test search with unusual date patterns"""
         aggregator = DuffelAggregator()
-        
+
         # Should handle gracefully
         results = aggregator.search_all(
             destination='San Francisco',
@@ -5619,13 +5619,13 @@ class DuffelConnectorEdgeCaseTest(TestCase):
             adults=4,
             rooms=2
         )
-        
+
         self.assertIsInstance(results, dict)
-        
+
     def test_flight_search_with_return_date(self):
         """Test flight search with explicit return"""
         search = DuffelFlightSearch()
-        
+
         flights = search.search_flights(
             origin='SEA',
             destination='PDX',
@@ -5633,13 +5633,13 @@ class DuffelConnectorEdgeCaseTest(TestCase):
             return_date='2026-06-05',
             adults=2
         )
-        
+
         self.assertIsInstance(flights, list)
-        
+
     def test_flight_search_without_return(self):
         """Test one-way flight search"""
         search = DuffelFlightSearch()
-        
+
         flights = search.search_flights(
             origin='DEN',
             destination='PHX',
@@ -5647,19 +5647,19 @@ class DuffelConnectorEdgeCaseTest(TestCase):
             return_date=None,
             adults=1
         )
-        
+
         self.assertIsInstance(flights, list)
 
 
 class APIConnectorEdgeCaseTest(TestCase):
     """Edge case tests for API connectors"""
-    
+
     def test_flight_connector_with_max_results_limit(self):
         """Test flight connector respects max_results"""
         from ai_implementation.api_connectors import FlightAPIConnector
-        
+
         connector = FlightAPIConnector()
-        
+
         flights = connector.search_flights(
             origin='DFW',
             destination='IAH',
@@ -5667,16 +5667,16 @@ class APIConnectorEdgeCaseTest(TestCase):
             adults=1,
             max_results=3
         )
-        
+
         self.assertIsInstance(flights, list)
         self.assertLessEqual(len(flights), 10)
-        
+
     def test_hotel_connector_long_stay(self):
         """Test hotel search for extended stay"""
         from ai_implementation.api_connectors import HotelAPIConnector
-        
+
         connector = HotelAPIConnector()
-        
+
         hotels = connector.search_hotels(
             destination='Honolulu',
             check_in='2026-06-01',
@@ -5684,30 +5684,30 @@ class APIConnectorEdgeCaseTest(TestCase):
             adults=2,
             rooms=1
         )
-        
+
         self.assertIsInstance(hotels, list)
-        
+
     def test_activity_connector_empty_categories(self):
         """Test activity search with empty category list"""
         from ai_implementation.api_connectors import ActivityAPIConnector
-        
+
         connector = ActivityAPIConnector()
-        
+
         activities = connector.search_activities(
             destination='Portland',
             start_date='2026-06-01',
             end_date='2026-06-08',
             categories=[]
         )
-        
+
         self.assertIsInstance(activities, list)
-        
+
     def test_aggregator_with_max_budget_only(self):
         """Test aggregator with only max budget"""
         from ai_implementation.api_connectors import TravelAPIAggregator
-        
+
         aggregator = TravelAPIAggregator()
-        
+
         results = aggregator.search_all(
             destination='Charleston',
             origin=None,
@@ -5717,13 +5717,13 @@ class APIConnectorEdgeCaseTest(TestCase):
             rooms=1,
             preferences={'budget_max': 5000}  # Only max, no min
         )
-        
+
         self.assertIsInstance(results, dict)
 
 
 class SaveItineraryEdgeCaseTest(TestCase):
     """Edge case tests for save_itinerary"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5734,49 +5734,49 @@ class SaveItineraryEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=35),
             adults=2
         )
-        
+
     def test_save_itinerary_get_request(self):
         """Test GET request to save_itinerary returns method not allowed"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:save_itinerary', args=[self.search.id])
-        
+
         response = self.client.get(url)
         # save_itinerary only allows POST
         self.assertEqual(response.status_code, 405)
-        
+
     @patch('ai_implementation.views.OpenAIService')
     def test_save_itinerary_without_selections(self, mock_openai):
         """Test saving itinerary without flight/hotel selections"""
         mock_service = Mock()
         mock_service.create_itinerary_description.return_value = 'Basic trip'
         mock_openai.return_value = mock_service
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:save_itinerary', args=[self.search.id])
-        
+
         response = self.client.post(url, {
             'title': 'My Trip',
             # No flight or hotel selections
         })
-        
+
         self.assertEqual(response.status_code, 200)
 
 
 class ConsensusEdgeCaseTest(TestCase):
     """Edge case tests for consensus generation"""
-    
+
     def setUp(self):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         self.group = TravelGroup.objects.create(
             name='Consensus Edge Test',
             created_by=self.user,
             password='group123'
         )
-        
+
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
-        
+
     @patch('ai_implementation.views.OpenAIService')
     def test_generate_consensus_with_single_preference(self, mock_openai):
         """Test consensus with only one member preference"""
@@ -5790,7 +5790,7 @@ class ConsensusEdgeCaseTest(TestCase):
             budget=2000,
             is_completed=True
         )
-        
+
         mock_service = Mock()
         mock_service.generate_group_consensus.return_value = {
             'consensus_preferences': {},
@@ -5800,17 +5800,17 @@ class ConsensusEdgeCaseTest(TestCase):
             'group_dynamics_notes': 'Single member'
         }
         mock_openai.return_value = mock_service
-        
+
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:generate_group_consensus', args=[self.group.id])
-        
+
         response = self.client.post(url)
         self.assertEqual(response.status_code, 302)  # Redirects
 
 
 class ModelFieldEdgeCaseTest(TestCase):
     """Edge case tests for model fields"""
-    
+
     def test_flight_with_many_stops(self):
         """Test creating flight with many stops"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5821,7 +5821,7 @@ class ModelFieldEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         # Flight with multiple stops
         flight = FlightResult.objects.create(
             search=search,
@@ -5834,9 +5834,9 @@ class ModelFieldEdgeCaseTest(TestCase):
             duration='12h',
             stops=3  # Many stops
         )
-        
+
         self.assertEqual(flight.stops, 3)
-        
+
     def test_hotel_with_zero_rating(self):
         """Test hotel with zero rating"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5847,7 +5847,7 @@ class ModelFieldEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         hotel = HotelResult.objects.create(
             search=search,
             external_id='unrated_hotel',
@@ -5858,9 +5858,9 @@ class ModelFieldEdgeCaseTest(TestCase):
             currency='USD',
             rating=0.0  # No rating
         )
-        
+
         self.assertEqual(float(hotel.rating), 0.0)
-        
+
     def test_activity_with_very_long_duration(self):
         """Test activity with extended duration"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5871,7 +5871,7 @@ class ModelFieldEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         activity = ActivityResult.objects.create(
             search=search,
             external_id='long_activity',
@@ -5882,13 +5882,13 @@ class ModelFieldEdgeCaseTest(TestCase):
             currency='USD',
             duration_hours=48  # 2 days
         )
-        
+
         self.assertEqual(activity.duration_hours, 48)
 
 
 class JSONFieldEdgeCaseTest(TestCase):
     """Edge case tests for JSON field handling"""
-    
+
     def test_consensus_with_complex_json(self):
         """Test GroupConsensus with complex nested JSON"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5897,7 +5897,7 @@ class JSONFieldEdgeCaseTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         complex_prefs = {
             'destinations': ['Paris', 'Rome', 'Venice'],
             'budget': {
@@ -5911,7 +5911,7 @@ class JSONFieldEdgeCaseTest(TestCase):
                 'exclude': []
             }
         }
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
@@ -5920,12 +5920,12 @@ class JSONFieldEdgeCaseTest(TestCase):
             unanimous_preferences=json.dumps(['destination']),
             conflicting_preferences=json.dumps([])
         )
-        
+
         # Verify JSON can be parsed back
         parsed = json.loads(consensus.consensus_preferences)
         self.assertEqual(len(parsed['destinations']), 3)
         self.assertEqual(parsed['budget']['preferred'], 3500)
-        
+
     def test_consolidated_result_with_empty_arrays(self):
         """Test ConsolidatedResult with empty JSON arrays"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5936,7 +5936,7 @@ class JSONFieldEdgeCaseTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         consolidated = ConsolidatedResult.objects.create(
             search=search,
             summary='No recommendations',
@@ -5947,7 +5947,7 @@ class JSONFieldEdgeCaseTest(TestCase):
             recommended_hotel_ids=json.dumps([]),
             recommended_activity_ids=json.dumps([])
         )
-        
+
         # All should parse correctly
         self.assertEqual(json.loads(consolidated.budget_analysis), {})
         self.assertEqual(json.loads(consolidated.warnings), [])
@@ -5955,7 +5955,7 @@ class JSONFieldEdgeCaseTest(TestCase):
 
 class BulkOperationsTest(TestCase):
     """Tests for bulk operations and large datasets"""
-    
+
     def test_bulk_create_flights(self):
         """Test bulk creating flight results"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5966,7 +5966,7 @@ class BulkOperationsTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         # Bulk create
         flights = [
             FlightResult(
@@ -5982,12 +5982,12 @@ class BulkOperationsTest(TestCase):
             )
             for i in range(20)
         ]
-        
+
         FlightResult.objects.bulk_create(flights)
-        
+
         count = FlightResult.objects.filter(search=search).count()
         self.assertEqual(count, 20)
-        
+
     def test_filter_large_result_set(self):
         """Test filtering large number of results"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -5998,7 +5998,7 @@ class BulkOperationsTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         # Create many hotels
         for i in range(50):
             HotelResult.objects.create(
@@ -6011,20 +6011,20 @@ class BulkOperationsTest(TestCase):
                 currency='USD',
                 rating=3.0 + (i % 20) * 0.1
             )
-        
+
         # Filter by price range
         mid_range = HotelResult.objects.filter(
             search=search,
             total_price__gte=600,
             total_price__lte=700
         )
-        
+
         self.assertGreater(mid_range.count(), 0)
 
 
 class OpenAIServiceEdgeCaseTest(TestCase):
     """Edge case tests for OpenAI service"""
-    
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_generate_options_with_no_hotels(self, mock_openai_client):
@@ -6046,22 +6046,22 @@ class OpenAIServiceEdgeCaseTest(TestCase):
                 }
             ]
         })
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         result = service.generate_three_itinerary_options(
             member_preferences=[{'user': 'test', 'budget': '1000'}],
             flight_results=[{'id': 'f1', 'price': 500}],
             hotel_results=[],  # No hotels
             activity_results=[]
         )
-        
+
         self.assertIn('options', result)
-        
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_generate_options_with_empty_member_list(self, mock_openai_client):
@@ -6069,22 +6069,22 @@ class OpenAIServiceEdgeCaseTest(TestCase):
         mock_response = Mock()
         mock_response.choices = [Mock()]
         mock_response.choices[0].message.content = json.dumps({'options': []})
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         result = service.generate_three_itinerary_options(
             member_preferences=[],  # Empty
             flight_results=[],
             hotel_results=[],
             activity_results=[]
         )
-        
+
         self.assertIsInstance(result, dict)
-        
+
     @patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key-123'})
     @patch('ai_implementation.openai_service.OpenAI')
     def test_consolidate_with_zero_budget(self, mock_openai_client):
@@ -6098,26 +6098,26 @@ class OpenAIServiceEdgeCaseTest(TestCase):
             'recommended_hotels': [],
             'recommended_activities': []
         })
-        
+
         mock_client_instance = Mock()
         mock_client_instance.chat.completions.create.return_value = mock_response
         mock_openai_client.return_value = mock_client_instance
-        
+
         service = OpenAIService()
-        
+
         result = service.consolidate_travel_results(
             flight_results=[],
             hotel_results=[],
             activity_results=[],
             user_preferences={'budget_min': 0, 'budget_max': 0}
         )
-        
+
         self.assertIsInstance(result, dict)
 
 
 class VoteCountUpdateTest(TestCase):
     """Tests for vote count updates"""
-    
+
     def test_vote_count_increments(self):
         """Test that vote_count can be manually updated"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -6126,13 +6126,13 @@ class VoteCountUpdateTest(TestCase):
             created_by=user,
             password='group123'
         )
-        
+
         consensus = GroupConsensus.objects.create(
             group=group,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search = TravelSearch.objects.create(
             user=user,
             destination='Test',
@@ -6140,7 +6140,7 @@ class VoteCountUpdateTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         option = GroupItineraryOption.objects.create(
             group=group,
             consensus=consensus,
@@ -6152,21 +6152,21 @@ class VoteCountUpdateTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
         # Initial count
         self.assertEqual(option.vote_count, 0)
-        
+
         # Update count
         option.vote_count = 5
         option.save()
-        
+
         option.refresh_from_db()
         self.assertEqual(option.vote_count, 5)
 
 
 class SearchHistoryTrackingTest(TestCase):
     """Tests for search history tracking"""
-    
+
     def test_search_history_timestamps(self):
         """Test that search history tracks created timestamp"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
@@ -6177,13 +6177,13 @@ class SearchHistoryTrackingTest(TestCase):
             end_date=date.today() + timedelta(days=5),
             adults=1
         )
-        
+
         history = SearchHistory.objects.create(
             user=user,
             search=search,
             viewed_results=True
         )
-        
+
         self.assertIsNotNone(history.created_at)
         # Verify we can query by timestamp
         recent_history = SearchHistory.objects.filter(
@@ -6195,40 +6195,40 @@ class SearchHistoryTrackingTest(TestCase):
 
 class MultipleGroupMembershipTest(TestCase):
     """Tests for users in multiple groups"""
-    
+
     def test_user_votes_in_multiple_groups(self):
         """Test user can vote in different groups"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         # Create two groups
         group1 = TravelGroup.objects.create(
             name='Group 1',
             created_by=user,
             password='pass1'
         )
-        
+
         group2 = TravelGroup.objects.create(
             name='Group 2',
             created_by=user,
             password='pass2'
         )
-        
+
         GroupMember.objects.create(group=group1, user=user, role='admin')
         GroupMember.objects.create(group=group2, user=user, role='member')
-        
+
         # Create options in both groups
         consensus1 = GroupConsensus.objects.create(
             group=group1,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         consensus2 = GroupConsensus.objects.create(
             group=group2,
             generated_by=user,
             consensus_preferences='{}'
         )
-        
+
         search1 = TravelSearch.objects.create(
             user=user,
             destination='Paris',
@@ -6236,7 +6236,7 @@ class MultipleGroupMembershipTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         search2 = TravelSearch.objects.create(
             user=user,
             destination='Rome',
@@ -6244,7 +6244,7 @@ class MultipleGroupMembershipTest(TestCase):
             end_date=date.today() + timedelta(days=7),
             adults=2
         )
-        
+
         option1 = GroupItineraryOption.objects.create(
             group=group1,
             consensus=consensus1,
@@ -6256,7 +6256,7 @@ class MultipleGroupMembershipTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning='Test'
         )
-        
+
         option2 = GroupItineraryOption.objects.create(
             group=group2,
             consensus=consensus2,
@@ -6268,31 +6268,31 @@ class MultipleGroupMembershipTest(TestCase):
             cost_per_person=1500.00,
             ai_reasoning='Test'
         )
-        
+
         # Vote in both groups
         vote1 = ItineraryVote.objects.create(
             option=option1,
             user=user,
             group=group1
         )
-        
+
         vote2 = ItineraryVote.objects.create(
             option=option2,
             user=user,
             group=group2
         )
-        
+
         # Verify both votes exist
         self.assertEqual(ItineraryVote.objects.filter(user=user).count(), 2)
 
 
 class PaginationTest(TestCase):
     """Tests for handling large result sets"""
-    
+
     def test_many_itineraries_display(self):
         """Test user with many saved itineraries"""
         user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
-        
+
         # Create many itineraries
         for i in range(25):
             search = TravelSearch.objects.create(
@@ -6302,7 +6302,7 @@ class PaginationTest(TestCase):
                 end_date=date.today() + timedelta(days=5),
                 adults=1
             )
-            
+
             AIGeneratedItinerary.objects.create(
                 user=user,
                 search=search,
@@ -6312,7 +6312,7 @@ class PaginationTest(TestCase):
                 duration_days=5,
                 estimated_total_cost=2000.00
             )
-        
+
         # Query all
         itineraries = AIGeneratedItinerary.objects.filter(user=user)
         self.assertEqual(itineraries.count(), 25)
