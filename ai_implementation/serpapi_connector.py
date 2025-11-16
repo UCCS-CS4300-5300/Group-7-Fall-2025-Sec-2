@@ -92,12 +92,9 @@ class SerpApiFlightsConnector:
             if return_date:
                 params['return_date'] = return_date
             
-            # Debug: print params (without API key)
-            debug_params = {k: v for k, v in params.items() if k != 'api_key'}
-            print(f"SerpApi request params: {debug_params}")
-            
+            # Note: Do not log params or API key for security compliance (CodeQL security requirement)
+            # Only log non-sensitive search information
             print(f"Searching SerpApi Google Flights: {origin} -> {destination} on {departure_date}")
-            # Note: Do not log API key, even masked, for security compliance
             
             response = requests.get(self.base_url, params=params, headers=self.headers, timeout=self.timeout)
             
