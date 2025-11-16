@@ -106,7 +106,7 @@ class SerpApiFlightsConnector:
                 print(f"  [ERROR] SerpApi returned status code {response.status_code}")
                 error_text = response.text[:1000] if hasattr(response, 'text') else str(response)
                 print(f"  [ERROR] Error response: {error_text}")
-                print(f"  [ERROR] Request URL: {response.url if hasattr(response, 'url') else 'N/A'}")
+                # Note: Do not log response.url as it contains the API key in query parameters
                 # DO NOT use mock data - raise error so user knows API is failing
                 raise Exception(f"SerpApi returned status {response.status_code}: {error_text[:200]}")
             
