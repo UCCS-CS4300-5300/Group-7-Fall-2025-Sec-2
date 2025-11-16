@@ -30,10 +30,6 @@ class SerpApiFlightsConnector:
                 # Django settings not configured yet, that's okay
                 pass
         
-        # Fallback to provided API key if not in environment or settings
-        if not self.api_key:
-            self.api_key = 'e131eea77e0a532c21bfdbb5cf9224d138fd65a9d9ea84fdea8cbadce2fb1c8a'
-        
         self.base_url = "https://serpapi.com/search.json"
         self.timeout = 30
         
@@ -101,7 +97,7 @@ class SerpApiFlightsConnector:
             print(f"SerpApi request params: {debug_params}")
             
             print(f"Searching SerpApi Google Flights: {origin} -> {destination} on {departure_date}")
-            print(f"  API Key: {'***' + self.api_key[-4:] if self.api_key and len(self.api_key) > 4 else 'NOT SET'}")
+            # Note: Do not log API key, even masked, for security compliance
             
             response = requests.get(self.base_url, params=params, headers=self.headers, timeout=self.timeout)
             

@@ -1076,9 +1076,14 @@ def generate_voting_options(request, group_id):
                     print(f"  [OK] Added {len([f for f in serpapi_flight_results if not f.get('is_mock', False)])} real flights to results")
                     
                 except Exception as e:
-                    print(f"  [ERROR] Error with SerpApi for {destination}: {str(e)}")
                     import traceback
-                    print(traceback.format_exc())
+                    from django.conf import settings
+                    print(f"  [ERROR] Error with SerpApi for {destination}: {str(e)}")
+                    # Only print full traceback in DEBUG mode to avoid exposing internal details
+                    if settings.DEBUG:
+                        print(traceback.format_exc())
+                    else:
+                        print(f"  [ERROR] See server logs for full traceback (DEBUG mode disabled)")
                     # Don't continue with mock data - fail explicitly so user knows API is not working
                     print(f"  [ERROR] Cannot proceed without real flight data for {destination}")
                     # Still continue to other destinations, but log the error
@@ -1514,13 +1519,18 @@ def generate_voting_options(request, group_id):
 
         except Exception as e:
             import traceback
+            from django.conf import settings
             error_details = traceback.format_exc()
             print(f"[ERROR] Error generating options: {str(e)}")
-            print(f"Full traceback:\n{error_details}")
-            # Return JSON error response for AJAX call with more details
+            # Only print full traceback in DEBUG mode to avoid exposing internal details
+            if settings.DEBUG:
+                print(f"Full traceback:\n{error_details}")
+            else:
+                print(f"[ERROR] See server logs for full traceback (DEBUG mode disabled)")
+            # Return JSON error response for AJAX call with safe error message
             return JsonResponse({
                 "success": False, 
-                "error": f"Error generating voting options: {str(e)}"
+                "error": "Error generating voting options. Please try again or contact support."
             }, status=500)
 
     # GET request - show generation form

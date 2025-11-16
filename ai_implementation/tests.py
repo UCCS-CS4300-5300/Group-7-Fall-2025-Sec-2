@@ -6359,13 +6359,14 @@ class SerpApiConnectorTest(TestCase):
                 self.assertEqual(connector.api_key, 'settings-key-456')
     
     def test_connector_initialization_fallback_key(self):
-        """Test connector initialization uses fallback API key"""
+        """Test connector initialization without API key (should be None)"""
         with patch.dict('os.environ', {'SERP_API_KEY': ''}, clear=True):
             with patch('ai_implementation.serpapi_connector.getattr', return_value=None):
                 connector = SerpApiFlightsConnector()
                 self.assertIsNotNone(connector)
-                self.assertIsNotNone(connector.api_key)
-                self.assertEqual(len(connector.api_key), 64)
+                # No fallback API key - should be None or empty if not configured
+                # This is expected behavior: API key should come from environment or settings
+                self.assertIsNone(connector.api_key)
     
     def test_get_airport_code_iata_code(self):
         """Test airport code extraction for existing IATA codes"""
