@@ -104,11 +104,11 @@ class SerpApiFlightsConnector:
             # Check for API errors in response
             if response.status_code != 200:
                 print(f"  [ERROR] SerpApi returned status code {response.status_code}")
-                error_text = response.text[:1000] if hasattr(response, 'text') else str(response)
-                print(f"  [ERROR] Error response: {error_text}")
+                # Do not log full error response text as it may contain sensitive information
+                # Only log status code for security compliance
                 # Note: Do not log response.url as it contains the API key in query parameters
                 # DO NOT use mock data - raise error so user knows API is failing
-                raise Exception(f"SerpApi returned status {response.status_code}: {error_text[:200]}")
+                raise Exception(f"SerpApi returned status {response.status_code}")
             
             data = response.json()
             
@@ -134,20 +134,28 @@ class SerpApiFlightsConnector:
             return flights[:max_results]
             
         except requests.exceptions.RequestException as e:
-            print(f"  [ERROR] SerpApi request error: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            # Log error without exposing sensitive data (e.g., API keys in exception messages)
+            from django.conf import settings
+            print(f"  [ERROR] SerpApi request error: Request failed")
+            # Only log full traceback in DEBUG mode to avoid exposing sensitive information
+            if settings.DEBUG:
+                import traceback
+                print(traceback.format_exc())
             # Re-raise to see actual error - don't hide it with mock data
-            raise Exception(f"SerpApi request failed: {str(e)}")
+            raise Exception(f"SerpApi request failed")
         except Exception as e:
             # Check if this is an exception we raised (don't re-raise those)
             if "SerpApi" in str(e) or "No flights found" in str(e):
                 raise
-            print(f"  [ERROR] SerpApi Google Flights search error: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
+            # Log error without exposing sensitive data
+            from django.conf import settings
+            print(f"  [ERROR] SerpApi Google Flights search error: Search failed")
+            # Only log full traceback in DEBUG mode to avoid exposing sensitive information
+            if settings.DEBUG:
+                import traceback
+                print(traceback.format_exc())
             # Re-raise to see actual error
-            raise Exception(f"SerpApi search failed: {str(e)}")
+            raise Exception(f"SerpApi search failed")
     
     def _parse_serpapi_response(
         self,
@@ -417,20 +425,28 @@ class SerpApiFlightsConnector:
                     flights.append(flight)
                     
                 except Exception as e:
-                    print(f"  [WARNING] Error parsing flight option {len(flights) + 1}: {str(e)}")
-                    import traceback
-                    print(traceback.format_exc())
+                    # Log error without exposing sensitive data
+                    from django.conf import settings
+                    print(f"  [WARNING] Error parsing flight option {len(flights) + 1}")
+                    # Only log full traceback in DEBUG mode to avoid exposing sensitive information
+                    if settings.DEBUG:
+                        import traceback
+                        print(traceback.format_exc())
                     continue
             
             print(f"  [DEBUG] Successfully parsed {len(flights)} flights from {len(flight_options)} flight options")
             return flights
             
         except Exception as e:
-            print(f"  [ERROR] Error parsing SerpApi response: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            if 'data' in locals():
-                print(f"  [DEBUG] Response data structure: {json.dumps({k: str(type(v).__name__) + (' (len=' + str(len(v)) + ')' if hasattr(v, '__len__') else '') for k, v in list(data.items())[:15]}, indent=2)}")
+            # Log error without exposing sensitive data
+            from django.conf import settings
+            print(f"  [ERROR] Error parsing SerpApi response")
+            # Only log full traceback in DEBUG mode to avoid exposing sensitive information
+            if settings.DEBUG:
+                import traceback
+                print(traceback.format_exc())
+                if 'data' in locals():
+                    print(f"  [DEBUG] Response data structure: {json.dumps({k: str(type(v).__name__) + (' (len=' + str(len(v)) + ')' if hasattr(v, '__len__') else '') for k, v in list(data.items())[:15]}, indent=2)}")
             raise
     
     def _parse_time(self, time_str: str, date_str: str) -> str:
