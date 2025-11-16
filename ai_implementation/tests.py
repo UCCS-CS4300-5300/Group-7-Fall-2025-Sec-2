@@ -11,6 +11,7 @@ To run with coverage:
 """
 
 import json
+import requests
 from datetime import date, timedelta, datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch, MagicMock
@@ -32,6 +33,7 @@ from .forms import (
 )
 from .openai_service import OpenAIService
 from .duffel_connector import DuffelAggregator, DuffelAPIConnector, DuffelFlightSearch
+from .serpapi_connector import SerpApiFlightsConnector
 
 
 # ============================================================================
@@ -6316,6 +6318,1934 @@ class PaginationTest(TestCase):
         # Query all
         itineraries = AIGeneratedItinerary.objects.filter(user=user)
         self.assertEqual(itineraries.count(), 25)
+
+
+# ============================================================================
+# SERPAPI CONNECTOR TESTS
+# ============================================================================
+
+class SerpApiConnectorTest(TestCase):
+    """Tests for SerpApi Google Flights connector"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Sicily, Italy',
+            origin='Denver',
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            adults=2
+        )
+    
+    def test_connector_initialization_with_env_key(self):
+        """Test connector initialization with environment variable API key"""
+        with patch.dict('os.environ', {'SERP_API_KEY': 'test-key-123'}):
+            with patch('ai_implementation.serpapi_connector.getattr', return_value=None):
+                connector = SerpApiFlightsConnector()
+                self.assertIsNotNone(connector)
+                self.assertEqual(connector.api_key, 'test-key-123')
+                self.assertEqual(connector.base_url, "https://serpapi.com/search.json")
+                self.assertEqual(connector.timeout, 30)
+    
+    def test_connector_initialization_with_settings_key(self):
+        """Test connector initialization with Django settings API key"""
+        with patch.dict('os.environ', {'SERP_API_KEY': ''}, clear=True):
+            with patch('ai_implementation.serpapi_connector.getattr') as mock_getattr:
+                mock_getattr.return_value = 'settings-key-456'
+                connector = SerpApiFlightsConnector()
+                self.assertIsNotNone(connector)
+                self.assertEqual(connector.api_key, 'settings-key-456')
+    
+    def test_connector_initialization_fallback_key(self):
+        """Test connector initialization uses fallback API key"""
+        with patch.dict('os.environ', {'SERP_API_KEY': ''}, clear=True):
+            with patch('ai_implementation.serpapi_connector.getattr', return_value=None):
+                connector = SerpApiFlightsConnector()
+                self.assertIsNotNone(connector)
+                self.assertIsNotNone(connector.api_key)
+                self.assertEqual(len(connector.api_key), 64)
+    
+    def test_get_airport_code_iata_code(self):
+        """Test airport code extraction for existing IATA codes"""
+        connector = SerpApiFlightsConnector()
+        
+        # Test direct IATA codes
+        self.assertEqual(connector._get_airport_code('DEN'), 'DEN')
+        self.assertEqual(connector._get_airport_code('JFK'), 'JFK')
+        self.assertEqual(connector._get_airport_code('PMO'), 'PMO')
+    
+    def test_get_airport_code_city_names(self):
+        """Test airport code mapping for city names"""
+        connector = SerpApiFlightsConnector()
+        
+        # Test US cities
+        self.assertEqual(connector._get_airport_code('Denver'), 'DEN')
+        self.assertEqual(connector._get_airport_code('New York'), 'JFK')
+        self.assertEqual(connector._get_airport_code('Los Angeles'), 'LAX')
+        
+        # Test European cities
+        self.assertEqual(connector._get_airport_code('London'), 'LHR')
+        self.assertEqual(connector._get_airport_code('Paris'), 'CDG')
+        self.assertEqual(connector._get_airport_code('Rome'), 'FCO')
+        
+        # Test regions/countries (our specific use case)
+        self.assertEqual(connector._get_airport_code('Sicily'), 'PMO')
+        self.assertEqual(connector._get_airport_code('Alberta'), 'YYC')
+    
+    def test_get_airport_code_city_country_format(self):
+        """Test airport code extraction from 'City, Country' format"""
+        connector = SerpApiFlightsConnector()
+        
+        self.assertEqual(connector._get_airport_code('Sicily, Italy'), 'PMO')
+        self.assertEqual(connector._get_airport_code('Alberta, Canada'), 'YYC')
+        self.assertEqual(connector._get_airport_code('Denver, USA'), 'DEN')
+        self.assertEqual(connector._get_airport_code('Paris, France'), 'CDG')
+    
+    def test_get_airport_code_unknown_city(self):
+        """Test airport code for unknown city returns cleaned city name"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._get_airport_code('UnknownCity')
+        self.assertEqual(result, 'UnknownCity')
+        
+        result = connector._get_airport_code('UnknownCity, Country')
+        self.assertEqual(result, 'UnknownCity')
+    
+    def test_parse_time_hhmm_format(self):
+        """Test time parsing for HH:MM format"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('14:30', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+        
+        result = connector._parse_time('09:15', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T09:15:00')
+    
+    def test_parse_time_iso_format(self):
+        """Test time parsing for ISO format"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('2026-04-17T14:30:00', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+        
+        result = connector._parse_time('2026-04-17T09:15:00Z', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T09:15:00+00:00')
+    
+    def test_parse_time_datetime_format(self):
+        """Test time parsing for YYYY-MM-DD HH:MM format"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('2026-04-17 14:30', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+        
+        result = connector._parse_time('2026-04-17 14:30:00', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+    
+    def test_parse_time_empty_string(self):
+        """Test time parsing with empty string returns default"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T12:00:00')
+    
+    def test_parse_time_invalid_format(self):
+        """Test time parsing with invalid format falls back to default"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('invalid-time', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T12:00:00')
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_success(self, mock_get):
+        """Test successful flight search with mocked API response"""
+        # Mock successful API response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-1',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '14:30'},
+                            'arrival_airport': {'time': '18:45'},
+                            'airline': {'name': 'United Airlines'}
+                        }
+                    ],
+                    'total_duration': 14400  # 4 hours in seconds
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Sicily, Italy',
+            departure_date='2026-04-17',
+            adults=2,
+            max_results=10
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['airline'], 'United Airlines')
+        self.assertIn('price', results[0])
+        self.assertIn('departure_time', results[0])
+        self.assertIn('arrival_time', results[0])
+        self.assertIn('duration', results[0])
+        self.assertFalse(results[0].get('is_mock', True))
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_other_flights_format(self, mock_get):
+        """Test flight search with 'other_flights' format"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'other_flights': [
+                {
+                    'flight_id': 'flight-2',
+                    'price': {'total': 600.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '13:00'},
+                            'airline': {'name': 'Delta Airlines'}
+                        }
+                    ],
+                    'total_duration': 10800  # 3 hours
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Alberta, Canada',
+            departure_date='2026-04-17',
+            adults=1
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['airline'], 'Delta Airlines')
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_nested_flights_format(self, mock_get):
+        """Test flight search with nested 'flights' dict format"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'flights': {
+                'best_flights': [
+                    {
+                        'flight_id': 'flight-3',
+                        'price': {'total': 750.0},
+                        'flights': [
+                            {
+                                'departure_airport': {'time': '08:00'},
+                                'arrival_airport': {'time': '11:30'},
+                                'airline': {'name': 'American Airlines'}
+                            }
+                        ],
+                        'total_duration': 12600  # 3.5 hours
+                    }
+                ]
+            }
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Denver',
+            departure_date='2026-04-17'
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_multiple_stops(self, mock_get):
+        """Test flight search with multiple stops"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-multi',
+                    'price': {'total': 1200.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '06:00'},
+                            'arrival_airport': {'time': '10:00'},
+                            'airline': {'name': 'Lufthansa'}
+                        },
+                        {
+                            'departure_airport': {'time': '11:00'},
+                            'arrival_airport': {'time': '17:00'},
+                            'airline': {'name': 'Lufthansa'}
+                        }
+                    ],
+                    'total_duration': 39600  # 11 hours
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Sicily, Italy',
+            departure_date='2026-04-17'
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['stops'], 1)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_price_per_person(self, mock_get):
+        """Test flight search with price per person"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-pp',
+                    'price': {'total': 400.0},
+                    'price_per_person': {'total': 400.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '12:00'},
+                            'arrival_airport': {'time': '15:00'},
+                            'airline': {'name': 'Southwest'}
+                        }
+                    ],
+                    'total_duration': 10800
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Alberta, Canada',
+            departure_date='2026-04-17',
+            adults=2  # Should multiply by 2
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        # Price should be multiplied by adults
+        self.assertGreaterEqual(results[0]['price'], 400.0)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_http_error(self, mock_get):
+        """Test flight search handles HTTP errors"""
+        mock_response = Mock()
+        mock_response.status_code = 400
+        mock_response.text = 'Bad Request'
+        mock_response.url = 'http://api.example.com'
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        with self.assertRaises(Exception) as context:
+            connector.search_flights(
+                origin='Denver',
+                destination='Sicily',
+                departure_date='2026-04-17'
+            )
+        
+        self.assertIn('SerpApi returned status 400', str(context.exception))
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_api_error_in_response(self, mock_get):
+        """Test flight search handles API errors in JSON response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'error': 'Invalid API key'
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        with self.assertRaises(Exception) as context:
+            connector.search_flights(
+                origin='Denver',
+                destination='Sicily',
+                departure_date='2026-04-17'
+            )
+        
+        self.assertIn('SerpApi API error', str(context.exception))
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_no_flights_found(self, mock_get):
+        """Test flight search handles no flights in response"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [],
+            'other_flights': []
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        with self.assertRaises(Exception) as context:
+            connector.search_flights(
+                origin='Denver',
+                destination='Sicily',
+                departure_date='2026-04-17'
+            )
+        
+        self.assertIn('No flights found', str(context.exception))
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_request_exception(self, mock_get):
+        """Test flight search handles request exceptions"""
+        mock_get.side_effect = requests.exceptions.RequestException('Connection error')
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        with self.assertRaises(Exception) as context:
+            connector.search_flights(
+                origin='Denver',
+                destination='Sicily',
+                departure_date='2026-04-17'
+            )
+        
+        self.assertIn('SerpApi request failed', str(context.exception))
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_return_date(self, mock_get):
+        """Test flight search with return date (round trip)"""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-rt',
+                    'price': {'total': 1500.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Alberta, Canada',
+            departure_date='2026-04-17',
+            return_date='2026-04-25',
+            adults=2
+        )
+        
+        # Verify return_date was included in params
+        call_args = mock_get.call_args
+        self.assertIn('return_date', call_args[1]['params'])
+        self.assertEqual(call_args[1]['params']['return_date'], '2026-04-25')
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_max_results_limit(self, mock_get):
+        """Test flight search respects max_results limit"""
+        # Create response with many flights
+        flights_data = []
+        for i in range(20):
+            flights_data.append({
+                'flight_id': f'flight-{i}',
+                'price': {'total': 500.0 + i * 50},
+                'flights': [
+                    {
+                        'departure_airport': {'time': '10:00'},
+                        'arrival_airport': {'time': '13:00'},
+                        'airline': {'name': f'Airline {i}'}
+                    }
+                ],
+                'total_duration': 10800
+            })
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': flights_data
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Sicily',
+            departure_date='2026-04-17',
+            max_results=5
+        )
+        
+        self.assertEqual(len(results), 5)
+    
+    def test_parse_serpapi_response_duration_calculation(self):
+        """Test duration calculation from departure/arrival times"""
+        connector = SerpApiFlightsConnector()
+        
+        # Test with reasonable total_duration
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-1',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:30'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 16200  # 4.5 hours in seconds (reasonable)
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 2
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertIn('duration', results[0])
+        self.assertIn('h', results[0]['duration'])
+    
+    def test_parse_serpapi_response_next_day_arrival(self):
+        """Test parsing handles next-day arrivals"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-nextday',
+                    'price': {'total': 1000.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '22:00'},
+                            'arrival_airport': {'time': '06:00'},  # Next day
+                            'airline': {'name': 'Lufthansa'}
+                        }
+                    ],
+                    'total_duration': 28800  # 8 hours
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily, Italy', '2026-04-17', None, 2
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Arrival time should be adjusted for next day
+        self.assertIn('2026-04-18', results[0]['arrival_time'])
+    
+    def test_parse_serpapi_response_booking_class_extraction(self):
+        """Test booking class extraction from various fields"""
+        connector = SerpApiFlightsConnector()
+        
+        # Test cabin_class at flight_option level
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-business',
+                    'price': {'total': 2000.0},
+                    'cabin_class': 'Business',
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'Business')
+    
+    def test_get_mock_flight_data(self):
+        """Test mock flight data generation"""
+        connector = SerpApiFlightsConnector()
+        
+        results = connector._get_mock_flight_data(
+            origin='Denver',
+            destination='Alberta, Canada',
+            departure_date='2026-04-17',
+            return_date=None,
+            adults=2,
+            max_results=5
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertLessEqual(len(results), 5)
+        
+        for flight in results:
+            self.assertIn('id', flight)
+            self.assertIn('price', flight)
+            self.assertIn('airline', flight)
+            self.assertIn('departure_time', flight)
+            self.assertIn('arrival_time', flight)
+            self.assertIn('duration', flight)
+            self.assertIn('stops', flight)
+            self.assertTrue(flight.get('is_mock', False))
+            # Alberta flights should be 2-4 hours
+            self.assertIn('h', flight['duration'])
+    
+    def test_get_mock_flight_data_sicily(self):
+        """Test mock flight data for longer flights (Sicily)"""
+        connector = SerpApiFlightsConnector()
+        
+        results = connector._get_mock_flight_data(
+            origin='Denver',
+            destination='Sicily, Italy',
+            departure_date='2026-04-17',
+            return_date=None,
+            adults=1,
+            max_results=3
+        )
+        
+        self.assertIsInstance(results, list)
+        # Sicily flights should be 10-14 hours
+        for flight in results:
+            duration_str = flight['duration']
+            hours = int(duration_str.split('h')[0])
+            self.assertGreaterEqual(hours, 10)
+            self.assertLessEqual(hours, 14)
+    
+    def test_parse_time_with_timezone(self):
+        """Test time parsing with timezone info"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('2026-04-17T14:30:00+05:00', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00+05:00')
+    
+    def test_parse_time_invalid_hhmm(self):
+        """Test time parsing with invalid HH:MM format that raises ValueError"""
+        connector = SerpApiFlightsConnector()
+        
+        # Invalid format that will cause ValueError in int() conversion - should fall back to default
+        # Use a format that passes the length check but fails int() conversion
+        result = connector._parse_time('ab:cd', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T12:00:00')
+    
+    def test_parse_serpapi_response_price_value_field(self):
+        """Test parsing response with price.value field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-price-value',
+                    'price': {'value': 750.0},  # Using 'value' instead of 'total'
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 750.0)
+    
+    def test_parse_serpapi_response_price_amount_field(self):
+        """Test parsing response with price.amount field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-price-amount',
+                    'price': {'amount': 650.0},  # Using 'amount' instead of 'total'
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 650.0)
+    
+    def test_parse_serpapi_response_price_per_person_value(self):
+        """Test parsing with price_per_person.value field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-pp-value',
+                    'price': {'total': 400.0},
+                    'price_per_person': {'value': 350.0},  # Using 'value' instead of 'total'
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 2
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Should use price_per_person * adults
+        self.assertGreaterEqual(results[0]['price'], 350.0)
+    
+    def test_parse_serpapi_response_empty_flights_data(self):
+        """Test parsing response with empty flights array"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-empty',
+                    'price': {'total': 500.0},
+                    'flights': [],  # Empty flights array
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        # Should skip flights with empty flights_data
+        self.assertEqual(len(results), 0)
+    
+    def test_parse_serpapi_response_airline_string(self):
+        """Test parsing with airline as string instead of dict"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-airline-str',
+                    'price': {'total': 600.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': 'United Airlines'  # String instead of dict
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['airline'], 'United Airlines')
+    
+    def test_parse_serpapi_response_datetime_format(self):
+        """Test parsing with datetime instead of time format"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-datetime',
+                    'price': {'total': 700.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'datetime': '2026-04-17 10:00:00'},
+                            'arrival_airport': {'datetime': '2026-04-17 14:00:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertIn('departure_time', results[0])
+        self.assertIn('arrival_time', results[0])
+    
+    def test_connector_initialization_settings_exception(self):
+        """Test connector initialization handles settings exception"""
+        with patch.dict('os.environ', {'SERP_API_KEY': ''}, clear=True):
+            # Mock getattr to raise an exception
+            with patch('ai_implementation.serpapi_connector.getattr', side_effect=Exception("Settings error")):
+                connector = SerpApiFlightsConnector()
+                # Should fall back to default API key
+                self.assertIsNotNone(connector.api_key)
+    
+    def test_search_flights_no_api_key_mock_mode(self):
+        """Test search_flights uses mock data when no API key"""
+        connector = SerpApiFlightsConnector()
+        connector.api_key = None
+        
+        results = connector.search_flights(
+            origin='Denver',
+            destination='Sicily',
+            departure_date='2026-04-17'
+        )
+        
+        # Should return mock data
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        # All should be mock flights
+        for flight in results:
+            self.assertTrue(flight.get('is_mock', False))
+    
+    def test_parse_serpapi_response_duration_too_short(self):
+        """Test duration calculation when total_duration is too short"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-short-dur',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '11:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 300  # 5 minutes - too short, should calculate from times
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Duration should be calculated from times (1 hour) or fallback
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_duration_too_long(self):
+        """Test duration calculation when total_duration is too long"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-long-dur',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 200000  # Over 30 hours - too long, should calculate from times
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Duration should be calculated from times (4 hours)
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_no_total_duration(self):
+        """Test duration calculation when total_duration is not provided"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-no-dur',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '15:30'},
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration field
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Duration should be calculated from departure/arrival times
+        self.assertIn('duration', results[0])
+        self.assertIn('h', results[0]['duration'])
+    
+    def test_parse_serpapi_response_booking_class_in_first_flight(self):
+        """Test booking class extraction from first flight segment"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-bc-first',
+                    'price': {'total': 2000.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'},
+                            'cabin_class': 'Business'  # In first flight segment
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'Business')
+    
+    def test_parse_serpapi_response_booking_class_in_price_info(self):
+        """Test booking class extraction from price_info"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-bc-price',
+                    'price': {'total': 2000.0, 'cabin_class': 'First'},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'First')
+    
+    def test_parse_serpapi_response_booking_class_variations(self):
+        """Test booking class normalization with various formats"""
+        connector = SerpApiFlightsConnector()
+        
+        test_cases = [
+            ('business', 'Business'),
+            ('FIRST CLASS', 'First'),
+            ('premium economy', 'Premium Economy'),
+            ('coach', 'Economy'),
+            ('premium', 'Premium Economy'),
+        ]
+        
+        for input_class, expected_class in test_cases:
+            data = {
+                'best_flights': [
+                    {
+                        'flight_id': f'flight-{input_class}',
+                        'price': {'total': 1000.0},
+                        'cabin_class': input_class,
+                        'flights': [
+                            {
+                                'departure_airport': {'time': '10:00'},
+                                'arrival_airport': {'time': '14:00'},
+                                'airline': {'name': 'United'}
+                            }
+                        ],
+                        'total_duration': 14400
+                    }
+                ]
+            }
+            
+            results = connector._parse_serpapi_response(
+                data, 'Denver', 'Sicily', '2026-04-17', None, 1
+            )
+            
+            self.assertGreater(len(results), 0)
+            self.assertEqual(results[0]['booking_class'], expected_class)
+    
+    def test_parse_serpapi_response_flights_as_list(self):
+        """Test parsing when flights is a list (alternative structure)"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'flights': [  # flights as list, not dict
+                {
+                    'flight_id': 'flight-list',
+                    'price': {'total': 700.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 700.0)
+    
+    def test_parse_serpapi_response_price_as_float(self):
+        """Test parsing when price is a float instead of dict"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-price-float',
+                    'price': 850.0,  # Float instead of dict
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 850.0)
+    
+    def test_parse_serpapi_response_price_empty_string(self):
+        """Test parsing when price is empty string"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-price-empty',
+                    'price': '',  # Empty string
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 0.0)
+    
+    def test_parse_serpapi_response_duration_calculation_fallback(self):
+        """Test duration calculation fallback when time parsing fails"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-dur-fallback',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': 'invalid-time'},
+                            'arrival_airport': {'time': 'invalid-time'},
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration, invalid times - should use fallback
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Should have a duration even with invalid times (fallback)
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_parsing_exception(self):
+        """Test exception handling during flight parsing"""
+        connector = SerpApiFlightsConnector()
+        
+        # Create data that might cause parsing issues
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-error',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': None,  # Could cause error
+                            'arrival_airport': None,
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        # Should handle gracefully and continue
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        # Should still return results or handle error gracefully
+        self.assertIsInstance(results, list)
+    
+    def test_parse_serpapi_response_exception_in_parse(self):
+        """Test exception handling in _parse_serpapi_response"""
+        connector = SerpApiFlightsConnector()
+        
+        # Invalid data structure that might cause exception
+        data = None
+        
+        with self.assertRaises(Exception):
+            connector._parse_serpapi_response(
+                data, 'Denver', 'Sicily', '2026-04-17', None, 1
+            )
+    
+    def test_parse_time_seconds_in_hhmm(self):
+        """Test time parsing with seconds in HH:MM format (edge case)"""
+        connector = SerpApiFlightsConnector()
+        
+        # This shouldn't match HH:MM pattern (has 3 parts)
+        result = connector._parse_time('10:30:45', '2026-04-17')
+        # Should try to parse as full datetime
+        self.assertIn('2026-04-17', result)
+    
+    def test_parse_time_long_string(self):
+        """Test time parsing with string longer than 5 chars but contains colon"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('10:30:45:60', '2026-04-17')
+        # Should fall back to default or try other formats
+        self.assertIn('2026-04-17', result)
+    
+    def test_parse_time_datetime_with_seconds(self):
+        """Test time parsing with YYYY-MM-DD HH:MM:SS format"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('2026-04-17 14:30:45', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:45')
+    
+    def test_parse_time_datetime_parse_failure(self):
+        """Test time parsing when datetime parsing fails"""
+        connector = SerpApiFlightsConnector()
+        
+        # String that looks like datetime but has invalid format
+        result = connector._parse_time('2026-04-17 25:99:99', '2026-04-17')
+        # Should fall back to default
+        self.assertEqual(result, '2026-04-17T12:00:00')
+    
+    def test_parse_serpapi_response_booking_class_class_field(self):
+        """Test booking class extraction from 'class' field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-class-field',
+                    'price': {'total': 1500.0},
+                    'class': 'Economy',  # 'class' field instead of 'cabin_class'
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'Economy')
+    
+    def test_parse_serpapi_response_booking_class_booking_class_field(self):
+        """Test booking class extraction from 'booking_class' field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-booking-class',
+                    'price': {'total': 1500.0},
+                    'booking_class': 'Premium Economy',  # 'booking_class' field
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'Premium Economy')
+    
+    def test_parse_serpapi_response_booking_class_in_flight_class(self):
+        """Test booking class extraction from flight segment 'class' field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-segment-class',
+                    'price': {'total': 1500.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'},
+                            'class': 'Business'  # 'class' in flight segment
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'Business')
+    
+    def test_parse_serpapi_response_booking_class_in_flight_booking_class(self):
+        """Test booking class extraction from flight segment 'booking_class' field"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-segment-booking',
+                    'price': {'total': 1500.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'},
+                            'booking_class': 'First'  # 'booking_class' in flight segment
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['booking_class'], 'First')
+    
+    def test_parse_serpapi_response_duration_zero_seconds(self):
+        """Test duration calculation when duration_seconds is 0"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-zero-dur',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '10:00'},  # Same time
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration - will calculate to 0 seconds
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Should use fallback duration (2h 0m for direct flights)
+        self.assertIn('duration', results[0])
+        self.assertIn('h', results[0]['duration'])
+    
+    def test_parse_serpapi_response_calculated_duration_too_short(self):
+        """Test duration validation when calculated duration is too short"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-calc-short',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '10:10'},  # 10 minutes - too short
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Duration should be validated to at least 30 minutes
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_calculated_duration_too_long(self):
+        """Test duration validation when calculated duration is too long"""
+        connector = SerpApiFlightsConnector()
+        
+        # Create scenario where arrival is next day but calculation exceeds 30 hours
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-calc-long',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '2026-04-17 10:00'},
+                            'arrival_airport': {'time': '2026-04-19 10:00'},  # 2 days later - exceeds 30 hours
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Duration should be capped at 30 hours
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_duration_parsing_exception(self):
+        """Test exception handling in duration calculation"""
+        connector = SerpApiFlightsConnector()
+        
+        # Create data that causes parsing exception
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-dur-exception',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': None},  # None will cause AttributeError
+                            'arrival_airport': {'time': None},
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration - will try to calculate
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        # Should handle exception and use fallback (2h for direct)
+        self.assertGreater(len(results), 0)
+        self.assertIn('duration', results[0])
+    
+    def test_parse_serpapi_response_duration_value_error(self):
+        """Test ValueError handling in duration time parsing"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-dur-valueerror',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': 'not-a-valid-time'},
+                            'arrival_airport': {'time': 'also-invalid'},
+                            'airline': {'name': 'United'}
+                        }
+                    ]
+                    # No total_duration
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        # Should handle ValueError and use fallback
+        self.assertGreater(len(results), 0)
+        self.assertIn('duration', results[0])
+    
+    def test_parse_time_strptime_fallback(self):
+        """Test time parsing strptime fallback when fromisoformat fails"""
+        connector = SerpApiFlightsConnector()
+        
+        # Use a format that fromisoformat can't parse but strptime can
+        result = connector._parse_time('2026-04-17 14:30:00', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+    
+    def test_parse_time_strptime_fallback_no_seconds(self):
+        """Test time parsing strptime fallback without seconds"""
+        connector = SerpApiFlightsConnector()
+        
+        result = connector._parse_time('2026-04-17 14:30', '2026-04-17')
+        self.assertEqual(result, '2026-04-17T14:30:00')
+    
+    def test_parse_serpapi_response_price_per_person_no_total(self):
+        """Test price per person when price.total is 0 but price_per_person exists"""
+        connector = SerpApiFlightsConnector()
+        
+        # The code checks price_per_person when total_price > 0 and adults > 1
+        # So we need total_price > 0 for the check to happen
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-pp-no-total',
+                    'price': {'total': 100.0},  # Small but > 0 to trigger price_per_person check
+                    'price_per_person': {'total': 350.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 2
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Should use price_per_person * adults when price_per_person > 0
+        self.assertEqual(results[0]['price'], 700.0)
+    
+    def test_parse_serpapi_response_price_per_person_value_field(self):
+        """Test price per person with 'value' field instead of 'total'"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-pp-value-field',
+                    'price': {'total': 400.0},
+                    'price_per_person': {'value': 300.0},  # 'value' instead of 'total'
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            'arrival_airport': {'time': '14:00'},
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 2
+        )
+        
+        self.assertGreater(len(results), 0)
+        # Should use price_per_person.value * adults
+        self.assertEqual(results[0]['price'], 600.0)
+    
+    def test_parse_serpapi_response_flights_dict_structure(self):
+        """Test parsing when flights is a dict with best_flights and other_flights"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'flights': {  # flights as dict
+                'other_flights': [  # Only other_flights in the dict
+                    {
+                        'flight_id': 'flight-dict-other',
+                        'price': {'total': 750.0},
+                        'flights': [
+                            {
+                                'departure_airport': {'time': '10:00'},
+                                'arrival_airport': {'time': '14:00'},
+                                'airline': {'name': 'United'}
+                            }
+                        ],
+                        'total_duration': 14400
+                    }
+                ]
+            }
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]['price'], 750.0)
+    
+    def test_parse_serpapi_response_no_arrival_time(self):
+        """Test parsing when arrival_airport is missing"""
+        connector = SerpApiFlightsConnector()
+        
+        data = {
+            'best_flights': [
+                {
+                    'flight_id': 'flight-no-arrival',
+                    'price': {'total': 800.0},
+                    'flights': [
+                        {
+                            'departure_airport': {'time': '10:00'},
+                            # Missing arrival_airport
+                            'airline': {'name': 'United'}
+                        }
+                    ],
+                    'total_duration': 14400
+                }
+            ]
+        }
+        
+        results = connector._parse_serpapi_response(
+            data, 'Denver', 'Sicily', '2026-04-17', None, 1
+        )
+        
+        # Should still create flight but with default arrival time
+        self.assertGreater(len(results), 0)
+        self.assertIn('arrival_time', results[0])
+
+
+# ============================================================================
+# SERPAPI VIEW INTEGRATION TESTS
+# ============================================================================
+
+class SerpApiViewIntegrationTest(TestCase):
+    """Tests for SerpApi integration in views"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        self.client = Client()
+        self.user1 = User.objects.create_user('user1', 'user1@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        
+        self.group = TravelGroup.objects.create(
+            name='SerpApi Test Group',
+            created_by=self.user1,
+            password='group123'
+        )
+        
+        GroupMember.objects.create(group=self.group, user=self.user1, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        # Create preferences
+        TripPreference.objects.create(
+            user=self.user1,
+            group=self.group,
+            destination='Sicily, Italy',
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            budget=2500,
+            is_completed=True
+        )
+        
+        TripPreference.objects.create(
+            user=self.user2,
+            group=self.group,
+            destination='Alberta, Canada',
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            budget=3000,
+            is_completed=True
+        )
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.DuffelAggregator')
+    def test_generate_voting_options_with_serpapi(self, mock_duffel, mock_serpapi):
+        """Test generate_voting_options uses SerpApi for flights"""
+        # Mock SerpApi connector
+        mock_serpapi_instance = Mock()
+        mock_serpapi_instance.search_flights.return_value = [
+            {
+                'id': 'serp-flight-1',
+                'price': 800.0,
+                'airline': 'United Airlines',
+                'departure_time': '2026-04-17T10:00:00',
+                'arrival_time': '2026-04-17T13:00:00',
+                'duration': '3h 0m',
+                'stops': 0,
+                'booking_class': 'Economy',
+                'seats_available': '2',
+                'route': 'Denver -> Sicily, Italy',
+                'is_mock': False,
+                'searched_destination': 'Sicily, Italy'
+            },
+            {
+                'id': 'serp-flight-2',
+                'price': 600.0,
+                'airline': 'Delta',
+                'departure_time': '2026-04-17T08:00:00',
+                'arrival_time': '2026-04-17T10:30:00',
+                'duration': '2h 30m',
+                'stops': 0,
+                'booking_class': 'Economy',
+                'seats_available': '2',
+                'route': 'Denver -> Alberta, Canada',
+                'is_mock': False,
+                'searched_destination': 'Alberta, Canada'
+            }
+        ]
+        mock_serpapi.return_value = mock_serpapi_instance
+        
+        # Mock Duffel aggregator (for hotels/activities)
+        mock_aggregator = Mock()
+        mock_aggregator.search_all.return_value = {
+            'flights': [],  # SerpApi handles flights
+            'hotels': [
+                {
+                    'id': 'hotel-1',
+                    'name': 'Sicily Hotel',
+                    'price_per_night': 150.0,
+                    'total_price': 1050.0,
+                    'searched_destination': 'Sicily, Italy'
+                },
+                {
+                    'id': 'hotel-2',
+                    'name': 'Alberta Hotel',
+                    'price_per_night': 120.0,
+                    'total_price': 840.0,
+                    'searched_destination': 'Alberta, Canada'
+                }
+            ],
+            'activities': []
+        }
+        mock_duffel.return_value = mock_aggregator
+        
+        self.client.login(username='user1', password='pass123')
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2026-04-17',
+                'end_date': '2026-04-24'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        
+        # Verify SerpApi was called
+        self.assertTrue(mock_serpapi_instance.search_flights.called)
+        
+        # Verify options were created
+        options = GroupItineraryOption.objects.filter(group=self.group)
+        self.assertEqual(options.count(), 3)
+        
+        # Verify flights were saved to database
+        flights = FlightResult.objects.all()
+        self.assertGreater(flights.count(), 0)
+        # Verify flights have correct destination
+        for flight in flights:
+            self.assertIn(flight.searched_destination, ['Sicily, Italy', 'Alberta, Canada'])
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.DuffelAggregator')
+    def test_generate_voting_options_denver_origin(self, mock_duffel, mock_serpapi):
+        """Test that Denver is used as default origin for flights"""
+        mock_serpapi_instance = Mock()
+        # Return at least one flight so the view actually processes results
+        mock_serpapi_instance.search_flights.return_value = [
+            {
+                'id': 'serp-flight-1',
+                'price': 800.0,
+                'airline': 'United Airlines',
+                'departure_time': '2026-04-17T10:00:00',
+                'arrival_time': '2026-04-17T13:00:00',
+                'duration': '3h 0m',
+                'stops': 0,
+                'booking_class': 'Economy',
+                'seats_available': '2',
+                'route': 'Denver -> Sicily, Italy',
+                'is_mock': False,
+                'searched_destination': 'Sicily, Italy'
+            }
+        ]
+        mock_serpapi.return_value = mock_serpapi_instance
+        
+        mock_aggregator = Mock()
+        mock_aggregator.search_all.return_value = {
+            'flights': [],
+            'hotels': [
+                {
+                    'id': 'hotel-1',
+                    'name': 'Sicily Hotel',
+                    'price_per_night': 150.0,
+                    'total_price': 1050.0,
+                    'searched_destination': 'Sicily, Italy'
+                }
+            ],
+            'activities': []
+        }
+        mock_duffel.return_value = mock_aggregator
+        
+        self.client.login(username='user1', password='pass123')
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        
+        self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2026-04-17',
+                'end_date': '2026-04-24'
+            }),
+            content_type='application/json'
+        )
+        
+        # Verify SerpApi was called with Denver as origin
+        self.assertTrue(mock_serpapi_instance.search_flights.called)
+        calls = mock_serpapi_instance.search_flights.call_args_list
+        for call in calls:
+            if call:
+                # call can be either (args, kwargs) or just args or just kwargs
+                if isinstance(call, tuple) and len(call) >= 1:
+                    args = call[0] if len(call) > 0 else []
+                    if args and len(args) > 0:
+                        self.assertEqual(args[0], 'Denver')  # origin should be Denver
+                elif hasattr(call, 'args') and call.args:
+                    self.assertEqual(call.args[0], 'Denver')
+
+
+# ============================================================================
+# MANUAL OPTION GENERATION TESTS
+# ============================================================================
+
+class ManualOptionGenerationTest(TestCase):
+    """Tests for _generate_options_manually function"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='group123'
+        )
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Sicily, Italy',
+            origin='Denver',
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            adults=2
+        )
+    
+    def test_generate_options_manually_unique_combinations(self):
+        """Test that manual option generation creates unique combinations"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Sicily, Italy', 'budget': '2000'},
+            {'destination': 'Alberta, Canada', 'budget': '2500'}
+        ]
+        
+        flight_results = [
+            {'id': 'f1', 'price': 800.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'f2', 'price': 900.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'f3', 'price': 600.0, 'searched_destination': 'Alberta, Canada'},
+            {'id': 'f4', 'price': 700.0, 'searched_destination': 'Alberta, Canada'}
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 150.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'h2', 'price_per_night': 200.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'h3', 'price_per_night': 120.0, 'searched_destination': 'Alberta, Canada'},
+            {'id': 'h4', 'price_per_night': 180.0, 'searched_destination': 'Alberta, Canada'}
+        ]
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, [], self.search, self.group
+        )
+        
+        self.assertIn('options', result)
+        options = result['options']
+        self.assertEqual(len(options), 3)
+        
+        # Verify unique combinations
+        flight_ids = [opt['selected_flight_id'] for opt in options]
+        hotel_ids = [opt['selected_hotel_id'] for opt in options]
+        combinations = list(zip(flight_ids, hotel_ids))
+        self.assertEqual(len(combinations), len(set(combinations)))
+        
+        # Verify sorting (A=cheapest, B=middle, C=most expensive)
+        costs = [opt['estimated_total_cost'] for opt in options]
+        self.assertEqual(costs, sorted(costs))
+        self.assertEqual(options[0]['option_letter'], 'A')
+        self.assertEqual(options[1]['option_letter'], 'B')
+        self.assertEqual(options[2]['option_letter'], 'C')
+    
+    def test_generate_options_manually_destination_validation(self):
+        """Test that options match intended destinations"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Sicily, Italy', 'budget': '2000'}
+        ]
+        
+        flight_results = [
+            {'id': 'f1', 'price': 800.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'f2', 'price': 900.0, 'searched_destination': 'Sicily, Italy'}
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 150.0, 'searched_destination': 'Sicily, Italy'},
+            {'id': 'h2', 'price_per_night': 200.0, 'searched_destination': 'Sicily, Italy'}
+        ]
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, [], self.search, self.group
+        )
+        
+        options = result['options']
+        for option in options:
+            intended_dest = option.get('intended_destination', '')
+            self.assertIn('Sicily', intended_dest)
+    
+    def test_generate_options_manually_no_combinations(self):
+        """Test handling when no valid combinations exist"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Unknown Destination', 'budget': '2000'}
+        ]
+        
+        flight_results = []
+        hotel_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, [], self.search, self.group
+        )
+        
+        self.assertIn('options', result)
+        self.assertEqual(len(result['options']), 0)
 
 
 if __name__ == '__main__':

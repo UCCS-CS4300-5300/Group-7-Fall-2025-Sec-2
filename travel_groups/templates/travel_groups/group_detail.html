@@ -181,7 +181,21 @@
                             <h6 class="mb-2">✈️ Flight</h6>
                             <p class="small">
                                 <strong>{{ option.selected_flight.airline }}</strong><br>
-                                ${{ option.selected_flight.price }} | {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}
+                                ${{ option.selected_flight.price }}
+                                {% if option.selected_flight.currency and option.selected_flight.currency != 'USD' %}{{ option.selected_flight.currency }}{% endif %}<br>
+                                {% if option.selected_flight.duration %}
+                                <i class="far fa-clock"></i> {{ option.selected_flight.duration }}<br>
+                                {% endif %}
+                                {% if option.selected_flight.departure_time %}
+                                <i class="far fa-calendar-alt"></i> Departs: {{ option.selected_flight.departure_time|date:"M d, Y g:i A" }}<br>
+                                {% endif %}
+                                {% if option.selected_flight.arrival_time %}
+                                <i class="far fa-calendar-check"></i> Arrives: {{ option.selected_flight.arrival_time|date:"M d, Y g:i A" }}<br>
+                                {% endif %}
+                                {% if option.search and option.search.origin and option.selected_flight.searched_destination %}
+                                <i class="fas fa-route"></i> {{ option.search.origin }} → {{ option.selected_flight.searched_destination }}<br>
+                                {% endif %}
+                                <i class="fas fa-plane"></i> {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}
                             </p>
                             {% endif %}
                             
@@ -191,6 +205,8 @@
                                 <strong>{{ option.selected_hotel.name }}</strong><br>
                                 ${{ option.selected_hotel.total_price }} total
                                 {% if option.selected_hotel.rating %} | ⭐ {{ option.selected_hotel.rating }}/5{% endif %}
+                                {% if option.selected_hotel.room_type %}<br><i class="fas fa-bed"></i> {{ option.selected_hotel.room_type }}{% endif %}
+                                {% if option.selected_hotel.breakfast_included %}<br><span class="badge badge-info">Breakfast Included</span>{% endif %}
                             </p>
                             {% endif %}
                             
