@@ -41,7 +41,7 @@ class OpenAIService:
         size_kb = size_bytes / 1024
 
         print(
-            f"📦 OpenAI Request Size [{function_name}]: {size_kb:.2f} KB ({size_bytes:,} bytes)"
+            f"[INFO] OpenAI Request Size [{function_name}]: {size_kb:.2f} KB ({size_bytes:,} bytes)"
         )
 
         # Also log character count which correlates to token count

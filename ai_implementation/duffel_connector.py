@@ -509,8 +509,15 @@ class DuffelAggregator:
         
         if destination and len(destination) > 3:
             dest_places = self.place_search.search_places(destination)
-            destination_code = dest_places[0]['iata_code'] if dest_places else destination
-            destination_name = dest_places[0]['city_name'] if dest_places else destination
+            # Only use place search results if we found an actual match (not default fallback)
+            if dest_places and any(dest.lower() in place.get('city_name', '').lower() or dest.lower() in place.get('name', '').lower() 
+                                   for place in dest_places for dest in [destination.split(',')[0].strip()]):
+                destination_code = dest_places[0]['iata_code']
+                destination_name = dest_places[0]['city_name']
+            else:
+                # No match found - use original destination (don't default to New York!)
+                destination_code = destination
+                destination_name = destination
         else:
             destination_code = destination
             destination_name = destination

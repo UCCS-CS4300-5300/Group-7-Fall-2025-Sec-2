@@ -11,6 +11,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.db import transaction
+from django.utils import timezone
+from datetime import datetime
 
 from .models import (
     TravelSearch,
@@ -35,8 +37,227 @@ from .forms import (
 from .openai_service import OpenAIService
 from .api_connectors import TravelAPIAggregator
 from .duffel_connector import DuffelAggregator
+from .serpapi_connector import SerpApiFlightsConnector
 
 from travel_groups.models import TravelGroup, GroupMember, TripPreference
+
+
+def _generate_options_manually(member_prefs, flight_results, hotel_results, activity_results, search, group):
+    """
+    Generate 3 voting options manually without OpenAI.
+    Creates budget-based options: cheapest, mid-range, premium.
+    Ensures each option uses a UNIQUE combination of flights and hotels.
+    Validates that destinations match member preferences and that flights/hotels match destinations.
+    """
+    # Extract destinations from member preferences
+    preference_destinations = []
+    for pref in member_prefs:
+        dest = pref.get('destination', '')
+        if dest:
+            preference_destinations.append(dest)
+    
+    print(f"[VALIDATION] Member preference destinations: {preference_destinations}")
+    
+    # Group flights and hotels by destination
+    flights_by_dest = {}
+    hotels_by_dest = {}
+    
+    for flight in flight_results:
+        dest = flight.get('searched_destination', '')
+        if dest:
+            if dest not in flights_by_dest:
+                flights_by_dest[dest] = []
+            flights_by_dest[dest].append(flight)
+    
+    for hotel in hotel_results:
+        dest = hotel.get('searched_destination', '')
+        if dest:
+            if dest not in hotels_by_dest:
+                hotels_by_dest[dest] = []
+            hotels_by_dest[dest].append(hotel)
+    
+    # Sort flights and hotels by price within each destination
+    for dest in flights_by_dest:
+        flights_by_dest[dest].sort(key=lambda x: float(x.get('price', 0) or 0))
+    for dest in hotels_by_dest:
+        hotels_by_dest[dest].sort(key=lambda x: float(x.get('price_per_night', 0) or 0))
+    
+    # Get unique destinations - prioritize destinations from member preferences
+    all_available_destinations = list(set(list(flights_by_dest.keys()) + list(hotels_by_dest.keys())))
+    
+    # Filter to only use destinations that match member preferences
+    valid_destinations = []
+    for pref_dest in preference_destinations:
+        # Check if any available destination matches (case-insensitive, partial match)
+        for avail_dest in all_available_destinations:
+            if pref_dest.lower() in avail_dest.lower() or avail_dest.lower() in pref_dest.lower():
+                if avail_dest not in valid_destinations:
+                    valid_destinations.append(avail_dest)
+                    break
+    
+    # If no matches, use all available destinations
+    if not valid_destinations:
+        valid_destinations = all_available_destinations
+        print(f"[WARNING] No destinations matched preferences. Using all available: {valid_destinations}")
+    else:
+        print(f"[VALIDATION] Using destinations that match preferences: {valid_destinations}")
+    
+    # Generate ALL possible combinations of flights + hotels by destination
+    all_combinations = []
+    used_combinations = set()  # Track (flight_id, hotel_id) pairs to avoid duplicates
+    
+    for dest in valid_destinations:
+        flights = flights_by_dest.get(dest, [])
+        hotels = hotels_by_dest.get(dest, [])
+        
+        if not flights or not hotels:
+            continue
+        
+        # Generate combinations, ensuring uniqueness
+        for flight in flights:
+            for hotel in hotels:
+                combo_key = (flight.get('id', ''), hotel.get('id', ''))
+                if combo_key in used_combinations:
+                    continue  # Skip duplicate combinations
+                used_combinations.add(combo_key)
+                
+                flight_price = float(flight.get('price', 0) or 0)
+                hotel_price = float(hotel.get('price_per_night', 0) or 0) * 7  # Approximate for trip duration
+                total_cost = flight_price + hotel_price
+                
+                all_combinations.append({
+                    "destination": dest,
+                    "flight": flight,
+                    "hotel": hotel,
+                    "total_cost": total_cost,
+                    "flight_id": flight.get('id', ''),
+                    "hotel_id": hotel.get('id', ''),
+                })
+    
+    if not all_combinations:
+        print("[ERROR] No valid flight+hotel combinations found!")
+        return {
+            "options": [],
+            "voting_guidance": "No valid options could be generated.",
+            "consensus_summary": "No valid options found."
+        }
+    
+    # Sort all combinations by total cost
+    all_combinations.sort(key=lambda x: x['total_cost'])
+    
+    print(f"[DEBUG] Generated {len(all_combinations)} unique combinations, sorted by cost")
+    
+    # Select 3 distinct options: cheapest, middle, most expensive
+    selected_combinations = []
+    if len(all_combinations) >= 3:
+        # Pick cheapest, middle, and most expensive
+        selected_combinations = [
+            all_combinations[0],  # Cheapest
+            all_combinations[len(all_combinations) // 2],  # Middle
+            all_combinations[-1],  # Most expensive
+        ]
+    elif len(all_combinations) == 2:
+        # Use both and duplicate one with different pairing if possible
+        selected_combinations = [
+            all_combinations[0],  # Cheapest
+            all_combinations[-1],  # Most expensive
+        ]
+        # Try to find a different combination for middle option
+        for combo in all_combinations:
+            if combo not in selected_combinations:
+                selected_combinations.insert(1, combo)
+                break
+        if len(selected_combinations) == 2:
+            # No unique middle option, use cheapest with next flight or hotel
+            selected_combinations.insert(1, all_combinations[0])
+    else:
+        # Only one combination, duplicate it
+        selected_combinations = [all_combinations[0]] * 3
+    
+    # Ensure we have exactly 3 options and they're unique
+    while len(selected_combinations) < 3:
+        # Duplicate one but with different indices
+        for combo in all_combinations:
+            if combo not in selected_combinations:
+                selected_combinations.append(combo)
+                break
+        if len(selected_combinations) < 3:
+            # Force add the cheapest one again (better than nothing)
+            selected_combinations.append(all_combinations[0])
+            break
+    
+    # Now ensure selected_combinations have unique flight+hotel pairs
+    unique_selected = []
+    used_pairs = set()
+    for combo in selected_combinations[:3]:  # Limit to 3
+        pair_key = (combo['flight_id'], combo['hotel_id'])
+        if pair_key not in used_pairs:
+            used_pairs.add(pair_key)
+            unique_selected.append(combo)
+    
+    # Fill remaining slots if needed
+    idx = 0
+    while len(unique_selected) < 3 and idx < len(all_combinations):
+        combo = all_combinations[idx]
+        pair_key = (combo['flight_id'], combo['hotel_id'])
+        if pair_key not in used_pairs:
+            used_pairs.add(pair_key)
+            unique_selected.append(combo)
+        idx += 1
+    
+    # Sort the final selected combinations by cost to ensure proper ordering
+    unique_selected.sort(key=lambda x: x['total_cost'])
+    
+    # Create option objects
+    options = []
+    tier_names = ['Budget-Friendly', 'Balanced', 'Premium']
+    tier_descriptions = [
+        'Affordable option with economical flight and hotel choices.',
+        'Mid-range option with good value flight and hotel choices.',
+        'Premium option with high-quality flight and hotel choices.',
+    ]
+    
+    for idx, combo in enumerate(unique_selected[:3]):  # Ensure exactly 3
+        dest = combo['destination']
+        flight = combo['flight']
+        hotel = combo['hotel']
+        
+        # Validate destinations match
+        if flight.get('searched_destination', '') != dest:
+            print(f"[VALIDATION ERROR] Flight destination mismatch: {flight.get('searched_destination')} != {dest}")
+        if hotel.get('searched_destination', '') != dest:
+            print(f"[VALIDATION ERROR] Hotel destination mismatch: {hotel.get('searched_destination')} != {dest}")
+        
+        option_letter = chr(65 + idx)  # A, B, or C
+        
+        options.append({
+            "option_letter": option_letter,
+            "title": f"{tier_names[idx]} Trip to {dest}",
+            "description": f"{tier_descriptions[idx]}",
+            "selected_flight_id": flight.get('id', ''),
+            "selected_hotel_id": hotel.get('id', ''),
+            "selected_activity_ids": [],
+            "estimated_total_cost": combo['total_cost'],
+            "cost_per_person": combo['total_cost'] / group.member_count if group.member_count > 0 else combo['total_cost'],
+            "ai_reasoning": f"{tier_names[idx]} option selected for {dest}.",
+            "compromise_explanation": f"This option represents the {tier_names[idx].lower()} tier of available options.",
+            "intended_destination": dest,
+        })
+    
+    if len(options) >= 3:
+        print(f"[SORTING] Final options sorted by cost: A=${options[0]['estimated_total_cost']:.2f}, B=${options[1]['estimated_total_cost']:.2f}, C=${options[2]['estimated_total_cost']:.2f}")
+    elif len(options) == 2:
+        print(f"[SORTING] Final options sorted by cost: A=${options[0]['estimated_total_cost']:.2f}, B=${options[1]['estimated_total_cost']:.2f}")
+    elif len(options) == 1:
+        print(f"[SORTING] Final options sorted by cost: A=${options[0]['estimated_total_cost']:.2f}")
+    else:
+        print(f"[SORTING] No options generated")
+    
+    return {
+        "options": options,
+        "voting_guidance": "Review each option carefully. Option A is budget-friendly, Option B is balanced, and Option C is premium.",
+        "consensus_summary": f"Generated {len(options)} unique options based on available flights and hotels, sorted by cost."
+    }
 
 
 @login_required
@@ -248,14 +469,48 @@ def perform_search(request, search_id):
 
             # Save flight results
             for flight_data in api_results["flights"]:
+                # Handle departure_time - convert to timezone-aware if needed
+                dep_time = flight_data.get("departure_time", search.start_date)
+                if isinstance(dep_time, str):
+                    try:
+                        # Try to parse string datetime
+                        dep_time = datetime.fromisoformat(dep_time.replace('Z', '+00:00'))
+                    except:
+                        # Fallback to search start date
+                        dep_time = search.start_date
+                if isinstance(dep_time, datetime):
+                    if timezone.is_naive(dep_time):
+                        dep_time = timezone.make_aware(dep_time)
+                elif hasattr(dep_time, 'date'):  # Date object
+                    dep_time = timezone.make_aware(datetime.combine(dep_time, datetime.min.time()))
+                else:
+                    dep_time = timezone.make_aware(datetime.combine(search.start_date, datetime.min.time()))
+                
+                # Handle arrival_time - convert to timezone-aware if needed
+                arr_time = flight_data.get("arrival_time", search.start_date)
+                if isinstance(arr_time, str):
+                    try:
+                        # Try to parse string datetime
+                        arr_time = datetime.fromisoformat(arr_time.replace('Z', '+00:00'))
+                    except:
+                        # Fallback to search start date
+                        arr_time = search.start_date
+                if isinstance(arr_time, datetime):
+                    if timezone.is_naive(arr_time):
+                        arr_time = timezone.make_aware(arr_time)
+                elif hasattr(arr_time, 'date'):  # Date object
+                    arr_time = timezone.make_aware(datetime.combine(arr_time, datetime.min.time()))
+                else:
+                    arr_time = timezone.make_aware(datetime.combine(search.start_date, datetime.min.time()))
+                
                 FlightResult.objects.create(
                     search=search,
                     external_id=flight_data.get("id", "N/A"),
                     airline=flight_data.get("airline", "Unknown"),
                     price=flight_data.get("price", 0),
                     currency=flight_data.get("currency", "USD"),
-                    departure_time=flight_data.get("departure_time", search.start_date),
-                    arrival_time=flight_data.get("arrival_time", search.start_date),
+                    departure_time=dep_time,
+                    arrival_time=arr_time,
                     duration=flight_data.get("duration", "N/A"),
                     stops=flight_data.get("stops", 0),
                     booking_class=flight_data.get("booking_class", "Economy"),
@@ -733,7 +988,7 @@ def generate_voting_options(request, group_id):
 
         destinations_list = list(destinations)
         print(
-            f"🌍 Found {len(destinations_list)} unique destinations from members: {destinations_list}"
+            f"[*] Found {len(destinations_list)} unique destinations from members: {destinations_list}"
         )
 
         # Use first preference as base for dates
@@ -745,12 +1000,12 @@ def generate_voting_options(request, group_id):
                 selected_start_date, "%Y-%m-%d"
             ).date()
             search_end_date = datetime.strptime(selected_end_date, "%Y-%m-%d").date()
-            print(f"📅 Using selected dates: {search_start_date} to {search_end_date}")
+            print(f"[*] Using selected dates: {search_start_date} to {search_end_date}")
         else:
             search_start_date = first_pref.start_date
             search_end_date = first_pref.end_date
             print(
-                f"📅 Using preference dates: {search_start_date} to {search_end_date}"
+                f"[*] Using preference dates: {search_start_date} to {search_end_date}"
             )
 
         try:
@@ -768,6 +1023,16 @@ def generate_voting_options(request, group_id):
 
             # Search for travel options for EACH destination
             aggregator = DuffelAggregator()
+            serpapi_flights = SerpApiFlightsConnector()
+
+            # Get origin from first member preference or use default
+            # Default origin is Denver
+            origin_location = "Denver"  # Default origin for flights
+            # Check if any member preference has origin information
+            for pref in trip_preferences:
+                # TripPreference doesn't have origin, but we could add logic to infer from user location
+                # For now, using default origin (Denver)
+                pass
 
             # Combine results from all destinations
             all_flights = []
@@ -775,22 +1040,65 @@ def generate_voting_options(request, group_id):
             all_activities = []
 
             for destination in destinations_list:
-                print(f"\n🔍 Searching for {destination}...")
+                print(f"\n[*] Searching for {destination}...")
 
+                # Use SerpApi for flights
+                try:
+                    print(f"  [FLIGHT] Searching flights using SerpApi: {origin_location} -> {destination}")
+                    serpapi_flight_results = serpapi_flights.search_flights(
+                        origin=origin_location,
+                        destination=destination,
+                        departure_date=search_start_date.strftime("%Y-%m-%d"),
+                        return_date=search_end_date.strftime("%Y-%m-%d"),
+                        adults=group.member_count,
+                        max_results=10
+                    )
+                    
+                    # Verify we got real flights (not mock)
+                    if serpapi_flight_results:
+                        mock_count = sum(1 for f in serpapi_flight_results if f.get('is_mock', False))
+                        if mock_count == len(serpapi_flight_results):
+                            print(f"  [ERROR] All {len(serpapi_flight_results)} flights are mock data - SerpApi did not return real flights")
+                            raise Exception("SerpApi returned only mock data - API may be failing")
+                        else:
+                            real_count = len(serpapi_flight_results) - mock_count
+                            print(f"  [OK] Found {real_count} real flights and {mock_count} mock flights from SerpApi")
+                    
+                    # Tag flights with destination
+                    for flight in serpapi_flight_results:
+                        # Skip mock flights - we only want real data
+                        if not flight.get('is_mock', False):
+                            flight["searched_destination"] = destination
+                            all_flights.append(flight)
+                        else:
+                            print(f"  [SKIP] Skipping mock flight: {flight.get('id', 'unknown')}")
+                    
+                    print(f"  [OK] Added {len([f for f in serpapi_flight_results if not f.get('is_mock', False)])} real flights to results")
+                    
+                except Exception as e:
+                    import traceback
+                    from django.conf import settings
+                    print(f"  [ERROR] Error with SerpApi for {destination}: {str(e)}")
+                    # Only print full traceback in DEBUG mode to avoid exposing internal details
+                    if settings.DEBUG:
+                        print(traceback.format_exc())
+                    else:
+                        print(f"  [ERROR] See server logs for full traceback (DEBUG mode disabled)")
+                    # Don't continue with mock data - fail explicitly so user knows API is not working
+                    print(f"  [ERROR] Cannot proceed without real flight data for {destination}")
+                    # Still continue to other destinations, but log the error
+
+                # Use DuffelAggregator for hotels and activities only
                 api_results = aggregator.search_all(
                     destination=destination,
-                    origin=None,
+                    origin=None,  # Not needed for hotels/activities
                     start_date=search_start_date.strftime("%Y-%m-%d"),
                     end_date=search_end_date.strftime("%Y-%m-%d"),
                     adults=group.member_count,
                     rooms=search.rooms,
                 )
 
-                # Tag each result with its destination for tracking
-                for flight in api_results["flights"]:
-                    flight["searched_destination"] = destination
-                    all_flights.append(flight)
-
+                # Add hotels and activities
                 for hotel in api_results["hotels"]:
                     hotel["searched_destination"] = destination
                     all_hotels.append(hotel)
@@ -799,7 +1107,7 @@ def generate_voting_options(request, group_id):
                     activity["searched_destination"] = destination
                     all_activities.append(activity)
 
-            print(f"\n✅ Combined Results:")
+            print(f"\n[OK] Combined Results:")
             print(
                 f"   Flights: {len(all_flights)} from {len(destinations_list)} destinations"
             )
@@ -812,7 +1120,7 @@ def generate_voting_options(request, group_id):
 
             # Show breakdown by destination
             if all_hotels:
-                print(f"\n📊 Hotels by Destination:")
+                print(f"\n[INFO] Hotels by Destination:")
                 dest_hotel_count = {}
                 for hotel in all_hotels:
                     dest = hotel.get("searched_destination", "Unknown")
@@ -831,16 +1139,48 @@ def generate_voting_options(request, group_id):
             with transaction.atomic():
                 # Save flight results
                 for flight_data in api_results["flights"]:
+                    # Handle departure_time - convert to timezone-aware if needed
+                    dep_time = flight_data.get("departure_time", search.start_date)
+                    if isinstance(dep_time, str):
+                        try:
+                            # Try to parse string datetime
+                            dep_time = datetime.fromisoformat(dep_time.replace('Z', '+00:00'))
+                        except:
+                            # Fallback to search start date
+                            dep_time = search.start_date
+                    if isinstance(dep_time, datetime):
+                        if timezone.is_naive(dep_time):
+                            dep_time = timezone.make_aware(dep_time)
+                    elif hasattr(dep_time, 'date'):  # Date object
+                        dep_time = timezone.make_aware(datetime.combine(dep_time, datetime.min.time()))
+                    else:
+                        dep_time = timezone.make_aware(datetime.combine(search.start_date, datetime.min.time()))
+                    
+                    # Handle arrival_time - convert to timezone-aware if needed
+                    arr_time = flight_data.get("arrival_time", search.start_date)
+                    if isinstance(arr_time, str):
+                        try:
+                            # Try to parse string datetime
+                            arr_time = datetime.fromisoformat(arr_time.replace('Z', '+00:00'))
+                        except:
+                            # Fallback to search start date
+                            arr_time = search.start_date
+                    if isinstance(arr_time, datetime):
+                        if timezone.is_naive(arr_time):
+                            arr_time = timezone.make_aware(arr_time)
+                    elif hasattr(arr_time, 'date'):  # Date object
+                        arr_time = timezone.make_aware(datetime.combine(arr_time, datetime.min.time()))
+                    else:
+                        arr_time = timezone.make_aware(datetime.combine(search.start_date, datetime.min.time()))
+                    
                     FlightResult.objects.create(
                         search=search,
                         external_id=flight_data.get("id", "N/A"),
                         airline=flight_data.get("airline", "Unknown"),
                         price=flight_data.get("price", 0),
                         currency=flight_data.get("currency", "USD"),
-                        departure_time=flight_data.get(
-                            "departure_time", search.start_date
-                        ),
-                        arrival_time=flight_data.get("arrival_time", search.start_date),
+                        departure_time=dep_time,
+                        arrival_time=arr_time,
                         duration=flight_data.get("duration", "N/A"),
                         stops=flight_data.get("stops", 0),
                         booking_class=flight_data.get("booking_class", "Economy"),
@@ -904,9 +1244,31 @@ def generate_voting_options(request, group_id):
                         is_mock=activity_data.get("is_mock", False),
                     )
 
-            # Generate consensus first
-            openai_service = OpenAIService()
-            consensus_data = openai_service.generate_group_consensus(member_prefs)
+            # Generate consensus first (or create basic consensus if OpenAI unavailable)
+            try:
+                openai_service = OpenAIService()
+                consensus_data = openai_service.generate_group_consensus(member_prefs)
+            except (ValueError, Exception) as e:
+                # OpenAI API key not configured or error - create basic consensus
+                print(f"[WARNING] OpenAI not available: {str(e)}")
+                print("[INFO] Creating basic consensus without AI...")
+                
+                # Create basic consensus data from member preferences
+                destinations = [pref.get('destination', '') for pref in member_prefs if pref.get('destination')]
+                budgets = [float(pref.get('budget', '0').replace('$', '').replace(',', '')) for pref in member_prefs if pref.get('budget')]
+                
+                consensus_data = {
+                    "consensus_preferences": {
+                        "destinations": list(set(destinations)),
+                        "average_budget": sum(budgets) / len(budgets) if budgets else 0,
+                        "min_budget": min(budgets) if budgets else 0,
+                        "max_budget": max(budgets) if budgets else 0,
+                    },
+                    "compromise_areas": [],
+                    "unanimous_preferences": [],
+                    "conflicting_preferences": [],
+                    "group_dynamics_notes": "Generated without AI assistance - using basic preference analysis."
+                }
 
             # Save consensus
             consensus = GroupConsensus.objects.create(
@@ -966,31 +1328,66 @@ def generate_voting_options(request, group_id):
                     }
                 )
 
+            # Store reference to api_results before clearing (needed for manual generation fallback)
+            api_results_backup = {
+                "flights": api_results["flights"],
+                "hotels": api_results["hotels"],
+                "activities": api_results["activities"]
+            }
+            
             # OPTIMIZATION: Clear original large data structures before OpenAI call
             del api_results
             gc.collect()  # Force garbage collection to free memory
 
             # Generate 3 itinerary options with selected dates
+            openai_available = False
             try:
-                options_data = openai_service.generate_three_itinerary_options(
-                    member_preferences=member_prefs,
-                    flight_results=lightweight_flights,
-                    hotel_results=lightweight_hotels,
-                    activity_results=lightweight_activities,
-                    selected_dates={
-                        "start_date": search_start_date.strftime("%Y-%m-%d"),
-                        "end_date": search_end_date.strftime("%Y-%m-%d"),
-                        "duration_days": (search_end_date - search_start_date).days,
-                    },
-                )
+                # Try OpenAI first if available
+                if 'openai_service' in locals():
+                    options_data = openai_service.generate_three_itinerary_options(
+                        member_preferences=member_prefs,
+                        flight_results=lightweight_flights,
+                        hotel_results=lightweight_hotels,
+                        activity_results=lightweight_activities,
+                        selected_dates={
+                            "start_date": search_start_date.strftime("%Y-%m-%d"),
+                            "end_date": search_end_date.strftime("%Y-%m-%d"),
+                            "duration_days": (search_end_date - search_start_date).days,
+                        },
+                    )
+                    openai_available = True
+                else:
+                    raise ValueError("OpenAI service not available")
             except Exception as e:
-                # Handle OpenAI timeout or memory errors gracefully
-                print(f"❌ Error generating itinerary options: {str(e)}")
-                messages.error(
-                    request,
-                    f"Error generating itinerary options. Please try again with fewer destinations or a smaller group.",
+                # OpenAI not available - generate options manually
+                print(f"[WARNING] OpenAI not available for option generation: {str(e)}")
+                print("[INFO] Generating options manually from available data...")
+                
+                # Use backup data if lightweight data is insufficient
+                manual_flights = lightweight_flights if lightweight_flights else [
+                    {"id": f.get("id"), "price": f.get("price"), "searched_destination": f.get("searched_destination")}
+                    for f in api_results_backup.get("flights", [])[:20]
+                ]
+                manual_hotels = lightweight_hotels if lightweight_hotels else [
+                    {"id": h.get("id"), "name": h.get("name"), "price_per_night": h.get("price_per_night"), 
+                     "rating": h.get("rating"), "searched_destination": h.get("searched_destination")}
+                    for h in api_results_backup.get("hotels", [])[:20]
+                ]
+                manual_activities = lightweight_activities if lightweight_activities else [
+                    {"id": a.get("id"), "name": a.get("name"), "price": a.get("price"), 
+                     "category": a.get("category"), "searched_destination": a.get("searched_destination")}
+                    for a in api_results_backup.get("activities", [])[:20]
+                ]
+                
+                # Generate options manually based on budget tiers
+                options_data = _generate_options_manually(
+                    member_prefs=member_prefs,
+                    flight_results=manual_flights,
+                    hotel_results=manual_hotels,
+                    activity_results=manual_activities,
+                    search=search,
+                    group=group
                 )
-                return redirect("travel_groups:group_detail", group_id=group.id)
             finally:
                 # Clean up lightweight data after API call
                 del lightweight_flights, lightweight_hotels, lightweight_activities
@@ -998,57 +1395,96 @@ def generate_voting_options(request, group_id):
 
             # Create the 3 options in database
             for option_data in options_data.get("options", []):
-                # Get selected flight
+                # Get intended destination from option_data (this is the correct destination)
+                intended_dest = option_data.get("intended_destination", "")
+                if not intended_dest:
+                    # Fallback: extract from title
+                    intended_dest = option_data.get("title", "").split(" to ")[-1] if " to " in option_data.get("title", "") else ""
+                
+                print(f"[DB LOOKUP] Option {option_data.get('option_letter', '?')}: Looking for flight/hotel for destination: {intended_dest}")
+                
+                # Get selected flight - MUST match intended destination
                 selected_flight = None
-                if option_data.get("selected_flight_id"):
+                flight_id = option_data.get("selected_flight_id")
+                if flight_id:
+                    # First try to find flight by ID AND destination
                     selected_flight = FlightResult.objects.filter(
-                        search=search, external_id=option_data["selected_flight_id"]
+                        search=search, external_id=flight_id, searched_destination=intended_dest
                     ).first()
+                    
+                    if not selected_flight:
+                        # Flight ID exists but doesn't match destination - reject it
+                        print(f"  [WARNING] Flight ID '{flight_id}' exists but doesn't match destination {intended_dest}")
+                        # Find a flight that matches the intended destination
+                        selected_flight = FlightResult.objects.filter(
+                            search=search, searched_destination=intended_dest
+                        ).first()
+                        if selected_flight:
+                            print(f"  [FIX] Found matching flight: {selected_flight.airline} to {selected_flight.searched_destination}")
+                    else:
+                        print(f"  [OK] Flight found: {selected_flight.airline} to {selected_flight.searched_destination}")
+                
+                # If still no flight, find any flight for this destination
+                if not selected_flight and intended_dest:
+                    print(f"  [RETRY] Looking for any flight to {intended_dest}...")
+                    selected_flight = FlightResult.objects.filter(
+                        search=search, searched_destination=intended_dest
+                    ).first()
+                    if selected_flight:
+                        print(f"  [OK] Found flight: {selected_flight.airline} to {selected_flight.searched_destination}")
 
-                # Get selected hotel
+                # Get selected hotel - MUST match intended destination
                 selected_hotel = None
-                option_destination = None
                 hotel_id = option_data.get("selected_hotel_id")
-
+                
                 if hotel_id:
+                    # First try to find hotel by ID AND destination
                     selected_hotel = HotelResult.objects.filter(
-                        search=search, external_id=hotel_id
+                        search=search, external_id=hotel_id, searched_destination=intended_dest
                     ).first()
-
-                    if selected_hotel:
-                        # Extract destination from hotel's searched_destination field
-                        option_destination = selected_hotel.searched_destination or ""
-                        print(
-                            f"  ✅ Hotel found: {selected_hotel.name} in {option_destination}"
-                        )
+                    
+                    if not selected_hotel:
+                        # Hotel ID exists but doesn't match destination - reject it
+                        print(f"  [WARNING] Hotel ID '{hotel_id}' exists but doesn't match destination {intended_dest}")
+                        # Find a hotel that matches the intended destination
+                        selected_hotel = HotelResult.objects.filter(
+                            search=search, searched_destination=intended_dest
+                        ).first()
+                        if selected_hotel:
+                            print(f"  [FIX] Found matching hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
                     else:
-                        print(
-                            f"  ⚠️ Hotel ID '{hotel_id}' not found in database for Option {option_data['option_letter']}"
-                        )
-
-                # Try to get destination from flight if hotel doesn't have it
-                if not option_destination and selected_flight:
-                    option_destination = selected_flight.searched_destination or ""
-
-                # FALLBACK: If no hotel was found but we have a destination, pick the first available hotel for that destination
-                if not selected_hotel and option_destination:
-                    print(f"  🔄 Looking for fallback hotel in {option_destination}...")
-                    fallback_hotel = HotelResult.objects.filter(
-                        search=search, searched_destination=option_destination
+                        print(f"  [OK] Hotel found: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                
+                # If still no hotel, find any hotel for this destination
+                if not selected_hotel and intended_dest:
+                    print(f"  [RETRY] Looking for any hotel in {intended_dest}...")
+                    selected_hotel = HotelResult.objects.filter(
+                        search=search, searched_destination=intended_dest
                     ).first()
-                    if fallback_hotel:
-                        selected_hotel = fallback_hotel
-                        print(f"  ✅ Fallback hotel selected: {fallback_hotel.name}")
-
-                # LAST RESORT: If still no hotel, pick the first available hotel from any destination
+                    if selected_hotel:
+                        print(f"  [OK] Found hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                
+                # Use intended destination as the option destination
+                option_destination = intended_dest
+                
+                # LAST RESORT: If still no hotel, this is an error
                 if not selected_hotel:
-                    selected_hotel = HotelResult.objects.filter(search=search).first()
-                    if selected_hotel:
-                        print(f"  ⚠️ Using any available hotel: {selected_hotel.name}")
-                    else:
-                        print(
-                            f"  ❌ No hotels found at all for Option {option_data['option_letter']}"
-                        )
+                    print(f"  [ERROR] No hotels found for destination {intended_dest} for Option {option_data.get('option_letter', '?')}")
+
+                # Calculate total cost explicitly: flight + hotel
+                total_cost = 0.0
+                if selected_flight:
+                    total_cost += float(selected_flight.price)
+                if selected_hotel:
+                    total_cost += float(selected_hotel.total_price)
+                
+                # If OpenAI provided a cost estimate, use the higher of the two to ensure accuracy
+                ai_estimated_cost = float(option_data.get("estimated_total_cost", 0) or 0)
+                # Use explicit calculation (flight + hotel) as the source of truth
+                final_total_cost = total_cost if total_cost > 0 else ai_estimated_cost
+                
+                # Calculate cost per person
+                cost_per_person = final_total_cost / group.member_count if group.member_count > 0 else final_total_cost
 
                 # Create option
                 GroupItineraryOption.objects.create(
@@ -1064,15 +1500,15 @@ def generate_voting_options(request, group_id):
                     selected_activities=json.dumps(
                         option_data.get("selected_activity_ids", [])
                     ),
-                    estimated_total_cost=option_data["estimated_total_cost"],
-                    cost_per_person=option_data["cost_per_person"],
+                    estimated_total_cost=final_total_cost,
+                    cost_per_person=cost_per_person,
                     ai_reasoning=option_data["ai_reasoning"],
                     compromise_explanation=option_data.get(
                         "compromise_explanation", ""
                     ),
                 )
 
-            print("✅ 3 itinerary options generated!")
+            print("[OK] 3 itinerary options generated!")
             # Return JSON response for AJAX call instead of redirect
             return JsonResponse(
                 {
@@ -1082,9 +1518,20 @@ def generate_voting_options(request, group_id):
             )
 
         except Exception as e:
-            print(f"❌ Error generating options: {str(e)}")
-            # Return JSON error response for AJAX call
-            return JsonResponse({"success": False, "error": str(e)}, status=500)
+            import traceback
+            from django.conf import settings
+            error_details = traceback.format_exc()
+            print(f"[ERROR] Error generating options: {str(e)}")
+            # Only print full traceback in DEBUG mode to avoid exposing internal details
+            if settings.DEBUG:
+                print(f"Full traceback:\n{error_details}")
+            else:
+                print(f"[ERROR] See server logs for full traceback (DEBUG mode disabled)")
+            # Return JSON error response for AJAX call with safe error message
+            return JsonResponse({
+                "success": False, 
+                "error": "Error generating voting options. Please try again or contact support."
+            }, status=500)
 
     # GET request - show generation form
     members_count = GroupMember.objects.filter(group=group).count()

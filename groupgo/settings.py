@@ -170,6 +170,11 @@ HOTEL_API_KEY = os.environ.get('HOTEL_API_KEY', '')
 
 # Activity API Configuration (if using a specific service)
 ACTIVITY_API_KEY = os.environ.get('ACTIVITY_API_KEY', '')
+
+# SerpApi Configuration (Google Flights)
+# Get your API key from: https://serpapi.com/
+SERP_API_KEY = os.environ.get('SERP_API_KEY', '')
+
 # Email Configuration
 # For development, use console backend. In production, configure SMTP settings.
 # For tests, use locmem backend to avoid connecting to email server
