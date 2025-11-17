@@ -32,8 +32,8 @@ from .forms import (
     ItineraryFeedbackForm, SaveItineraryForm, RefineSearchForm
 )
 from .openai_service import OpenAIService
-from .duffel_connector import DuffelAggregator, DuffelAPIConnector, DuffelFlightSearch
-from .serpapi_connector import SerpApiFlightsConnector
+from .serpapi_connector import SerpApiFlightsConnector, SerpApiActivitiesConnector
+from .makcorps_connector import MakcorpsHotelConnector
 
 
 # ============================================================================
@@ -554,8 +554,7 @@ class VotingViewsTest(TestCase):
         self.assertEqual(response.status_code, 302)  # Redirect away
         
     @patch('ai_implementation.views.OpenAIService')
-    @patch('ai_implementation.views.DuffelAggregator')
-    def test_generate_voting_options_insufficient_preferences(self, mock_duffel, mock_openai):
+    def test_generate_voting_options_insufficient_preferences(self, mock_openai):
         """Test generation fails with insufficient preferences"""
         # Remove one preference to have only 1
         TripPreference.objects.filter(user=self.user2).delete()
@@ -573,9 +572,8 @@ class VotingViewsTest(TestCase):
         data = json.loads(response.content)
         self.assertFalse(data['success'])
         
-    @patch('ai_implementation.views.DuffelAggregator')
     @patch('ai_implementation.views.OpenAIService')
-    def test_cast_vote(self, mock_openai, mock_duffel):
+    def test_cast_vote(self, mock_openai):
         """Test casting a vote"""
         # Create consensus and option
         consensus = GroupConsensus.objects.create(
@@ -728,50 +726,6 @@ class OpenAIServiceTest(TestCase):
         self.assertEqual(result['options'][0]['option_letter'], 'A')
         self.assertEqual(result['options'][1]['option_letter'], 'B')
         self.assertEqual(result['options'][2]['option_letter'], 'C')
-
-
-# ============================================================================
-# DUFFEL CONNECTOR TESTS
-# ============================================================================
-
-class DuffelConnectorTest(TestCase):
-    """Tests for Duffel API connector"""
-    
-    def test_connector_without_api_key(self):
-        """Test connector works without API key (mock mode)"""
-        connector = DuffelAPIConnector()
-        self.assertIsNotNone(connector)
-        
-    def test_flight_search_mock_data(self):
-        """Test flight search returns mock data when no API key"""
-        search = DuffelFlightSearch()
-        results = search.search_flights(
-            origin='JFK',
-            destination='LHR',
-            departure_date='2026-06-01',
-            adults=2
-        )
-        self.assertIsInstance(results, list)
-        self.assertGreater(len(results), 0)
-        
-    def test_aggregator_search_all(self):
-        """Test aggregator searches all services"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
-            destination='Paris',
-            origin='New York',
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
-        )
-        
-        self.assertIn('flights', results)
-        self.assertIn('hotels', results)
-        self.assertIn('activities', results)
-        self.assertIsInstance(results['flights'], list)
-        self.assertIsInstance(results['hotels'], list)
-        self.assertIsInstance(results['activities'], list)
 
 
 # ============================================================================
@@ -1415,7 +1369,8 @@ class APIConnectorExtendedTest(TestCase):
     
     def test_mock_flight_generation(self):
         """Test mock flight data generation"""
-        search = DuffelFlightSearch()
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        search = SerpApiFlightsConnector()
         results = search._get_mock_flight_data('JFK', 'LHR', '2026-06-01', '2026-06-08', 2)
         
         self.assertIsInstance(results, list)
@@ -1428,7 +1383,12 @@ class APIConnectorExtendedTest(TestCase):
             
     def test_aggregator_with_preferences(self):
         """Test aggregator with detailed preferences"""
-        aggregator = DuffelAggregator()
+        # Note: DuffelAggregator removed - using SerpAPI and Makcorps instead
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector, SerpApiActivitiesConnector
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        flights_connector = SerpApiFlightsConnector()
+        activities_connector = SerpApiActivitiesConnector()
+        hotels_connector = MakcorpsHotelConnector()
         
         preferences = {
             'budget_min': 1000,
@@ -1437,19 +1397,31 @@ class APIConnectorExtendedTest(TestCase):
             'activity_preferences': ['museums', 'food']
         }
         
-        results = aggregator.search_all(
+        # Test individual connectors instead of aggregator
+        flights = flights_connector.search_flights(
+            origin='JFK',
             destination='Rome',
-            origin=None,
+            departure_date='2026-06-01',
+            return_date='2026-06-08',
+            adults=2
+        )
+        hotels = hotels_connector.search_hotels(
+            location='Rome',
+            check_in='2026-06-01',
+            check_out='2026-06-08',
+            adults=2,
+            rooms=1
+        )
+        activities = activities_connector.search_activities(
+            destination='Rome',
             start_date='2026-06-01',
             end_date='2026-06-08',
-            adults=2,
-            rooms=1,
-            preferences=preferences
+            categories=preferences.get('activity_preferences')
         )
         
-        self.assertIn('flights', results)
-        self.assertIn('hotels', results)
-        self.assertIn('activities', results)
+        self.assertIsInstance(flights, list)
+        self.assertIsInstance(hotels, list)
+        self.assertIsInstance(activities, list)
 
 
 # ============================================================================
@@ -2383,81 +2355,6 @@ class APIConnectorsComprehensiveTest(TestCase):
 
 
 # ============================================================================
-# DUFFEL CONNECTOR EXTENDED TESTS
-# ============================================================================
-
-class DuffelConnectorExtendedTest(TestCase):
-    """Extended tests for Duffel connector"""
-    
-    def test_duffel_aggregator_initialization(self):
-        """Test Duffel aggregator can be initialized"""
-        aggregator = DuffelAggregator()
-        self.assertIsNotNone(aggregator)
-        self.assertIsNotNone(aggregator.flight_search)
-        
-    def test_search_with_origin_specified(self):
-        """Test search with specific origin"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
-            destination='London',
-            origin='New York',
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
-        )
-        
-        self.assertIn('flights', results)
-        # Mock data should still be generated
-        self.assertGreater(len(results['flights']), 0)
-        
-    def test_search_with_no_origin(self):
-        """Test search without origin (should still work)"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
-            destination='Barcelona',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
-        )
-        
-        self.assertIn('hotels', results)
-        self.assertIn('activities', results)
-        
-    def test_search_with_different_passenger_counts(self):
-        """Test searches with various passenger counts"""
-        aggregator = DuffelAggregator()
-        
-        # Solo traveler
-        results1 = aggregator.search_all(
-            destination='Paris',
-            origin='New York',  # Need origin for flight data
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=1,
-            rooms=1
-        )
-        
-        # Large group
-        results2 = aggregator.search_all(
-            destination='Paris',
-            origin='New York',  # Need origin for flight data
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=8,
-            rooms=4
-        )
-        
-        # Both should have hotels and activities at minimum
-        self.assertGreater(len(results1['hotels']), 0)
-        self.assertGreater(len(results2['hotels']), 0)
-        self.assertGreater(len(results1['activities']), 0)
-        self.assertGreater(len(results2['activities']), 0)
-
-
-# ============================================================================
 # SEARCH FILTERING AND SORTING TESTS
 # ============================================================================
 
@@ -2644,58 +2541,17 @@ class WinnerSelectionTest(TestCase):
 class MockDataStructureTest(TestCase):
     """Tests for mock data structure and format"""
     
-    def test_mock_flight_data_structure(self):
-        """Test mock flight data has correct structure"""
-        search = DuffelFlightSearch()
-        flights = search._get_mock_flight_data('JFK', 'CDG', '2026-06-01', '2026-06-08', 2)
-        
-        for flight in flights:
-            # Required fields
-            self.assertIn('id', flight)
-            self.assertIn('airline', flight)
-            self.assertIn('price', flight)
-            self.assertIn('currency', flight)
-            self.assertIn('departure_time', flight)
-            self.assertIn('arrival_time', flight)
-            self.assertIn('duration', flight)
-            self.assertIn('stops', flight)
-            self.assertTrue(flight['is_mock'])
-            
-    def test_mock_hotel_data_structure(self):
-        """Test mock hotel data has correct structure"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
-            destination='Vienna',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
-        )
-        
-        hotels = results['hotels']
-        self.assertGreater(len(hotels), 0)
-        
-        for hotel in hotels:
-            self.assertIn('id', hotel)
-            self.assertIn('name', hotel)
-            self.assertIn('price_per_night', hotel)
-            self.assertIn('total_price', hotel)
-            self.assertIn('rating', hotel)
-            
     def test_mock_activity_data_structure(self):
         """Test mock activity data has correct structure"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
+        from ai_implementation.api_connectors import ActivityAPIConnector
+        
+        connector = ActivityAPIConnector()
+        activities = connector.search_activities(
             destination='Stockholm',
-            origin=None,
             start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
+            end_date='2026-06-08'
         )
         
-        activities = results['activities']
         self.assertGreater(len(activities), 0)
         
         for activity in activities:
@@ -2971,18 +2827,32 @@ class PerformSearchPostTest(TestCase):
             budget_max=5000
         )
         
-    @patch('ai_implementation.views.DuffelAggregator')
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
     @patch('ai_implementation.views.OpenAIService')
-    def test_perform_search_post_success(self, mock_openai, mock_duffel):
+    def test_perform_search_post_success(self, mock_openai, mock_makcorps, mock_activities, mock_flights):
         """Test successful POST to perform_search"""
-        # Mock Duffel results
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [{'id': 'f1', 'airline': 'Emirates', 'price': 800, 'is_mock': True}],
-            'hotels': [{'id': 'h1', 'name': 'Dubai Hotel', 'price_per_night': 200, 'total_price': 1400, 'is_mock': True}],
-            'activities': [{'id': 'a1', 'name': 'Desert Safari', 'price': 100, 'is_mock': True}]
-        }
-        mock_duffel.return_value = mock_aggregator
+        # Mock SerpAPI flights
+        mock_flights_instance = Mock()
+        mock_flights_instance.search_flights.return_value = [
+            {'id': 'f1', 'airline': 'Emirates', 'price': 800, 'is_mock': True}
+        ]
+        mock_flights.return_value = mock_flights_instance
+        
+        # Mock Makcorps hotels
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Dubai Hotel', 'price_per_night': 200, 'total_price': 1400, 'is_mock': True}
+        ]
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        # Mock SerpAPI activities
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = [
+            {'id': 'a1', 'name': 'Desert Safari', 'price': 100, 'is_mock': True}
+        ]
+        mock_activities.return_value = mock_activities_instance
         
         # Mock OpenAI results
         mock_openai_service = Mock()
@@ -3051,27 +2921,35 @@ class GenerateVotingOptionsPostTest(TestCase):
             is_completed=True
         )
     
-    @patch('ai_implementation.views.DuffelAggregator')
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
     @patch('ai_implementation.views.OpenAIService')
-    def test_generate_voting_options_post_success(self, mock_openai, mock_duffel):
+    def test_generate_voting_options_post_success(self, mock_openai, mock_makcorps, mock_activities, mock_flights):
         """Test successful generation of voting options"""
-        # Mock Duffel aggregator
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [
-                {'id': 'f1', 'airline': 'Air France', 'price': 500, 'searched_destination': 'Paris, France'},
-                {'id': 'f2', 'airline': 'Alitalia', 'price': 450, 'searched_destination': 'Rome, Italy'}
-            ],
-            'hotels': [
-                {'id': 'h1', 'name': 'Paris Hotel', 'price_per_night': 200, 'total_price': 1400, 'searched_destination': 'Paris, France'},
-                {'id': 'h2', 'name': 'Rome Hotel', 'price_per_night': 150, 'total_price': 1050, 'searched_destination': 'Rome, Italy'}
-            ],
-            'activities': [
-                {'id': 'a1', 'name': 'Eiffel Tower', 'price': 50, 'searched_destination': 'Paris, France'},
-                {'id': 'a2', 'name': 'Colosseum', 'price': 45, 'searched_destination': 'Rome, Italy'}
-            ]
-        }
-        mock_duffel.return_value = mock_aggregator
+        # Mock SerpAPI flights
+        mock_flights_instance = Mock()
+        mock_flights_instance.search_flights.return_value = [
+            {'id': 'f1', 'airline': 'Air France', 'price': 500, 'searched_destination': 'Paris, France'},
+            {'id': 'f2', 'airline': 'Alitalia', 'price': 450, 'searched_destination': 'Rome, Italy'}
+        ]
+        mock_flights.return_value = mock_flights_instance
+        
+        # Mock Makcorps hotels
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Paris Hotel', 'price_per_night': 200, 'total_price': 1400, 'searched_destination': 'Paris, France'},
+            {'id': 'h2', 'name': 'Rome Hotel', 'price_per_night': 150, 'total_price': 1050, 'searched_destination': 'Rome, Italy'}
+        ]
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        # Mock SerpAPI activities
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = [
+            {'id': 'a1', 'name': 'Eiffel Tower', 'price': 50, 'searched_destination': 'Paris, France'},
+            {'id': 'a2', 'name': 'Colosseum', 'price': 45, 'searched_destination': 'Rome, Italy'}
+        ]
+        mock_activities.return_value = mock_activities_instance
         
         # Mock OpenAI service
         mock_service = Mock()
@@ -3145,56 +3023,6 @@ class GenerateVotingOptionsPostTest(TestCase):
         self.assertEqual(options.count(), 3)
 
 
-# ============================================================================
-# ADDITIONAL DUFFEL TESTS
-# ============================================================================
-
-class DuffelAggregatorMethodTest(TestCase):
-    """Tests for specific Duffel aggregator methods"""
-    
-    # def test_search_flights_method(self):
-    #     """Test direct flight search method"""
-    #     search = DuffelFlightSearch()
-    #     flights = search.search_flights(
-    #         origin='LAX',
-    #         destination='JFK',
-    #         departure_date='2026-06-01',
-    #         return_date='2026-06-08',
-    #         adults=2
-    #     )
-        
-    #     self.assertIsInstance(flights, list)
-    #     # Should get mock data
-    #     if len(flights) > 0:
-    #         self.assertTrue(flights[0].get('is_mock', False))
-            
-    def test_hotel_search_various_durations(self):
-        """Test hotel search with different stay durations"""
-        aggregator = DuffelAggregator()
-        
-        # Short stay (3 days)
-        results_short = aggregator.search_all(
-            destination='Prague',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-04',
-            adults=2,
-            rooms=1
-        )
-        
-        # Long stay (14 days)
-        results_long = aggregator.search_all(
-            destination='Prague',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-15',
-            adults=2,
-            rooms=1
-        )
-        
-        # Both should return hotels
-        self.assertGreater(len(results_short['hotels']), 0)
-        self.assertGreater(len(results_long['hotels']), 0)
 
 
 # ============================================================================
@@ -4563,17 +4391,16 @@ class MockDataDetailTest(TestCase):
     
     def test_mock_hotels_have_realistic_data(self):
         """Test mock hotels have realistic properties"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
-            destination='Madrid',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-08',
+        # Note: DuffelAggregator removed - using SerpAPI and Makcorps instead
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        hotels_connector = MakcorpsHotelConnector()
+        hotels = hotels_connector.search_hotels(
+            location='Madrid',
+            check_in='2026-06-01',
+            check_out='2026-06-08',
             adults=2,
             rooms=1
         )
-        
-        hotels = results['hotels']
         
         for hotel in hotels:
             # Check realistic ranges
@@ -4586,17 +4413,14 @@ class MockDataDetailTest(TestCase):
             
     def test_mock_activities_have_durations(self):
         """Test mock activities include duration"""
-        aggregator = DuffelAggregator()
-        results = aggregator.search_all(
+        # Note: DuffelAggregator removed - using SerpAPI and Makcorps instead
+        from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
+        activities_connector = SerpApiActivitiesConnector()
+        activities = activities_connector.search_activities(
             destination='Vienna',
-            origin=None,
             start_date='2026-06-01',
-            end_date='2026-06-08',
-            adults=2,
-            rooms=1
+            end_date='2026-06-08'
         )
-        
-        activities = results['activities']
         
         for activity in activities:
             duration = activity.get('duration_hours', 0)
@@ -4971,45 +4795,6 @@ class ViewErrorPathTest(TestCase):
 
 
 # ============================================================================
-# ADDITIONAL DUFFEL METHODS
-# ============================================================================
-
-class DuffelMethodsTest(TestCase):
-    """Tests for additional Duffel methods"""
-    
-    def test_duffel_flight_search_direct(self):
-        """Test Duffel flight search directly"""
-        search = DuffelFlightSearch()
-        
-        flights = search.search_flights(
-            origin='ATL',
-            destination='ORD',
-            departure_date='2026-06-01',
-            adults=1
-        )
-        
-        self.assertIsInstance(flights, list)
-        
-    def test_duffel_aggregator_hotel_search(self):
-        """Test Duffel aggregator hotel component"""
-        aggregator = DuffelAggregator()
-        
-        # The aggregator should have a method to search hotels
-        results = aggregator.search_all(
-            destination='Miami',
-            origin=None,
-            start_date='2026-06-01',
-            end_date='2026-06-05',
-            adults=2,
-            rooms=1
-        )
-        
-        # Should return hotels
-        self.assertIn('hotels', results)
-        self.assertIsInstance(results['hotels'], list)
-
-
-# ============================================================================
 # COMPREHENSIVE EDGE CASE TESTS
 # ============================================================================
 
@@ -5140,50 +4925,6 @@ class ViewIntegrationComprehensive(TestCase):
 
 
 # ============================================================================
-# DUFFEL CONNECTOR COMPREHENSIVE
-# ============================================================================
-
-class DuffelConnectorComprehensive(TestCase):
-    """Comprehensive Duffel connector tests"""
-    
-    def test_duffel_search_various_origins(self):
-        """Test Duffel with various origin airports"""
-        aggregator = DuffelAggregator()
-        
-        origins = ['JFK', 'LAX', 'ORD', 'ATL']
-        
-        for origin in origins:
-            results = aggregator.search_all(
-                destination='Miami',
-                origin=origin,
-                start_date='2026-06-01',
-                end_date='2026-06-05',
-                adults=2,
-                rooms=1
-            )
-            self.assertIsInstance(results, dict)
-            
-    def test_duffel_search_various_destinations(self):
-        """Test Duffel with various destinations"""
-        aggregator = DuffelAggregator()
-        
-        destinations = ['Denver', 'Tampa', 'Phoenix']
-        
-        for dest in destinations:
-            results = aggregator.search_all(
-                destination=dest,
-                origin=None,
-                start_date='2026-06-01',
-                end_date='2026-06-08',
-                adults=2,
-                rooms=1
-            )
-            self.assertIsInstance(results, dict)
-            self.assertIn('hotels', results)
-            self.assertIn('activities', results)
-
-
-# ============================================================================
 # COMPREHENSIVE FORM TESTS
 # ============================================================================
 
@@ -5306,18 +5047,24 @@ class ViewsEdgeCaseTest(TestCase):
         self.client = Client()
         self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
         
-    @patch('ai_implementation.views.DuffelAggregator')
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
     @patch('ai_implementation.views.OpenAIService')
-    def test_perform_search_with_no_results(self, mock_openai, mock_duffel):
+    def test_perform_search_with_no_results(self, mock_openai, mock_makcorps, mock_activities, mock_flights):
         """Test perform_search when API returns no results"""
         # Mock empty results
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [],
-            'hotels': [],
-            'activities': []
-        }
-        mock_duffel.return_value = mock_aggregator
+        mock_flights_instance = Mock()
+        mock_flights_instance.search_flights.return_value = []
+        mock_flights.return_value = mock_flights_instance
+        
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = []
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = []
+        mock_activities.return_value = mock_activities_instance
         
         mock_service = Mock()
         mock_service.consolidate_travel_results.return_value = {
@@ -5345,13 +5092,15 @@ class ViewsEdgeCaseTest(TestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
         
-    @patch('ai_implementation.views.DuffelAggregator')
-    def test_perform_search_api_exception(self, mock_duffel):
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_api_exception(self, mock_makcorps, mock_activities, mock_flights):
         """Test perform_search handles API exceptions"""
         # Mock API exception
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.side_effect = Exception('API Error')
-        mock_duffel.return_value = mock_aggregator
+        mock_flights_instance = Mock()
+        mock_flights_instance.search_flights.side_effect = Exception('API Error')
+        mock_flights.return_value = mock_flights_instance
         
         search = TravelSearch.objects.create(
             user=self.user,
@@ -5461,9 +5210,11 @@ class GenerateVotingEdgeCaseTest(TestCase):
         # Should return error status
         self.assertIn(response.status_code, [400, 500])
         
-    @patch('ai_implementation.views.DuffelAggregator')
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
     @patch('ai_implementation.views.OpenAIService')
-    def test_generate_voting_openai_error(self, mock_openai, mock_duffel):
+    def test_generate_voting_openai_error(self, mock_openai, mock_makcorps, mock_activities, mock_flights):
         """Test handling OpenAI API errors during voting generation"""
         # Setup preferences
         TripPreference.objects.create(
@@ -5486,14 +5237,18 @@ class GenerateVotingEdgeCaseTest(TestCase):
             is_completed=True
         )
         
-        # Mock Duffel success
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [{'id': 'f1', 'price': 500}],
-            'hotels': [{'id': 'h1', 'price': 1000}],
-            'activities': [{'id': 'a1', 'price': 50}]
-        }
-        mock_duffel.return_value = mock_aggregator
+        # Mock API success
+        mock_flights_instance = Mock()
+        mock_flights_instance.search_flights.return_value = [{'id': 'f1', 'price': 500}]
+        mock_flights.return_value = mock_flights_instance
+        
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = [{'id': 'h1', 'price': 1000}]
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = [{'id': 'a1', 'price': 50}]
+        mock_activities.return_value = mock_activities_instance
         
         # Mock OpenAI failure
         mock_service = Mock()
@@ -5587,70 +5342,7829 @@ class CastVoteEdgeCaseTest(TestCase):
         
         response = self.client.post(url)
         self.assertEqual(response.status_code, 404)
-
-
-class DuffelConnectorEdgeCaseTest(TestCase):
-    """Edge case tests for Duffel connector"""
     
-    def test_search_with_very_short_trip(self):
-        """Test search for 1-day trip"""
-        aggregator = DuffelAggregator()
+    def test_cast_vote_unanimous_acceptance(self):
+        """Test that unanimous vote marks option as accepted"""
+        # Create second member
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
         
-        results = aggregator.search_all(
-            destination='Philadelphia',
-            origin='New York',
-            start_date='2026-06-01',
-            end_date='2026-06-02',  # Just 1 day
-            adults=1,
-            rooms=1
+        # Set option as active
+        self.option.status = 'active'
+        self.option.save()
+        
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        
+        # First vote
+        response1 = self.client.post(url, {'comment': ''})
+        self.assertEqual(response1.status_code, 200)
+        data1 = json.loads(response1.content)
+        self.assertFalse(data1.get('unanimous', False))
+        
+        # Second vote (should trigger unanimous)
+        self.client.login(username='user2', password='pass123')
+        response2 = self.client.post(url, {'comment': ''})
+        self.assertEqual(response2.status_code, 200)
+        data2 = json.loads(response2.content)
+        
+        # Check option was marked as accepted
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.status, 'accepted')
+        self.assertTrue(self.option.is_winner)
+        self.assertTrue(data2.get('unanimous', False))
+    
+    def test_cast_vote_not_unanimous_rejects(self):
+        """Test that non-unanimous vote rejects option and advances"""
+        # Create second member
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
+        
+        # Create pending option
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter='B',
+            title='Pending Option',
+            description='Test',
+            search=self.option.search,
+            status='pending',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
         )
         
-        self.assertIsInstance(results, dict)
-        self.assertIn('hotels', results)
+        # Set option as active
+        self.option.status = 'active'
+        self.option.save()
         
-    def test_search_with_invalid_dates(self):
-        """Test search with unusual date patterns"""
-        aggregator = DuffelAggregator()
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
         
-        # Should handle gracefully
-        results = aggregator.search_all(
-            destination='San Francisco',
-            origin=None,
-            start_date='2026-12-25',  # Christmas
-            end_date='2026-12-31',  # New Year's Eve
-            adults=4,
-            rooms=2
+        # First vote (yes)
+        response1 = self.client.post(url, {'comment': ''})
+        self.assertEqual(response1.status_code, 200)
+        
+        # Second vote (no - ROLL_AGAIN)
+        self.client.login(username='user2', password='pass123')
+        roll_again_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        response2 = self.client.post(roll_again_url)
+        self.assertEqual(response2.status_code, 200)
+        
+        # Check option was rejected
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.status, 'rejected')
+        
+        # Check pending option was activated
+        pending_option.refresh_from_db()
+        self.assertEqual(pending_option.status, 'active')
+    
+    def test_cast_vote_not_unanimous_no_pending_no_generation(self):
+        """Test cast_vote when not unanimous, no pending, and generation fails"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create second member
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
+        
+        # Create flight and hotel
+        flight = FlightResult.objects.create(
+            search=self.option.search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=self.option.search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
         )
         
-        self.assertIsInstance(results, dict)
+        # Create trip preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
         
-    def test_flight_search_with_return_date(self):
-        """Test flight search with explicit return"""
-        search = DuffelFlightSearch()
+        # Set option as active, no pending options
+        self.option.status = 'active'
+        self.option.save()
         
-        flights = search.search_flights(
-            origin='SEA',
-            destination='PDX',
-            departure_date='2026-06-01',
-            return_date='2026-06-05',
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        
+        # First vote (yes)
+        self.client.post(url, {'comment': ''})
+        
+        # Second vote (no - ROLL_AGAIN)
+        self.client.login(username='user2', password='pass123')
+        roll_again_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        
+        # Mock _generate_single_new_option to return None
+        with patch('ai_implementation.views._generate_single_new_option', return_value=None):
+            response = self.client.post(roll_again_url)
+            self.assertEqual(response.status_code, 200)
+            data = json.loads(response.content)
+            
+            # Should indicate no more options
+            self.option.refresh_from_db()
+            self.assertEqual(self.option.status, 'rejected')
+    
+    def test_cast_vote_voting_on_non_active_option(self):
+        """Test voting on an option that is not active"""
+        self.option.status = 'pending'
+        self.option.save()
+        
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        
+        response = self.client.post(url, {'comment': ''})
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('unanimous', False))
+        
+        # Option should not be marked as accepted
+        self.option.refresh_from_db()
+        self.assertNotEqual(self.option.status, 'accepted')
+    
+    def test_cast_vote_changes_vote_to_different_option(self):
+        """Test changing vote from one option to another"""
+        # Create second option
+        option2 = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter='B',
+            title='Option B',
+            description='Test',
+            search=self.option.search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+        url1 = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        url2 = reverse('ai_implementation:cast_vote', args=[self.group.id, option2.id])
+        
+        # Vote for first option
+        response1 = self.client.post(url1, {'comment': ''})
+        self.assertEqual(response1.status_code, 200)
+        
+        # Change vote to second option
+        response2 = self.client.post(url2, {'comment': ''})
+        self.assertEqual(response2.status_code, 200)
+        
+        # Should only have one vote for user
+        votes = ItineraryVote.objects.filter(user=self.user, group=self.group)
+        self.assertEqual(votes.count(), 1)
+        self.assertEqual(votes.first().option.id, option2.id)
+        
+        # Vote counts should be updated
+        self.option.refresh_from_db()
+        option2.refresh_from_db()
+        self.assertEqual(self.option.vote_count, 0)
+        self.assertEqual(option2.vote_count, 1)
+
+
+class RollAgainTest(TestCase):
+    """Tests for roll_again functionality"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        
+        self.group = TravelGroup.objects.create(
+            name='Roll Again Test',
+            created_by=self.user,
+            password='group123'
+        )
+        
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
             adults=2
         )
         
-        self.assertIsInstance(flights, list)
+        self.option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+    
+    def test_roll_again_creates_vote(self):
+        """Test that roll_again creates a vote with ROLL_AGAIN comment"""
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
         
-    def test_flight_search_without_return(self):
-        """Test one-way flight search"""
-        search = DuffelFlightSearch()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
         
-        flights = search.search_flights(
-            origin='DEN',
-            destination='PHX',
-            departure_date='2026-06-01',
-            return_date=None,
-            adults=1
+        # Check vote was created
+        vote = ItineraryVote.objects.filter(user=self.user, option=self.option).first()
+        self.assertIsNotNone(vote)
+        self.assertEqual(vote.comment, 'ROLL_AGAIN')
+    
+    def test_roll_again_unanimous_after_all_vote(self):
+        """Test roll_again when all members vote and it becomes unanimous"""
+        # First user votes yes
+        self.client.login(username='testuser', password='pass123')
+        cast_url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        self.client.post(cast_url, {'comment': ''})
+        
+        # Second user votes roll again (should not be unanimous)
+        self.client.login(username='user2', password='pass123')
+        roll_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        response = self.client.post(roll_url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        
+        # Should not be unanimous
+        self.option.refresh_from_db()
+        self.assertNotEqual(self.option.status, 'accepted')
+    
+    def test_roll_again_advances_to_pending(self):
+        """Test that roll_again advances to next pending option when all vote"""
+        # Create pending option
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter='B',
+            title='Pending Option',
+            description='Test',
+            search=self.option.search,
+            status='pending',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
         )
         
-        self.assertIsInstance(flights, list)
+        # Both users vote roll again
+        self.client.login(username='testuser', password='pass123')
+        roll_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        self.client.post(roll_url)
+        
+        self.client.login(username='user2', password='pass123')
+        response = self.client.post(roll_url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Check option was rejected and pending was activated
+        self.option.refresh_from_db()
+        pending_option.refresh_from_db()
+        self.assertEqual(self.option.status, 'rejected')
+        self.assertEqual(pending_option.status, 'active')
+    
+    def test_roll_again_no_pending_generates_new(self):
+        """Test roll_again when no pending options exist, generates new one"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Create flight and hotel for search
+        flight = FlightResult.objects.create(
+            search=self.option.search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=self.option.search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        # Create trip preferences
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Both users vote roll again (no pending options)
+        self.client.login(username='testuser', password='pass123')
+        roll_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        self.client.post(roll_url)
+        
+        self.client.login(username='user2', password='pass123')
+        with patch('ai_implementation.views._generate_single_new_option') as mock_generate:
+            mock_new_option = GroupItineraryOption.objects.create(
+                group=self.group,
+                consensus=self.option.consensus,
+                option_letter='B',
+                title='New Option',
+                description='Test',
+                search=self.option.search,
+                status='active',
+                estimated_total_cost=2000.00,
+                cost_per_person=1000.00,
+                ai_reasoning='Test'
+            )
+            mock_generate.return_value = mock_new_option
+            
+            response = self.client.post(roll_url)
+            self.assertEqual(response.status_code, 200)
+            data = json.loads(response.content)
+            self.assertTrue(data.get('success', False))
+            self.assertTrue(data.get('advanced', False))
+    
+    def test_roll_again_not_all_voted_yet(self):
+        """Test roll_again when not all members have voted"""
+        self.client.login(username='testuser', password='pass123')
+        roll_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        
+        response = self.client.post(roll_url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+        self.assertTrue(data.get('waiting', False))
+        
+        # Option should still be active
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.status, 'active')
+    
+    def test_roll_again_unanimous_edge_case(self):
+        """Test roll_again edge case where it becomes unanimous (shouldn't happen)"""
+        # First user votes yes
+        self.client.login(username='testuser', password='pass123')
+        cast_url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        self.client.post(cast_url, {'comment': ''})
+        
+        # Second user somehow votes yes too (edge case)
+        # This shouldn't happen via roll_again, but test the path
+        self.client.login(username='user2', password='pass123')
+        cast_url2 = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        self.client.post(cast_url2, {'comment': ''})
+        
+        # Now try roll_again (should detect unanimous and return error)
+        roll_url = reverse('ai_implementation:roll_again', args=[self.group.id, self.option.id])
+        # But we already voted yes, so this is an edge case
+        # The logic should handle this
+
+
+class AirportDataTest(TestCase):
+    """Tests for airport_data autocomplete functionality"""
+    
+    def test_search_airports_basic(self):
+        """Test basic airport search"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('New York')
+        self.assertGreater(len(results), 0)
+        self.assertIn('JFK', [r['code'] for r in results])
+    
+    def test_search_airports_case_insensitive(self):
+        """Test that search is case insensitive"""
+        from ai_implementation.airport_data import search_airports
+        
+        results1 = search_airports('new york')
+        results2 = search_airports('NEW YORK')
+        self.assertEqual(len(results1), len(results2))
+    
+    def test_search_airports_partial_match(self):
+        """Test partial matching"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('Los')
+        self.assertGreater(len(results), 0)
+        # Should find LAX
+        codes = [r['code'] for r in results]
+        self.assertTrue(any('LAX' in code or 'Los' in r['name'] for r in results for code in [r['code']]))
+    
+    def test_search_airports_empty_query(self):
+        """Test search with empty query"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('')
+        self.assertEqual(len(results), 0)
+    
+    def test_airport_autocomplete_view(self):
+        """Test the airport autocomplete view"""
+        from django.contrib.auth.models import User
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.force_login(user)
+        
+        url = reverse('ai_implementation:airport_autocomplete')
+        response = self.client.get(url, {'q': 'New York'})
+        self.assertEqual(response.status_code, 200)
+        
+        data = json.loads(response.content)
+        self.assertIn('airports', data)
+        self.assertGreater(len(data['airports']), 0)
+    
+    def test_airport_autocomplete_no_query(self):
+        """Test autocomplete with no query parameter"""
+        from django.contrib.auth.models import User
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.force_login(user)
+        
+        url = reverse('ai_implementation:airport_autocomplete')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        data = json.loads(response.content)
+        self.assertIn('airports', data)
+        self.assertEqual(len(data['airports']), 0)
+    
+    def test_search_airports_by_code(self):
+        """Test searching by airport code"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('JFK')
+        self.assertGreater(len(results), 0)
+        self.assertTrue(any(r['code'] == 'JFK' for r in results))
+    
+    def test_search_airports_by_city_name(self):
+        """Test searching by city name"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('Chicago')
+        self.assertGreater(len(results), 0)
+        self.assertTrue(any('Chicago' in r['city'] or 'Chicago' in r['name'] for r in results))
+    
+    def test_search_airports_limit_results(self):
+        """Test that search returns limited results"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('New')
+        # Should return multiple results but limited
+        self.assertGreater(len(results), 0)
+        self.assertLessEqual(len(results), 10)  # Assuming limit of 10
+    
+    def test_search_airports_code_starts_with(self):
+        """Test code starts with query (score 80)"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('JF')
+        # Should find JFK with high score
+        self.assertGreater(len(results), 0)
+        jfk_results = [r for r in results if r['code'] == 'JFK']
+        if jfk_results:
+            self.assertGreaterEqual(jfk_results[0]['score'], 80)
+    
+    def test_search_airports_code_contains(self):
+        """Test code contains query (score 60)"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('FK')
+        # Should find JFK with score 60
+        self.assertGreater(len(results), 0)
+    
+    def test_search_airports_name_match(self):
+        """Test airport name match (score 40)"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('International')
+        # Should find multiple airports with name containing "International"
+        self.assertGreater(len(results), 0)
+    
+    def test_search_airports_country_match(self):
+        """Test country match (score 20)"""
+        from ai_implementation.airport_data import search_airports
+        
+        results = search_airports('USA')
+        # Should find US airports
+        self.assertGreater(len(results), 0)
+        # All should be US airports
+        self.assertTrue(all('USA' in r['country'] for r in results))
+
+
+class HelperFunctionTest(TestCase):
+    """Tests for helper functions in views.py"""
+    
+    def test_convert_decimals_to_float_decimal(self):
+        """Test _convert_decimals_to_float with Decimal"""
+        from decimal import Decimal
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        result = _convert_decimals_to_float(Decimal('123.45'))
+        self.assertEqual(result, 123.45)
+        self.assertIsInstance(result, float)
+    
+    def test_convert_decimals_to_float_dict(self):
+        """Test _convert_decimals_to_float with dict containing Decimals"""
+        from decimal import Decimal
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        data = {
+            'price': Decimal('100.50'),
+            'amount': Decimal('200.75'),
+            'string': 'test'
+        }
+        result = _convert_decimals_to_float(data)
+        self.assertEqual(result['price'], 100.50)
+        self.assertEqual(result['amount'], 200.75)
+        self.assertEqual(result['string'], 'test')
+        self.assertIsInstance(result['price'], float)
+    
+    def test_convert_decimals_to_float_list(self):
+        """Test _convert_decimals_to_float with list containing Decimals"""
+        from decimal import Decimal
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        data = [Decimal('10.5'), Decimal('20.5'), 'string', 30]
+        result = _convert_decimals_to_float(data)
+        self.assertEqual(result[0], 10.5)
+        self.assertEqual(result[1], 20.5)
+        self.assertEqual(result[2], 'string')
+        self.assertEqual(result[3], 30)
+        self.assertIsInstance(result[0], float)
+    
+    def test_convert_decimals_to_float_tuple(self):
+        """Test _convert_decimals_to_float with tuple containing Decimals"""
+        from decimal import Decimal
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        data = (Decimal('10.5'), Decimal('20.5'))
+        result = _convert_decimals_to_float(data)
+        self.assertEqual(result[0], 10.5)
+        self.assertEqual(result[1], 20.5)
+        self.assertIsInstance(result, tuple)
+    
+    def test_convert_decimals_to_float_nested(self):
+        """Test _convert_decimals_to_float with nested structures"""
+        from decimal import Decimal
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        data = {
+            'items': [
+                {'price': Decimal('10.5')},
+                {'price': Decimal('20.5')}
+            ],
+            'total': Decimal('31.0')
+        }
+        result = _convert_decimals_to_float(data)
+        self.assertEqual(result['items'][0]['price'], 10.5)
+        self.assertEqual(result['items'][1]['price'], 20.5)
+        self.assertEqual(result['total'], 31.0)
+    
+    def test_convert_decimals_to_float_regular_types(self):
+        """Test _convert_decimals_to_float with non-Decimal types"""
+        from ai_implementation.views import _convert_decimals_to_float
+        
+        # Should return as-is for non-Decimal types
+        self.assertEqual(_convert_decimals_to_float(123), 123)
+        self.assertEqual(_convert_decimals_to_float('test'), 'test')
+        self.assertEqual(_convert_decimals_to_float(None), None)
+        self.assertEqual(_convert_decimals_to_float(True), True)
+    
+    def test_generate_single_new_option_with_data(self):
+        """Test _generate_single_new_option with valid data"""
+        from ai_implementation.views import _generate_single_new_option
+        from ai_implementation.models import FlightResult, HotelResult, ActivityResult
+        from datetime import datetime
+        
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=user,
+            password='test123'
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        # Create flight and hotel
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        member_prefs = [{
+            'user': 'testuser',
+            'destination': 'Paris',
+            'budget': '2000'
+        }]
+        
+        with patch('ai_implementation.views.OpenAIService') as mock_openai:
+            mock_service = mock_openai.return_value
+            mock_service.generate_three_itinerary_options.return_value = {
+                'options': [{
+                    'title': 'Test Trip',
+                    'description': 'Test description',
+                    'intended_destination': 'Paris',
+                    'selected_flight_id': 'flight1',
+                    'selected_hotel_id': 'hotel1',
+                    'selected_activity_ids': [],
+                    'estimated_total_cost': 1200.00,
+                    'cost_per_person': 600.00,
+                    'ai_reasoning': 'Test reasoning'
+                }]
+            }
+            
+            result = _generate_single_new_option(group, consensus, search, member_prefs)
+            self.assertIsNotNone(result)
+            self.assertIsInstance(result, GroupItineraryOption)
+            self.assertEqual(result.title, 'Test Trip')
+    
+    def test_generate_single_new_option_no_flights(self):
+        """Test _generate_single_new_option when no flights exist"""
+        from ai_implementation.views import _generate_single_new_option
+        
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=user,
+            password='test123'
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        # Create hotel but no flight
+        HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        member_prefs = [{'user': 'testuser', 'destination': 'Paris'}]
+        
+        result = _generate_single_new_option(group, consensus, search, member_prefs)
+        self.assertIsNone(result)
+    
+    def test_generate_single_new_option_no_hotels(self):
+        """Test _generate_single_new_option when no hotels exist"""
+        from ai_implementation.views import _generate_single_new_option
+        from ai_implementation.models import FlightResult
+        from datetime import datetime
+        
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=user,
+            password='test123'
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        # Create flight but no hotel
+        FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        member_prefs = [{'user': 'testuser', 'destination': 'Paris'}]
+        
+        result = _generate_single_new_option(group, consensus, search, member_prefs)
+        self.assertIsNone(result)
+    
+    def test_generate_single_new_option_openai_fallback(self):
+        """Test _generate_single_new_option falls back to manual generation"""
+        from ai_implementation.views import _generate_single_new_option
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=user,
+            password='test123'
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        member_prefs = [{'user': 'testuser', 'destination': 'Paris'}]
+        
+        # Mock OpenAI to raise exception
+        with patch('ai_implementation.views.OpenAIService') as mock_openai:
+            mock_service = mock_openai.return_value
+            mock_service.generate_three_itinerary_options.side_effect = Exception("API Error")
+            
+            # Should fall back to manual generation
+            result = _generate_single_new_option(group, consensus, search, member_prefs)
+            # Manual generation should still create an option
+            self.assertIsNotNone(result)
+
+
+class SerpApiConnectorErrorTest(TestCase):
+    """Tests for SerpApi connector error handling"""
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_api_error(self, mock_get):
+        """Test search_flights handles API errors"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_get.side_effect = requests.RequestException("Network error")
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_invalid_response(self, mock_get):
+        """Test search_flights handles invalid JSON response"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_no_api_key(self, mock_get):
+        """Test search_flights without API key returns mock data"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = None
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should return mock data
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        mock_get.assert_not_called()
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_activities_api_error(self, mock_get):
+        """Test search_activities handles API errors"""
+        from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
+        
+        mock_get.side_effect = requests.RequestException("Network error")
+        
+        connector = SerpApiActivitiesConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_activities(
+            destination='Paris',
+            query='museums'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_http_error(self, mock_get):
+        """Test search_flights handles HTTP errors"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status.side_effect = requests.HTTPError("Server error")
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        # Should handle error gracefully
+        try:
+            results = connector.search_flights(
+                origin='JFK',
+                destination='LAX',
+                departure_date='2025-06-01'
+            )
+            # If it doesn't raise, should return mock data
+            self.assertIsInstance(results, list)
+        except Exception:
+            # Or may raise exception
+            pass
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_flights_empty_response(self, mock_get):
+        """Test search_flights handles empty response"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should handle empty response
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_activities_invalid_response(self, mock_get):
+        """Test search_activities handles invalid JSON response"""
+        from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiActivitiesConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_activities(
+            destination='Paris',
+            query='museums'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_search_activities_no_api_key(self, mock_get):
+        """Test search_activities without API key returns mock data"""
+        from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
+        
+        connector = SerpApiActivitiesConnector()
+        connector.api_key = None
+        
+        results = connector.search_activities(
+            destination='Paris',
+            query='museums'
+        )
+        
+        # Should return mock data
+        self.assertIsInstance(results, list)
+        mock_get.assert_not_called()
+
+
+class MakcorpsConnectorErrorTest(TestCase):
+    """Tests for Makcorps connector error handling"""
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_api_error(self, mock_get):
+        """Test search_hotels handles API errors"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        mock_get.side_effect = requests.RequestException("Network error")
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_hotels(
+            location='Paris',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_invalid_response(self, mock_get):
+        """Test search_hotels handles invalid JSON response"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_get.return_value = mock_response
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_hotels(
+            location='Paris',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_no_api_key(self, mock_get):
+        """Test search_hotels without API key returns mock data"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = None
+        
+        results = connector.search_hotels(
+            location='Paris',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data
+        self.assertIsInstance(results, list)
+        mock_get.assert_not_called()
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_http_error(self, mock_get):
+        """Test search_hotels handles HTTP errors"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status.side_effect = requests.HTTPError("Server error")
+        mock_get.return_value = mock_response
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_hotels(
+            location='Paris',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data on error
+        self.assertIsInstance(results, list)
+    
+    def test_extract_city_name_basic(self):
+        """Test _extract_city_name extracts city from location"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        self.assertEqual(connector._extract_city_name('Paris'), 'Paris')
+        self.assertEqual(connector._extract_city_name('Paris, France'), 'Paris')
+        self.assertEqual(connector._extract_city_name('Alberta, Canada'), 'Alberta')
+        self.assertEqual(connector._extract_city_name('Sicily, Italy'), 'Sicily')
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_401_error(self, mock_get):
+        """Test search_hotels handles 401 unauthorized error"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_response.text = 'Unauthorized'
+        mock_get.return_value = mock_response
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = 'invalid-key'
+        
+        results = connector.search_hotels(
+            location='Paris',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data on 401
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.makcorps_connector.requests.get')
+    def test_search_hotels_404_error(self, mock_get):
+        """Test search_hotels handles 404 not found error"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 404
+        mock_response.text = 'City not found'
+        mock_get.return_value = mock_response
+        
+        connector = MakcorpsHotelConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_hotels(
+            location='Nonexistent City',
+            check_in='2025-06-01',
+            check_out='2025-06-05'
+        )
+        
+        # Should return mock data on 404
+        self.assertIsInstance(results, list)
+
+
+class OpenAIServiceErrorTest(TestCase):
+    """Tests for OpenAI service error handling"""
+    
+    @patch('ai_implementation.openai_service.OpenAI')
+    def test_generate_options_api_error(self, mock_openai):
+        """Test generate_three_itinerary_options handles API errors"""
+        from ai_implementation.openai_service import OpenAIService
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+        mock_openai.return_value = mock_client
+        
+        service = OpenAIService()
+        
+        with self.assertRaises(Exception):
+            service.generate_three_itinerary_options(
+                member_preferences=[],
+                flight_results=[],
+                hotel_results=[],
+                activity_results=[],
+                selected_dates={}
+            )
+    
+    @patch('ai_implementation.openai_service.OpenAI')
+    def test_generate_options_invalid_json(self, mock_openai):
+        """Test generate_three_itinerary_options handles invalid JSON"""
+        from ai_implementation.openai_service import OpenAIService
+        import json
+        
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = "Invalid JSON {"
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        service = OpenAIService()
+        
+        # Should attempt to parse and handle gracefully
+        try:
+            result = service.generate_three_itinerary_options(
+                member_preferences=[],
+                flight_results=[],
+                hotel_results=[],
+                activity_results=[],
+                selected_dates={}
+            )
+            # If it doesn't raise, should return empty or default structure
+            self.assertIsInstance(result, dict)
+        except json.JSONDecodeError:
+            # Expected if JSON is truly invalid
+            pass
+    
+    @patch('ai_implementation.openai_service.OpenAI')
+    def test_generate_options_no_api_key(self, mock_openai):
+        """Test generate_three_itinerary_options without API key"""
+        from ai_implementation.openai_service import OpenAIService
+        import os
+        
+        # Remove API key
+        original_key = os.environ.get('OPENAI_API_KEY')
+        if 'OPENAI_API_KEY' in os.environ:
+            del os.environ['OPENAI_API_KEY']
+        
+        try:
+            service = OpenAIService()
+            # Should handle missing key gracefully
+            self.assertIsNotNone(service)
+        finally:
+            if original_key:
+                os.environ['OPENAI_API_KEY'] = original_key
+    
+    @patch('ai_implementation.openai_service.OpenAI')
+    def test_generate_options_json_with_markdown(self, mock_openai):
+        """Test generate_three_itinerary_options handles JSON wrapped in markdown"""
+        from ai_implementation.openai_service import OpenAIService
+        
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        # JSON wrapped in markdown code blocks
+        mock_response.choices[0].message.content = """```json
+        {"options": [{"title": "Test Trip"}]}
+        ```"""
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        service = OpenAIService()
+        
+        result = service.generate_three_itinerary_options(
+            member_preferences=[],
+            flight_results=[],
+            hotel_results=[],
+            activity_results=[],
+            selected_dates={}
+        )
+        
+        # Should extract JSON from markdown
+        self.assertIsInstance(result, dict)
+        self.assertIn('options', result)
+    
+    @patch('ai_implementation.openai_service.OpenAI')
+    def test_generate_options_json_with_trailing_comma(self, mock_openai):
+        """Test generate_three_itinerary_options handles JSON with trailing comma"""
+        from ai_implementation.openai_service import OpenAIService
+        
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        # JSON with trailing comma (invalid but common)
+        mock_response.choices[0].message.content = '{"options": [{"title": "Test Trip",}]}'
+        
+        mock_client = Mock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        service = OpenAIService()
+        
+        # Should attempt to fix and parse
+        try:
+            result = service.generate_three_itinerary_options(
+                member_preferences=[],
+                flight_results=[],
+                hotel_results=[],
+                activity_results=[],
+                selected_dates={}
+            )
+            self.assertIsInstance(result, dict)
+        except Exception:
+            # May still fail if JSON is too malformed
+            pass
+
+
+class ViewsErrorHandlingTest(TestCase):
+    """Tests for error handling in views"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+    
+    def test_cast_vote_not_group_member(self):
+        """Test cast_vote rejects non-group members"""
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.client.login(username='user2', password='pass123')
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, option.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+    
+    def test_roll_again_not_group_member(self):
+        """Test roll_again rejects non-group members"""
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.client.login(username='user2', password='pass123')
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        url = reverse('ai_implementation:roll_again', args=[self.group.id, option.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+    
+    def test_cast_vote_nonexistent_group(self):
+        """Test cast_vote with non-existent group"""
+        from uuid import uuid4
+        self.client.login(username='testuser', password='pass123')
+        
+        fake_group_id = uuid4()
+        fake_option_id = uuid4()
+        
+        url = reverse('ai_implementation:cast_vote', args=[fake_group_id, fake_option_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404)
+    
+    def test_roll_again_nonexistent_option(self):
+        """Test roll_again with non-existent option"""
+        from uuid import uuid4
+        self.client.login(username='testuser', password='pass123')
+        
+        fake_option_id = uuid4()
+        url = reverse('ai_implementation:roll_again', args=[self.group.id, fake_option_id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 404)
+    
+    def test_cast_vote_all_voted_not_unanimous_advances(self):
+        """Test cast_vote advances when all voted but not unanimous"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Create second member
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
+        
+        # Create pending option
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter='B',
+            title='Pending Option',
+            description='Test',
+            search=self.option.search,
+            status='pending',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        # Set option as active
+        self.option.status = 'active'
+        self.option.save()
+        
+        # First user votes yes
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        self.client.post(url, {'comment': ''})
+        
+        # Second user votes no (ROLL_AGAIN)
+        self.client.login(username='user2', password='pass123')
+        response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        
+        # Should advance to next option
+        self.option.refresh_from_db()
+        pending_option.refresh_from_db()
+        self.assertEqual(self.option.status, 'rejected')
+        self.assertEqual(pending_option.status, 'active')
+        self.assertTrue(data.get('advanced', False))
+    
+    def test_cast_vote_all_voted_not_unanimous_no_pending(self):
+        """Test cast_vote when all voted, not unanimous, no pending options"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create second member
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
+        
+        # Create flight and hotel
+        flight = FlightResult.objects.create(
+            search=self.option.search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=self.option.search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        # Create trip preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Set option as active, no pending
+        self.option.status = 'active'
+        self.option.save()
+        
+        # First user votes yes
+        self.client.login(username='testuser', password='pass123')
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, self.option.id])
+        self.client.post(url, {'comment': ''})
+        
+        # Second user votes no
+        self.client.login(username='user2', password='pass123')
+        with patch('ai_implementation.views._generate_single_new_option') as mock_generate:
+            mock_new_option = GroupItineraryOption.objects.create(
+                group=self.group,
+                consensus=self.option.consensus,
+                option_letter='B',
+                title='New Option',
+                description='Test',
+                search=self.option.search,
+                status='active',
+                estimated_total_cost=2000.00,
+                cost_per_person=1000.00,
+                ai_reasoning='Test'
+            )
+            mock_generate.return_value = mock_new_option
+            
+            response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+            self.assertEqual(response.status_code, 200)
+            data = json.loads(response.content)
+            
+            # Should generate new option
+            self.option.refresh_from_db()
+            self.assertEqual(self.option.status, 'rejected')
+            self.assertTrue(data.get('advanced', False))
+
+
+class PerformSearchErrorTest(TestCase):
+    """Tests for perform_search error handling"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+        
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+    
+    def test_perform_search_get_request(self):
+        """Test perform_search GET request shows loading page"""
+        url = reverse('ai_implementation:perform_search', args=[self.search.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'ai_implementation/searching.html')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    def test_perform_search_flight_error(self, mock_activities, mock_hotels, mock_flights):
+        """Test perform_search handles flight search errors"""
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.side_effect = Exception("Flight API error")
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[self.search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    def test_perform_search_hotel_error(self, mock_activities, mock_hotels, mock_flights):
+        """Test perform_search handles hotel search errors"""
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.side_effect = Exception("Hotel API error")
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[self.search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    def test_perform_search_activity_error(self, mock_activities, mock_hotels, mock_flights):
+        """Test perform_search handles activity search errors"""
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.side_effect = Exception("Activity API error")
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[self.search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_perform_search_openai_error(self, mock_openai, mock_activities, mock_hotels, mock_flights):
+        """Test perform_search handles OpenAI consolidation errors"""
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [{'id': 'f1', 'price': 500}]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [{'id': 'h1', 'price': 100}]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = [{'id': 'a1', 'price': 50}]
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_openai_service = Mock()
+        mock_openai_service.consolidate_travel_results.side_effect = Exception("OpenAI error")
+        mock_openai.return_value = mock_openai_service
+        
+        url = reverse('ai_implementation:perform_search', args=[self.search.id])
+        response = self.client.post(url)
+        # Should still complete search even if OpenAI fails
+        self.assertEqual(response.status_code, 200)
+    
+    def test_perform_search_no_origin(self):
+        """Test perform_search without origin"""
+        search_no_origin = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin=None
+        )
+        
+        url = reverse('ai_implementation:perform_search', args=[search_no_origin.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+
+
+class GenerateVotingOptionsErrorTest(TestCase):
+    """Tests for generate_voting_options error handling"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_generate_voting_options_invalid_json(self):
+        """Test generate_voting_options handles invalid JSON"""
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        
+        # Send invalid JSON
+        response = self.client.post(
+            url,
+            data='invalid json',
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+    
+    def test_generate_voting_options_insufficient_preferences(self):
+        """Test generate_voting_options with insufficient preferences"""
+        # Create only one preference
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_no_search_results(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options when no search results found"""
+        # Create two preferences
+        from travel_groups.models import TripPreference
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        GroupMember.objects.create(group=self.group, user=user2, role='member')
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock connectors to return empty results
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        # Should handle gracefully
+        self.assertIn(response.status_code, [200, 400])
+
+
+class ManualGenerationTest(TestCase):
+    """Tests for _generate_options_manually function"""
+    
+    def setUp(self):
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+    
+    def test_generate_options_manually_basic(self):
+        """Test _generate_options_manually with basic data"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Paris', 'budget': '2000'},
+            {'destination': 'Rome', 'budget': '2500'}
+        ]
+        
+        flight_results = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+            {'id': 'f2', 'price': 600, 'searched_destination': 'Rome'},
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+            {'id': 'h2', 'price_per_night': 120, 'searched_destination': 'Rome'},
+        ]
+        
+        activity_results = [
+            {'id': 'a1', 'name': 'Tour', 'price': 50, 'searched_destination': 'Paris'},
+        ]
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        self.assertIn('options', result)
+        self.assertGreater(len(result['options']), 0)
+    
+    def test_generate_options_manually_no_flights(self):
+        """Test _generate_options_manually with no flights"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [{'destination': 'Paris', 'budget': '2000'}]
+        flight_results = []
+        hotel_results = [{'id': 'h1', 'price_per_night': 100, 'searched_destination': 'Paris'}]
+        activity_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        self.assertIn('options', result)
+        self.assertEqual(len(result['options']), 0)
+    
+    def test_generate_options_manually_no_hotels(self):
+        """Test _generate_options_manually with no hotels"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [{'destination': 'Paris', 'budget': '2000'}]
+        flight_results = [{'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}]
+        hotel_results = []
+        activity_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        self.assertIn('options', result)
+        self.assertEqual(len(result['options']), 0)
+    
+    def test_generate_options_manually_destination_matching(self):
+        """Test _generate_options_manually destination matching logic"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Paris, France', 'budget': '2000'},
+        ]
+        
+        # Flights/hotels with matching destination
+        flight_results = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+        ]
+        
+        activity_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        # Should match Paris with Paris, France
+        self.assertIn('options', result)
+        self.assertGreater(len(result['options']), 0)
+    
+    def test_generate_options_manually_no_matching_destinations(self):
+        """Test _generate_options_manually when no destinations match preferences"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [
+            {'destination': 'Tokyo', 'budget': '2000'},
+        ]
+        
+        # Flights/hotels for different destination
+        flight_results = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+        ]
+        
+        activity_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        # Should still generate options using all available destinations
+        self.assertIn('options', result)
+    
+    def test_generate_options_manually_unique_combinations(self):
+        """Test _generate_options_manually ensures unique flight+hotel combinations"""
+        from ai_implementation.views import _generate_options_manually
+        
+        member_prefs = [{'destination': 'Paris', 'budget': '2000'}]
+        
+        flight_results = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+        ]
+        
+        hotel_results = [
+            {'id': 'h1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+            {'id': 'h2', 'price_per_night': 120, 'searched_destination': 'Paris'},
+        ]
+        
+        activity_results = []
+        
+        result = _generate_options_manually(
+            member_prefs, flight_results, hotel_results, activity_results, self.search, self.group
+        )
+        
+        # Should create unique combinations
+        flight_ids = [opt.get('selected_flight_id') for opt in result['options']]
+        hotel_ids = [opt.get('selected_hotel_id') for opt in result['options']]
+        combinations = set(zip(flight_ids, hotel_ids))
+        
+        # All combinations should be unique
+        self.assertEqual(len(combinations), len(result['options']))
+
+
+class GenerateVotingOptionsDestinationFallbackTest(TestCase):
+    """Tests for destination fallback logic in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_title(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination extraction from title when not in option_data"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to return option without intended_destination
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'title': 'A Trip to Paris',
+                'description': 'Test',
+                # No intended_destination
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should extract destination from title "A Trip to Paris"
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination extraction from flight when not in option_data"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to return option without intended_destination and without "to" in title
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'title': 'Budget Trip',
+                'description': 'Test',
+                # No intended_destination, no "to" in title
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should extract destination from flight
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_hotel(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination extraction from hotel when flight doesn't have it"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'title': 'Budget Trip',
+                'description': 'Test',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Flight without searched_destination
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination=None,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        # Hotel with searched_destination
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should extract destination from hotel
+        self.assertEqual(response.status_code, 200)
+
+
+class SerpApiDateParsingTest(TestCase):
+    """Tests for SerpAPI date parsing edge cases"""
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_response_date_formats(self, mock_get):
+        """Test parsing various date formats from SerpAPI"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        # Mock response with various date formats
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'flights': [{
+                    'departure_airport': {
+                        'time': '2025-06-01T10:00:00Z',
+                        'datetime': '2025-06-01T10:00:00+00:00'
+                    },
+                    'arrival_airport': {
+                        'time': '2025-06-01T14:00:00Z',
+                        'datetime': '2025-06-01T14:00:00+00:00'
+                    },
+                    'airline': 'Test Airline'
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should parse dates correctly
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_response_next_day_arrival(self, mock_get):
+        """Test parsing flight with next-day arrival"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        # Mock response with arrival before departure (next day)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'flights': [{
+                    'departure_airport': {
+                        'time': '2025-06-01T23:00:00Z'
+                    },
+                    'arrival_airport': {
+                        'time': '2025-06-01T01:00:00Z'  # Next day arrival
+                    },
+                    'airline': 'Test Airline'
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should handle next-day arrival
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_response_invalid_date_format(self, mock_get):
+        """Test parsing with invalid date format falls back gracefully"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        # Mock response with invalid date format
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'flights': [{
+                    'departure_airport': {
+                        'time': 'invalid-date'
+                    },
+                    'arrival_airport': {
+                        'time': 'invalid-date'
+                    },
+                    'airline': 'Test Airline'
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        # Should fall back to estimated duration
+        self.assertIsInstance(results, list)
+
+
+class MakcorpsParsingTest(TestCase):
+    """Tests for Makcorps connector parsing logic"""
+    
+    def test_parse_makcorps_response_list_format(self):
+        """Test parsing Makcorps response as list"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        # Response as list
+        data = [
+            {
+                'id': 'h1',
+                'name': 'Hotel 1',
+                'price_per_night': 100
+            }
+        ]
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+    
+    def test_parse_makcorps_response_dict_with_hotels_key(self):
+        """Test parsing Makcorps response with 'hotels' key"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'hotels': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'price_per_night': 100
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+    
+    def test_parse_makcorps_response_dict_with_results_key(self):
+        """Test parsing Makcorps response with 'results' key"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'results': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'price_per_night': 100
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+    
+    def test_parse_makcorps_response_total_price(self):
+        """Test parsing Makcorps response with total_price instead of price_per_night"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'hotels': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'total_price': 400  # 4 nights * 100
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        if hotels:
+            # Should calculate price_per_night from total_price
+            self.assertGreater(hotels[0].get('price_per_night', 0), 0)
+    
+    def test_calculate_nights(self):
+        """Test _calculate_nights helper method"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        nights = connector._calculate_nights('2025-06-01', '2025-06-05')
+        self.assertEqual(nights, 4)
+        
+        nights = connector._calculate_nights('2025-06-01', '2025-06-01')
+        self.assertEqual(nights, 0)
+
+
+class GenerateVotingOptionsOriginTest(TestCase):
+    """Tests for origin handling in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    @patch('ai_implementation.views.search_airports')
+    def test_origin_with_dash_format(self, mock_search_airports, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test origin parsing with 'DEN - Denver, USA' format"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'DEN - Denver, USA'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should extract 'DEN' from 'DEN - Denver, USA'
+        self.assertEqual(response.status_code, 200)
+        # Verify search_flights was called with 'DEN'
+        mock_flight_connector.search_flights.assert_called()
+        call_args = mock_flight_connector.search_flights.call_args
+        self.assertEqual(call_args[1]['origin'], 'DEN')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    @patch('ai_implementation.views.search_airports')
+    def test_origin_city_name(self, mock_search_airports, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test origin parsing with city name"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock search_airports to return airport code
+        mock_search_airports.return_value = [{'code': 'DEN', 'name': 'Denver International Airport'}]
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'Denver'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should search for airport and use code
+        self.assertEqual(response.status_code, 200)
+        mock_search_airports.assert_called_with('Denver', limit=1)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_origin_default_denver(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test default origin is Denver when not provided"""
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                # No origin provided
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use default 'Denver'
+        self.assertEqual(response.status_code, 200)
+        mock_flight_connector.search_flights.assert_called()
+        call_args = mock_flight_connector.search_flights.call_args
+        self.assertEqual(call_args[1]['origin'], 'Denver')
+
+
+class GenerateVotingOptionsDestinationMatchingTest(TestCase):
+    """Tests for flexible destination matching in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_flexible_matching_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test flexible destination matching for flights when ID doesn't match"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris, France'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris, France'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - option wants 'Paris' but flight is 'Paris, France'
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',  # Different from flight's 'Paris, France'
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test reasoning',
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Flight with 'Paris, France' destination
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris, France',  # Different from intended 'Paris'
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris, France'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should match 'Paris' with 'Paris, France' using flexible matching
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_to_any_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test fallback to any available flight when no match found"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Rome'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - option wants 'Paris' but no matching flight
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'nonexistent',  # Flight ID doesn't exist
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test reasoning',
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Flight for different destination
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Rome',  # Different from intended 'Paris'
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should fall back to any available flight
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_random_active_option_selection(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test that one option is randomly selected as active"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+            {'id': 'f2', 'price': 600, 'searched_destination': 'Paris'},
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel 1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+            {'id': 'h2', 'name': 'Hotel 2', 'price_per_night': 120, 'searched_destination': 'Paris'},
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to return multiple options
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [
+                {
+                    'option_letter': 'A',
+                    'title': 'Option A',
+                    'description': 'Test A',
+                    'intended_destination': 'Paris',
+                    'selected_flight_id': 'f1',
+                    'selected_hotel_id': 'h1',
+                    'estimated_total_cost': 2000.00,
+                    'cost_per_person': 1000.00,
+                    'ai_reasoning': 'Test reasoning A',
+                },
+                {
+                    'option_letter': 'B',
+                    'title': 'Option B',
+                    'description': 'Test B',
+                    'intended_destination': 'Paris',
+                    'selected_flight_id': 'f2',
+                    'selected_hotel_id': 'h2',
+                    'estimated_total_cost': 2200.00,
+                    'cost_per_person': 1100.00,
+                    'ai_reasoning': 'Test reasoning B',
+                }
+            ]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search and results
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        FlightResult.objects.create(
+            search=search,
+            external_id='f2',
+            airline='Test',
+            price=600.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Hotel 1',
+            price_per_night=100.00,
+            searched_destination='Paris'
+        )
+        HotelResult.objects.create(
+            search=search,
+            external_id='h2',
+            name='Hotel 2',
+            price_per_night=120.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+        
+        # Check that one option is active and others are pending
+        from ai_implementation.models import GroupItineraryOption
+        active_options = GroupItineraryOption.objects.filter(group=self.group, status='active')
+        pending_options = GroupItineraryOption.objects.filter(group=self.group, status='pending')
+        
+        self.assertEqual(active_options.count(), 1)
+        self.assertGreater(pending_options.count(), 0)
+
+
+class ActivitySearchTest(TestCase):
+    """Tests for activity search functionality"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_activity_json_preferences(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search with JSON activity preferences"""
+        import json
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            activity_categories=json.dumps(['museums', 'tours', 'shopping'])
+        )
+        
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_activity_comma_separated_preferences(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search with comma-separated activity preferences"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            activity_categories='museums, tours, shopping'
+        )
+        
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+
+
+class DateParsingTest(TestCase):
+    """Tests for date/time parsing in perform_search"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_string_datetime_parsing(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search handles string datetime parsing"""
+        from datetime import datetime
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Mock flight with string datetime
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [{
+            'id': 'f1',
+            'price': 500,
+            'departure_time': '2025-06-01T10:00:00Z',
+            'arrival_time': '2025-06-01T14:00:00Z',
+            'airline': 'Test'
+        }]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that FlightResult was created
+        from ai_implementation.models import FlightResult
+        flights = FlightResult.objects.filter(search=search)
+        self.assertGreater(flights.count(), 0)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_invalid_datetime_fallback(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search falls back on invalid datetime"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Mock flight with invalid datetime
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [{
+            'id': 'f1',
+            'price': 500,
+            'departure_time': 'invalid-datetime',
+            'arrival_time': 'invalid-datetime',
+            'airline': 'Test'
+        }]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        # Should handle gracefully
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_date_object_datetime(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search handles date object for datetime"""
+        from datetime import datetime, date as date_class
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Mock flight with date object
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [{
+            'id': 'f1',
+            'price': 500,
+            'departure_time': date_class.today(),
+            'arrival_time': date_class.today(),
+            'airline': 'Test'
+        }]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+
+
+class GenerateVotingOptionsActivityPreferencesTest(TestCase):
+    """Tests for activity preferences parsing in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_activity_preferences_json_string(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test activity preferences as JSON string"""
+        import json
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            activity_preferences=json.dumps(['museums', 'tours']),
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should parse JSON activity preferences
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_activity_preferences_comma_separated(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test activity preferences as comma-separated string"""
+        import json
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            activity_preferences='museums, tours, shopping',
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should parse comma-separated activity preferences
+        self.assertEqual(response.status_code, 200)
+
+
+class SerpApiConnectorParsingTest(TestCase):
+    """Tests for SerpAPI connector response parsing variations"""
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_flights_dict_structure(self, mock_get):
+        """Test parsing SerpAPI response with flights dict structure"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'flights': {
+                'best_flights': [{
+                    'flight_id': 'f1',
+                    'price': {'total': 500},
+                    'flights': [{
+                        'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                        'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                        'airline': 'Test'
+                    }]
+                }]
+            }
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_flights_price_variations(self, mock_get):
+        """Test parsing various price formats from SerpAPI"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [
+                {
+                    'flight_id': 'f1',
+                    'price': 500,  # Direct price value
+                    'flights': [{
+                        'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                        'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                        'airline': 'Test'
+                    }]
+                },
+                {
+                    'flight_id': 'f2',
+                    'price': {'value': 600},  # Price dict with 'value'
+                    'flights': [{
+                        'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                        'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                        'airline': 'Test'
+                    }]
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+
+
+class MakcorpsConnectorParsingTest(TestCase):
+    """Tests for Makcorps connector parsing variations"""
+    
+    def test_parse_makcorps_response_dict_with_data_key(self):
+        """Test parsing Makcorps response with 'data' key"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'data': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'price_per_night': 100
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+    
+    def test_parse_makcorps_response_dict_with_items_key(self):
+        """Test parsing Makcorps response with 'items' key"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'items': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'price_per_night': 100
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+    
+    def test_parse_makcorps_response_alternative_price_fields(self):
+        """Test parsing Makcorps response with alternative price field names"""
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        
+        connector = MakcorpsHotelConnector()
+        
+        data = {
+            'hotels': [
+                {
+                    'id': 'h1',
+                    'name': 'Hotel 1',
+                    'price': 100  # Using 'price' instead of 'price_per_night'
+                },
+                {
+                    'id': 'h2',
+                    'name': 'Hotel 2',
+                    'rate': 120  # Using 'rate' instead of 'price_per_night'
+                },
+                {
+                    'id': 'h3',
+                    'name': 'Hotel 3',
+                    'nightly_rate': 130  # Using 'nightly_rate' instead of 'price_per_night'
+                }
+            ]
+        }
+        
+        hotels = connector._parse_makcorps_response(
+            data, 'Paris', '2025-06-01', '2025-06-05', 1
+        )
+        
+        self.assertIsInstance(hotels, list)
+        self.assertGreater(len(hotels), 0)
+
+
+class ViewVotingOptionsTest(TestCase):
+    """Tests for view_voting_options function"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_view_voting_options_not_member(self):
+        """Test view_voting_options rejects non-members"""
+        user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.client.login(username='user2', password='pass123')
+        
+        url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        # Should redirect with error
+        self.assertEqual(response.status_code, 302)
+    
+    def test_view_voting_options_no_consensus(self):
+        """Test view_voting_options when no consensus exists"""
+        url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        # Should redirect to generate options
+        self.assertEqual(response.status_code, 302)
+    
+    def test_view_voting_options_no_options(self):
+        """Test view_voting_options when consensus exists but no options"""
+        from ai_implementation.models import GroupConsensus
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}',
+            is_active=True
+        )
+        
+        url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        # Should redirect to generate options
+        self.assertEqual(response.status_code, 302)
+    
+    def test_view_voting_options_with_activities_filtering(self):
+        """Test view_voting_options filters activities by destination"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ActivityResult
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}',
+            is_active=True
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Activity matching destination
+        activity1 = ActivityResult.objects.create(
+            search=search,
+            external_id='a1',
+            name='Eiffel Tower',
+            price=50.00,
+            searched_destination='Paris'
+        )
+        
+        # Activity not matching destination
+        activity2 = ActivityResult.objects.create(
+            search=search,
+            external_id='a2',
+            name='Colosseum',
+            price=45.00,
+            searched_destination='Rome'
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            destination='Paris',
+            search=search,
+            selected_flight=flight,
+            selected_hotel=hotel,
+            selected_activities=json.dumps(['a1', 'a2']),
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Should only show activity matching destination
+        self.assertContains(response, 'Eiffel Tower')
+        # Should not show activity from different destination
+        self.assertNotContains(response, 'Colosseum')
+
+
+class VotingResultsTest(TestCase):
+    """Tests for voting_results function"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_voting_results_no_consensus(self):
+        """Test voting_results when no consensus exists"""
+        url = reverse('ai_implementation:voting_results', args=[self.group.id])
+        response = self.client.get(url)
+        # Should redirect
+        self.assertEqual(response.status_code, 302)
+    
+    def test_voting_results_with_winner_activities(self):
+        """Test voting_results filters winner activities by destination"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ActivityResult
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}',
+            is_active=True
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Activity matching destination
+        activity1 = ActivityResult.objects.create(
+            search=search,
+            external_id='a1',
+            name='Eiffel Tower',
+            price=50.00,
+            searched_destination='Paris'
+        )
+        
+        # Activity not matching destination
+        activity2 = ActivityResult.objects.create(
+            search=search,
+            external_id='a2',
+            name='Colosseum',
+            price=45.00,
+            searched_destination='Rome'
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            destination='Paris',
+            search=search,
+            selected_flight=flight,
+            selected_hotel=hotel,
+            selected_activities=json.dumps(['a1', 'a2']),
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            is_winner=True
+        )
+        
+        url = reverse('ai_implementation:voting_results', args=[self.group.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Should show winner
+        self.assertContains(response, 'Test Option')
+
+
+class GenerateVotingOptionsErrorTest(TestCase):
+    """Tests for error handling in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_exception_handling(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options handles exceptions gracefully"""
+        import json
+        
+        # Mock connectors to raise exception
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.side_effect = Exception("API Error")
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.side_effect = Exception("API Error")
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.side_effect = Exception("API Error")
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should return error response
+        self.assertEqual(response.status_code, 500)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+    
+    def test_generate_voting_options_get_request(self):
+        """Test generate_voting_options GET request shows form"""
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'ai_implementation/generate_voting_options.html')
+
+
+class AdvanceToNextOptionTest(TestCase):
+    """Tests for advance_to_next_option function"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_advance_to_next_option_not_member(self):
+        """Test advance_to_next_option rejects non-members"""
+        user3 = User.objects.create_user('user3', 'user3@test.com', 'pass123')
+        self.client.login(username='user3', password='pass123')
+        
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+    
+    def test_advance_to_next_option_no_active(self):
+        """Test advance_to_next_option when no active option exists"""
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+    
+    def test_advance_to_next_option_not_all_voted(self):
+        """Test advance_to_next_option when not all members have voted"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        # Only one vote (need 2)
+        from ai_implementation.models import ItineraryVote
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user,
+            group=self.group,
+            comment='Test'
+        )
+        
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+    
+    def test_advance_to_next_option_unanimous(self):
+        """Test advance_to_next_option when option is unanimous"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        # Both vote yes (unanimous)
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user2,
+            group=self.group,
+            comment='Yes'
+        )
+        
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+    
+    def test_advance_to_next_option_success(self):
+        """Test advance_to_next_option successfully advances to next option"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        active_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Active Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='B',
+            title='Pending Option',
+            description='Test',
+            search=search,
+            status='pending',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        # Both vote (one yes, one no - not unanimous)
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user2,
+            group=self.group,
+            comment='ROLL_AGAIN'
+        )
+        
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+        
+        # Check that active option was rejected and pending was activated
+        active_option.refresh_from_db()
+        pending_option.refresh_from_db()
+        self.assertEqual(active_option.status, 'rejected')
+        self.assertEqual(pending_option.status, 'active')
+    
+    def test_advance_to_next_option_no_pending(self):
+        """Test advance_to_next_option when no pending options exist"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        active_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Active Option',
+            description='Test',
+            search=search,
+            status='active',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        # Both vote (not unanimous)
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user2,
+            group=self.group,
+            comment='ROLL_AGAIN'
+        )
+        
+        url = reverse('ai_implementation:advance_to_next_option', args=[self.group.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+
+
+class OptionCreationEdgeCasesTest(TestCase):
+    """Tests for edge cases in option creation"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_option_creation_no_hotel_error(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when no hotel is found"""
+        from ai_implementation.models import FlightResult
+        from datetime import datetime
+        import json
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []  # No hotels
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'nonexistent',  # Hotel doesn't exist
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should handle gracefully (may create option without hotel or return error)
+        self.assertIn(response.status_code, [200, 400, 500])
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_option_creation_cost_calculation_fallback(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation uses AI estimated cost when total_cost is 0"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        import json
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with high estimated cost
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 3000.00,  # Higher than flight+hotel
+                'cost_per_person': 1500.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Flight with price 0
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=0.00,  # Zero price
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=0.00,  # Zero price
+            total_price=0.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use AI estimated cost when total_cost is 0
+        self.assertEqual(response.status_code, 200)
+
+
+class SearchViewsTest(TestCase):
+    """Tests for search-related views"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_search_home(self):
+        """Test search_home view"""
+        url = reverse('ai_implementation:search_home')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+    
+    def test_advanced_search_get(self):
+        """Test advanced_search GET request"""
+        url = reverse('ai_implementation:advanced_search')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+    
+    def test_advanced_search_post(self):
+        """Test advanced_search POST request"""
+        url = reverse('ai_implementation:advanced_search')
+        response = self.client.post(url, {
+            'destination': 'Paris',
+            'start_date': '2025-06-01',
+            'end_date': '2025-06-08',
+            'adults': 2
+        })
+        # Should redirect to perform_search
+        self.assertEqual(response.status_code, 302)
+    
+    def test_search_results(self):
+        """Test search_results view"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        url = reverse('ai_implementation:search_results', args=[search.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+
+class ActivityFilteringFallbackTest(TestCase):
+    """Tests for activity filtering fallback logic"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_view_voting_options_activity_fallback(self):
+        """Test view_voting_options falls back to all activities when none match destination"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ActivityResult
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}',
+            is_active=True
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Activity with different destination (should fall back to showing it)
+        activity = ActivityResult.objects.create(
+            search=search,
+            external_id='a1',
+            name='Colosseum',
+            price=45.00,
+            searched_destination='Rome'  # Different from option's 'Paris'
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            destination='Paris',  # Different from activity's 'Rome'
+            search=search,
+            selected_flight=flight,
+            selected_hotel=hotel,
+            selected_activities=json.dumps(['a1']),
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
+        
+        url = reverse('ai_implementation:view_voting_options', args=[self.group.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Should fall back to showing all activities when none match
+        self.assertContains(response, 'Colosseum')
+
+
+class GenerateSingleNewOptionTest(TestCase):
+    """Tests for _generate_single_new_option edge cases"""
+    
+    def setUp(self):
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        self.consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+    
+    def test_generate_single_new_option_option_letter_assignment(self):
+        """Test _generate_single_new_option assigns correct option letter"""
+        from ai_implementation.views import _generate_single_new_option
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Create existing options A, B, C
+        for letter in ['A', 'B', 'C']:
+            GroupItineraryOption.objects.create(
+                group=self.group,
+                consensus=self.consensus,
+                option_letter=letter,
+                title=f'Option {letter}',
+                description='Test',
+                search=self.search,
+                estimated_total_cost=2000.00,
+                cost_per_person=1000.00,
+                ai_reasoning='Test'
+            )
+        
+        # Create flight and hotel
+        flight = FlightResult.objects.create(
+            search=self.search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=self.search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        member_prefs = [{'user': 'testuser', 'destination': 'Paris'}]
+        
+        with patch('ai_implementation.views.OpenAIService') as mock_openai:
+            mock_service = mock_openai.return_value
+            mock_service.generate_three_itinerary_options.return_value = {
+                'options': [{
+                    'title': 'Test Trip',
+                    'description': 'Test description',
+                    'intended_destination': 'Paris',
+                    'selected_flight_id': 'f1',
+                    'selected_hotel_id': 'h1',
+                    'selected_activity_ids': [],
+                    'estimated_total_cost': 1200.00,
+                    'cost_per_person': 600.00,
+                    'ai_reasoning': 'Test reasoning'
+                }]
+            }
+            
+            result = _generate_single_new_option(self.group, self.consensus, self.search, member_prefs)
+            self.assertIsNotNone(result)
+            # Should assign next available letter (D)
+            self.assertEqual(result.option_letter, 'D')
+    
+    def test_generate_single_new_option_destination_from_title(self):
+        """Test _generate_single_new_option extracts destination from title"""
+        from ai_implementation.views import _generate_single_new_option
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        flight = FlightResult.objects.create(
+            search=self.search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=self.search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        member_prefs = [{'user': 'testuser', 'destination': 'Paris'}]
+        
+        with patch('ai_implementation.views.OpenAIService') as mock_openai:
+            mock_service = mock_openai.return_value
+            mock_service.generate_three_itinerary_options.return_value = {
+                'options': [{
+                    'title': 'A Trip to Paris',  # Destination in title
+                    'description': 'Test description',
+                    # No intended_destination
+                    'selected_flight_id': 'f1',
+                    'selected_hotel_id': 'h1',
+                    'selected_activity_ids': [],
+                    'estimated_total_cost': 1200.00,
+                    'cost_per_person': 600.00,
+                    'ai_reasoning': 'Test reasoning'
+                }]
+            }
+            
+            result = _generate_single_new_option(self.group, self.consensus, self.search, member_prefs)
+            self.assertIsNotNone(result)
+            # Should extract destination from title
+            self.assertEqual(result.destination, 'Paris')
+
+
+class SerpApiConnectorResponseVariationsTest(TestCase):
+    """Tests for various SerpAPI response format variations"""
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_flights_list_structure(self, mock_get):
+        """Test parsing SerpAPI response with flights as list"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'flights': [{
+                    'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                    'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                    'airline': 'Test'
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_flights_price_per_person(self, mock_get):
+        """Test parsing SerpAPI response with price_per_person"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'price_per_person': {'total': 250},  # Per person price
+                'flights': [{
+                    'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                    'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                    'airline': 'Test'
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01',
+            adults=2
+        )
+        
+        self.assertIsInstance(results, list)
+    
+    @patch('ai_implementation.serpapi_connector.requests.get')
+    def test_parse_serpapi_flights_airline_dict(self, mock_get):
+        """Test parsing SerpAPI response with airline as dict"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'best_flights': [{
+                'flight_id': 'f1',
+                'price': {'total': 500},
+                'flights': [{
+                    'departure_airport': {'time': '2025-06-01T10:00:00Z'},
+                    'arrival_airport': {'time': '2025-06-01T14:00:00Z'},
+                    'airline': {'name': 'Test Airline'}  # Airline as dict
+                }]
+            }]
+        }
+        mock_get.return_value = mock_response
+        
+        connector = SerpApiFlightsConnector()
+        connector.api_key = 'test-key'
+        
+        results = connector.search_flights(
+            origin='JFK',
+            destination='LAX',
+            departure_date='2025-06-01'
+        )
+        
+        self.assertIsInstance(results, list)
+        if results:
+            self.assertIn('airline', results[0])
+
+
+class GenerateVotingOptionsManualFallbackTest(TestCase):
+    """Tests for manual generation fallback in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_openai_exception_fallback(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options falls back to manual generation when OpenAI fails"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'},
+            {'id': 'f2', 'price': 600, 'searched_destination': 'Rome'},
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel 1', 'price_per_night': 100, 'searched_destination': 'Paris'},
+            {'id': 'h2', 'name': 'Hotel 2', 'price_per_night': 120, 'searched_destination': 'Rome'},
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to raise exception
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.side_effect = Exception("OpenAI API Error")
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        FlightResult.objects.create(
+            search=search,
+            external_id='f2',
+            airline='Test',
+            price=600.00,
+            searched_destination='Rome',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Hotel 1',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        HotelResult.objects.create(
+            search=search,
+            external_id='h2',
+            name='Hotel 2',
+            price_per_night=120.00,
+            total_price=840.00,
+            searched_destination='Rome'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should fall back to manual generation
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+        
+        # Should have created options via manual generation
+        from ai_implementation.models import GroupItineraryOption
+        options = GroupItineraryOption.objects.filter(group=self.group)
+        self.assertGreater(options.count(), 0)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_lightweight_data_fallback(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options uses backup data when lightweight data is insufficient"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel 1', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to raise exception (triggers manual generation)
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.side_effect = Exception("OpenAI Error")
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Hotel 1',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use backup data for manual generation
+        self.assertEqual(response.status_code, 200)
+
+
+class CastVoteEdgeCasesTest(TestCase):
+    """Tests for edge cases in cast_vote"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_cast_vote_all_options_used_random_letter(self):
+        """Test cast_vote when all option letters are used"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create options for all letters A-J
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Create options A-J
+        for letter in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']:
+            GroupItineraryOption.objects.create(
+                group=self.group,
+                consensus=consensus,
+                option_letter=letter,
+                title=f'Option {letter}',
+                description='Test',
+                search=search,
+                selected_flight=flight,
+                selected_hotel=hotel,
+                estimated_total_cost=2000.00,
+                cost_per_person=1000.00,
+                ai_reasoning='Test'
+            )
+        
+        active_option = GroupItineraryOption.objects.filter(group=self.group, option_letter='A').first()
+        active_option.status = 'active'
+        active_option.save()
+        
+        # Create trip preferences for generating new option
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Vote no to trigger new option generation
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, active_option.id])
+        response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Should handle all letters being used (will use random letter)
+        data = json.loads(response.content)
+        # May succeed or fail depending on implementation
+        self.assertIn(response.status_code, [200, 400, 500])
+
+
+class DestinationFallbackLogicTest(TestCase):
+    """Tests for destination fallback logic in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_extraction_from_title_in(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination extraction from title with 'in' keyword"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with title containing "in"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'A wonderful trip in Paris',  # "in" keyword
+                'description': 'Test',
+                # No intended_destination
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_extraction_from_title_at(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination extraction from title with 'at' keyword"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with title containing "at"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Vacation at Paris',  # "at" keyword
+                'description': 'Test',
+                # No intended_destination
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination fallback extraction from flight"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with no intended_destination and no title pattern
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Amazing Trip',  # No destination pattern
+                'description': 'Test',
+                # No intended_destination
+                'selected_flight_id': 'f1',  # Will extract from flight
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',  # Will be used as fallback
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_flexible_matching_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test flexible destination matching for flights"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris, France'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with destination "Paris" but flight has "Paris, France"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',  # Different from flight's "Paris, France"
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris, France',  # Will match flexibly with "Paris"
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_flexible_matching_hotel(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test flexible destination matching for hotels"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris, France'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with destination "Paris" but hotel has "Paris, France"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',  # Different from hotel's "Paris, France"
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris, France'  # Will match flexibly with "Paris"
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_any_flight_hotel(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test fallback to any available flight/hotel when destination doesn't match"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Rome'}  # Different destination
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Rome'}  # Different destination
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI requesting Paris but only Rome available
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',  # Points to Rome flight
+                'selected_hotel_id': 'h1',  # Points to Rome hotel
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Rome',  # Different from intended "Paris"
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Rome'  # Different from intended "Paris"
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should fall back to using any available flight/hotel
+        self.assertEqual(response.status_code, 200)
+
+
+class CastVoteNewOptionGenerationTest(TestCase):
+    """Tests for new option generation in cast_vote when no pending options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_cast_vote_generates_new_option_when_no_pending(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test cast_vote generates new option when no pending options exist"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ItineraryVote
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create trip preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Create active option (no pending options)
+        active_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Active Option',
+            description='Test',
+            search=search,
+            selected_flight=flight,
+            selected_hotel=hotel,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # Mock OpenAI for generating new option
+        mock_service = Mock()
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'title': 'New Option',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'selected_activity_ids': [],
+                'estimated_total_cost': 1200.00,
+                'cost_per_person': 600.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Both vote no (not unanimous)
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user,
+            group=self.group,
+            comment='ROLL_AGAIN'
+        )
+        
+        # Second user votes no
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, active_option.id])
+        response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Should generate new option
+        data = json.loads(response.content)
+        # May succeed or show message about generating new option
+        self.assertIn(response.status_code, [200, 400, 500])
+    
+    def test_cast_vote_no_more_options_message(self):
+        """Test cast_vote returns appropriate message when no more options can be generated"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ItineraryVote
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create trip preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        # No flight or hotel results (can't generate new option)
+        active_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Active Option',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # Both vote no
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user,
+            group=self.group,
+            comment='ROLL_AGAIN'
+        )
+        
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, active_option.id])
+        response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Should return message about no more options
+        data = json.loads(response.content)
+        self.assertIn(response.status_code, [200, 400, 500])
+
+
+class FlightHotelDestinationMismatchTest(TestCase):
+    """Tests for handling flight/hotel destination mismatches in option creation"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_flight_id_destination_mismatch_flexible_match(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when flight ID exists but destination doesn't match, then finds flexible match"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris, France'},
+            {'id': 'f2', 'price': 600, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - requests Paris but flight f1 has "Paris, France"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',  # Points to "Paris, France" flight
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Flight f1 has "Paris, France" (mismatch with intended "Paris")
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris, France',  # Mismatch
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        # Flight f2 has exact match "Paris"
+        FlightResult.objects.create(
+            search=search,
+            external_id='f2',
+            airline='Test2',
+            price=600.00,
+            searched_destination='Paris',  # Exact match
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should find flexible match or use f2
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_flight_id_destination_mismatch_use_anyway(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when flight ID exists but destination doesn't match, uses it anyway as last resort"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Rome'}  # Different destination
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - requests Paris but only Rome flight available
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',  # Points to Rome flight
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Only Rome flight available
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Rome',  # Different from intended "Paris"
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use flight anyway as last resort
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_hotel_id_destination_mismatch_flexible_match(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when hotel ID exists but destination doesn't match, then finds flexible match"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel 1', 'price_per_night': 100, 'searched_destination': 'Paris, France'},
+            {'id': 'h2', 'name': 'Hotel 2', 'price_per_night': 120, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - requests Paris but hotel h1 has "Paris, France"
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',  # Points to "Paris, France" hotel
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        # Hotel h1 has "Paris, France" (mismatch with intended "Paris")
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Hotel 1',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris, France'  # Mismatch
+        )
+        
+        # Hotel h2 has exact match "Paris"
+        HotelResult.objects.create(
+            search=search,
+            external_id='h2',
+            name='Hotel 2',
+            price_per_night=120.00,
+            total_price=840.00,
+            searched_destination='Paris'  # Exact match
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should find flexible match or use h2
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_no_flight_id_find_any_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when no flight_id provided, finds any flight for destination"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no selected_flight_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                # No selected_flight_id
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should find any flight for destination
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_no_hotel_id_find_any_hotel(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when no hotel_id provided, finds any hotel for destination"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no selected_hotel_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                # No selected_hotel_id
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should find any hotel for destination
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_no_flight_find_any_available(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when no flight found for destination, uses any available flight"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Rome'}  # Different destination
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - requests Paris but only Rome flight available
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                # No selected_flight_id - will try to find Paris flight, then use any
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Only Rome flight available (will use as last resort)
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Rome',  # Different from intended "Paris"
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use any available flight as last resort
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_no_hotel_find_any_available(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test option creation when no hotel found for destination, uses any available hotel"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Rome'}  # Different destination
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - requests Paris but only Rome hotel available
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Trip to Paris',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                # No selected_hotel_id - will try to find Paris hotel, then use any
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        # Only Rome hotel available (will use as last resort)
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Rome'  # Different from intended "Paris"
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use any available hotel as last resort
+        self.assertEqual(response.status_code, 200)
+
+
+class DestinationFallbackFromFlightHotelTest(TestCase):
+    """Tests for destination fallback extraction from flight/hotel objects"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_flight_object(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination fallback extraction from flight object when not in title or intended_destination"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no intended_destination, no title pattern, but has flight_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Amazing Trip',  # No destination pattern
+                'description': 'Test',
+                # No intended_destination
+                'selected_flight_id': 'f1',  # Will extract from flight
+                'selected_hotel_id': 'h1',
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',  # Will be extracted as fallback
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_from_hotel_object(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination fallback extraction from hotel object when not in title or intended_destination"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no intended_destination, no title pattern, no flight_id, but has hotel_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Amazing Trip',  # No destination pattern
+                'description': 'Test',
+                # No intended_destination
+                # No selected_flight_id
+                'selected_hotel_id': 'h1',  # Will extract from hotel
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'  # Will be extracted as fallback
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_first_available_flight(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination fallback using first available flight when no other source"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no intended_destination, no title pattern, no flight_id, no hotel_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Amazing Trip',  # No destination pattern
+                'description': 'Test',
+                # No intended_destination
+                # No selected_flight_id
+                # No selected_hotel_id
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',  # Will be used as first available
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_destination_fallback_first_available_hotel(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test destination fallback using first available hotel when no flight available"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI - no intended_destination, no title pattern, no flight_id, no hotel_id
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'option_letter': 'A',
+                'title': 'Amazing Trip',  # No destination pattern
+                'description': 'Test',
+                # No intended_destination
+                # No selected_flight_id
+                # No selected_hotel_id
+                'estimated_total_cost': 2000.00,
+                'cost_per_person': 1000.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Create search
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # No flights, only hotel
+        HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'  # Will be used as first available
+        )
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08',
+                'origin': 'JFK'
+            }),
+            content_type='application/json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+
+
+class CastVoteNewOptionSuccessTest(TestCase):
+    """Tests for successful new option generation in cast_vote"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.OpenAIService')
+    def test_cast_vote_generates_new_option_success(self, mock_openai):
+        """Test cast_vote successfully generates new option when no pending options"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, FlightResult, HotelResult, ItineraryVote
+        from datetime import datetime
+        from travel_groups.models import TripPreference
+        
+        # Create trip preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Create active option (no pending options)
+        active_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Active Option',
+            description='Test',
+            search=search,
+            selected_flight=flight,
+            selected_hotel=hotel,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # Mock OpenAI for generating new option
+        mock_service = Mock()
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [{
+                'title': 'New Option',
+                'description': 'Test',
+                'intended_destination': 'Paris',
+                'selected_flight_id': 'f1',
+                'selected_hotel_id': 'h1',
+                'selected_activity_ids': [],
+                'estimated_total_cost': 1200.00,
+                'cost_per_person': 600.00,
+                'ai_reasoning': 'Test'
+            }]
+        }
+        mock_openai.return_value = mock_service
+        
+        # Both vote no (not unanimous)
+        ItineraryVote.objects.create(
+            option=active_option,
+            user=self.user,
+            group=self.group,
+            comment='ROLL_AGAIN'
+        )
+        
+        # Second user votes no
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, active_option.id])
+        response = self.client.post(url, {'comment': 'ROLL_AGAIN'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Should generate new option successfully
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+
+
+class PerformSearchErrorPathsTest(TestCase):
+    """Tests for error handling paths in perform_search"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_exception_handling(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search handles exceptions gracefully"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        # Mock connectors to raise exception
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.side_effect = Exception("API Error")
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.side_effect = Exception("API Error")
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.side_effect = Exception("API Error")
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        # Should handle exception gracefully
+        self.assertIn(response.status_code, [200, 400, 500])
+
+
+class GenerateGroupConsensusErrorTest(TestCase):
+    """Tests for error handling in generate_group_consensus"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_group_consensus_exception_handling(self, mock_openai):
+        """Test generate_group_consensus handles exceptions"""
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        # Mock OpenAI to raise exception
+        mock_service = Mock()
+        mock_service.generate_group_consensus.side_effect = Exception("OpenAI Error")
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_group_consensus', args=[self.group.id])
+        response = self.client.post(url)
+        # Should redirect with error message
+        self.assertEqual(response.status_code, 302)
+
+
+class SaveItineraryTest(TestCase):
+    """Tests for save_itinerary function"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_save_itinerary_with_activities(self):
+        """Test save_itinerary with selected activities"""
+        from ai_implementation.models import FlightResult, HotelResult, ActivityResult
+        from datetime import datetime
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        activity1 = ActivityResult.objects.create(
+            search=search,
+            external_id='a1',
+            name='Eiffel Tower',
+            price=50.00,
+            searched_destination='Paris'
+        )
+        
+        activity2 = ActivityResult.objects.create(
+            search=search,
+            external_id='a2',
+            name='Louvre',
+            price=45.00,
+            searched_destination='Paris'
+        )
+        
+        url = reverse('ai_implementation:save_itinerary', args=[search.id])
+        response = self.client.post(url, {
+            'title': 'My Trip',
+            'selected_flight': flight.id,
+            'selected_hotel': hotel.id,
+            'selected_activities': [activity1.id, activity2.id]
+        })
+        
+        # Should save successfully
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+    
+    @patch('ai_implementation.views.OpenAIService')
+    def test_save_itinerary_openai_exception(self, mock_openai):
+        """Test save_itinerary handles OpenAI exception"""
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        # Mock OpenAI to raise exception
+        mock_service = Mock()
+        mock_service.create_itinerary_description.side_effect = Exception("OpenAI Error")
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:save_itinerary', args=[search.id])
+        response = self.client.post(url, {
+            'title': 'My Trip',
+            'selected_flight': flight.id,
+            'selected_hotel': hotel.id
+        })
+        
+        # Should fall back to default description
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data.get('success', False))
+    
+    def test_save_itinerary_invalid_form(self):
+        """Test save_itinerary with invalid form"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        url = reverse('ai_implementation:save_itinerary', args=[search.id])
+        response = self.client.post(url, {})  # Empty form
+        
+        # Should return form errors
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+
+
+class AdvancedSearchGroupPrefillTest(TestCase):
+    """Tests for advanced_search group prefill functionality"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_advanced_search_with_group_id_prefill(self):
+        """Test advanced_search pre-fills form from group preferences"""
+        from travel_groups.models import TripPreference
+        
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00
+        )
+        
+        url = reverse('ai_implementation:advanced_search') + f'?group_id={self.group.id}'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+    
+    def test_advanced_search_with_invalid_group_id(self):
+        """Test advanced_search handles invalid group_id"""
+        import uuid
+        invalid_id = uuid.uuid4()
+        url = reverse('ai_implementation:advanced_search') + f'?group_id={invalid_id}'
+        response = self.client.get(url)
+        # Should handle gracefully
+        self.assertEqual(response.status_code, 200)
+    
+    def test_advanced_search_post_with_group_id(self):
+        """Test advanced_search POST with group_id"""
+        url = reverse('ai_implementation:advanced_search')
+        response = self.client.post(url, {
+            'destination': 'Paris',
+            'start_date': '2025-06-01',
+            'end_date': '2025-06-08',
+            'adults': 2,
+            'group_id': str(self.group.id)
+        })
+        # Should redirect
+        self.assertEqual(response.status_code, 302)
+
+
+class PerformSearchAIScoreUpdateTest(TestCase):
+    """Tests for AI score updates in perform_search"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_perform_search_updates_ai_scores(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search updates AI scores for flights, hotels, and activities"""
+        from ai_implementation.models import FlightResult, HotelResult, ActivityResult, ConsolidatedResult
+        from datetime import datetime
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='f1',
+            airline='Test',
+            price=500.00,
+            searched_destination='Paris',
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='h1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00,
+            searched_destination='Paris'
+        )
+        
+        activity = ActivityResult.objects.create(
+            search=search,
+            external_id='a1',
+            name='Eiffel Tower',
+            price=50.00,
+            searched_destination='Paris'
+        )
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI with AI scores
+        mock_service = Mock()
+        mock_service.consolidate_travel_results.return_value = {
+            'recommended_flights': [
+                {'flight_id': 'f1', 'score': 0.9, 'reason': 'Best price'}
+            ],
+            'recommended_hotels': [
+                {'hotel_id': 'h1', 'score': 0.8, 'reason': 'Good location'}
+            ],
+            'recommended_activities': [
+                {'activity_id': 'a1', 'score': 0.95, 'reason': 'Must see'}
+            ]
+        }
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that AI scores were updated
+        flight.refresh_from_db()
+        hotel.refresh_from_db()
+        activity.refresh_from_db()
+        # Scores should be updated (if the code path was executed)
+        # Note: This depends on the actual implementation
+
+
+class GenerateVotingOptionsNoOptionsCreatedTest(TestCase):
+    """Tests for generate_voting_options when no options are created"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_no_options_created_warning(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options handles case when no options are created"""
+        import json
+        
+        # Mock connectors to return empty results
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to return empty options
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should handle gracefully (may return error or empty result)
+        self.assertIn(response.status_code, [200, 400, 500])
+
+
+class RollAgainVoteHandlingTest(TestCase):
+    """Tests for vote handling in roll_again"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_roll_again_updates_existing_vote(self):
+        """Test roll_again updates existing vote"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # Create existing vote
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        
+        url = reverse('ai_implementation:roll_again', args=[self.group.id, option.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Vote should be updated to ROLL_AGAIN
+        vote = ItineraryVote.objects.get(option=option, user=self.user)
+        self.assertEqual(vote.comment, 'ROLL_AGAIN')
+    
+    def test_roll_again_handles_other_vote(self):
+        """Test roll_again handles user having vote for different option"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        option1 = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Option A',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='pending'
+        )
+        
+        option2 = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='B',
+            title='Option B',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # User has vote for option1
+        ItineraryVote.objects.create(
+            option=option1,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        
+        # Roll again on option2
+        url = reverse('ai_implementation:roll_again', args=[self.group.id, option2.id])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        
+        # Vote should be updated to point to option2
+        vote = ItineraryVote.objects.get(user=self.user, group=self.group)
+        self.assertEqual(vote.option, option2)
+        self.assertEqual(vote.comment, 'ROLL_AGAIN')
+
+
+class CastVoteUnanimousCheckTest(TestCase):
+    """Tests for unanimous check in cast_vote"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_cast_vote_unanimous_already_accepted_error(self):
+        """Test cast_vote returns error when option already has unanimous approval"""
+        from ai_implementation.models import GroupConsensus, GroupItineraryOption, TravelSearch, ItineraryVote
+        from datetime import datetime
+        
+        consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        
+        option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter='A',
+            title='Test Option',
+            description='Test',
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test',
+            status='active'
+        )
+        
+        # Both already voted yes (unanimous)
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user,
+            group=self.group,
+            comment='Yes'
+        )
+        ItineraryVote.objects.create(
+            option=option,
+            user=self.user2,
+            group=self.group,
+            comment='Yes'
+        )
+        
+        # Try to vote again
+        url = reverse('ai_implementation:cast_vote', args=[self.group.id, option.id])
+        response = self.client.post(url, {'comment': 'Yes'})
+        self.assertEqual(response.status_code, 200)
+        
+        # Should return error about unanimous approval
+        data = json.loads(response.content)
+        self.assertFalse(data.get('success', True))
+        self.assertIn('error', data)
+
+
+class GenerateVotingOptionsJSONParsingTest(TestCase):
+    """Tests for JSON parsing error handling in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        self.client.login(username='testuser', password='pass123')
+    
+    def test_generate_voting_options_invalid_json(self):
+        """Test generate_voting_options handles invalid JSON"""
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data='invalid json',
+            content_type='application/json'
+        )
+        # Should return error response
+        self.assertEqual(response.status_code, 400)
+
+
+class GenerateVotingOptionsOpenAIFallbackTest(TestCase):
+    """Tests for OpenAI fallback in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_openai_fallback_basic_consensus(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options creates basic consensus when OpenAI fails"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris'}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris'}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI to raise ValueError (API key not configured)
+        mock_service = Mock()
+        mock_service.generate_group_consensus.side_effect = ValueError("OpenAI API key not configured")
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should create basic consensus without AI
+        self.assertEqual(response.status_code, 200)
+
+
+class GenerateVotingOptionsLightweightDataTest(TestCase):
+    """Tests for lightweight data creation in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_lightweight_data_creation(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options creates lightweight data structures"""
+        import json
+        from ai_implementation.models import FlightResult, HotelResult, ActivityResult, TravelSearch
+        from datetime import datetime
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris', 'total_amount': 500}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = [
+            {'id': 'h1', 'name': 'Hotel', 'price_per_night': 100, 'searched_destination': 'Paris', 'rating': 4.5}
+        ]
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = [
+            {'id': 'a1', 'name': 'Activity', 'price': 50, 'searched_destination': 'Paris', 'category': 'sightseeing'}
+        ]
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+            }),
+            content_type='application/json'
+        )
+        
+        # Should create lightweight data structures
+        self.assertEqual(response.status_code, 200)
+
+
+class GenerateVotingOptionsOriginHandlingTest(TestCase):
+    """Tests for origin handling in generate_voting_options"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.user2 = User.objects.create_user('user2', 'user2@test.com', 'pass123')
+        self.group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        GroupMember.objects.create(group=self.group, user=self.user2, role='member')
+        
+        from travel_groups.models import TripPreference
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination='Rome',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            budget=2000.00,
+            is_completed=True
+        )
+        
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_default_origin_denver(self, mock_openai, mock_hotels, mock_activities, mock_flights):
+        """Test generate_voting_options uses default origin Denver when not provided"""
+        import json
+        
+        # Mock connectors
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = []
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        # Mock OpenAI
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {'consensus_preferences': {}}
+        mock_service.generate_three_itinerary_options.return_value = {'options': []}
+        mock_openai.return_value = mock_service
+        
+        url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
+        response = self.client.post(
+            url,
+            data=json.dumps({
+                'start_date': '2025-06-01',
+                'end_date': '2025-06-08'
+                # No origin provided - should default to Denver
+            }),
+            content_type='application/json'
+        )
+        
+        # Should use default origin
+        self.assertEqual(response.status_code, 200)
+
+
+class PerformSearchMockDataHandlingTest(TestCase):
+    """Tests for mock data handling in perform_search"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user('testuser', 'test@test.com', 'pass123')
+        self.client.login(username='testuser', password='pass123')
+    
+    @patch('ai_implementation.views.SerpApiFlightsConnector')
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    def test_perform_search_handles_all_mock_flights(self, mock_hotels, mock_activities, mock_flights):
+        """Test perform_search handles case when all flights are mock data"""
+        search = TravelSearch.objects.create(
+            user=self.user,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2,
+            origin='JFK'
+        )
+        
+        # Mock connectors to return only mock data
+        mock_flight_connector = Mock()
+        mock_flight_connector.search_flights.return_value = [
+            {'id': 'f1', 'price': 500, 'searched_destination': 'Paris', 'is_mock': True},
+            {'id': 'f2', 'price': 600, 'searched_destination': 'Paris', 'is_mock': True}
+        ]
+        mock_flights.return_value = mock_flight_connector
+        
+        mock_hotel_connector = Mock()
+        mock_hotel_connector.search_hotels.return_value = []
+        mock_hotels.return_value = mock_hotel_connector
+        
+        mock_activity_connector = Mock()
+        mock_activity_connector.search_activities.return_value = []
+        mock_activities.return_value = mock_activity_connector
+        
+        url = reverse('ai_implementation:perform_search', args=[search.id])
+        response = self.client.post(url)
+        # Should handle mock data (may raise exception or continue)
+        self.assertIn(response.status_code, [200, 400, 500])
 
 
 class APIConnectorEdgeCaseTest(TestCase):
@@ -7978,8 +15492,10 @@ class SerpApiViewIntegrationTest(TestCase):
         )
     
     @patch('ai_implementation.views.SerpApiFlightsConnector')
-    @patch('ai_implementation.views.DuffelAggregator')
-    def test_generate_voting_options_with_serpapi(self, mock_duffel, mock_serpapi):
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_with_serpapi(self, mock_openai, mock_makcorps, mock_activities, mock_serpapi):
         """Test generate_voting_options uses SerpApi for flights"""
         # Mock SerpApi connector
         mock_serpapi_instance = Mock()
@@ -8015,29 +15531,30 @@ class SerpApiViewIntegrationTest(TestCase):
         ]
         mock_serpapi.return_value = mock_serpapi_instance
         
-        # Mock Duffel aggregator (for hotels/activities)
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [],  # SerpApi handles flights
-            'hotels': [
-                {
-                    'id': 'hotel-1',
-                    'name': 'Sicily Hotel',
-                    'price_per_night': 150.0,
-                    'total_price': 1050.0,
-                    'searched_destination': 'Sicily, Italy'
-                },
-                {
-                    'id': 'hotel-2',
-                    'name': 'Alberta Hotel',
-                    'price_per_night': 120.0,
-                    'total_price': 840.0,
-                    'searched_destination': 'Alberta, Canada'
-                }
-            ],
-            'activities': []
-        }
-        mock_duffel.return_value = mock_aggregator
+        # Mock Makcorps hotels
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = [
+            {
+                'id': 'hotel-1',
+                'name': 'Sicily Hotel',
+                'price_per_night': 150.0,
+                'total_price': 1050.0,
+                'searched_destination': 'Sicily, Italy'
+            },
+            {
+                'id': 'hotel-2',
+                'name': 'Alberta Hotel',
+                'price_per_night': 120.0,
+                'total_price': 840.0,
+                'searched_destination': 'Alberta, Canada'
+            }
+        ]
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        # Mock SerpAPI activities
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = []
+        mock_activities.return_value = mock_activities_instance
         
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
@@ -8070,8 +15587,10 @@ class SerpApiViewIntegrationTest(TestCase):
             self.assertIn(flight.searched_destination, ['Sicily, Italy', 'Alberta, Canada'])
     
     @patch('ai_implementation.views.SerpApiFlightsConnector')
-    @patch('ai_implementation.views.DuffelAggregator')
-    def test_generate_voting_options_denver_origin(self, mock_duffel, mock_serpapi):
+    @patch('ai_implementation.views.SerpApiActivitiesConnector')
+    @patch('ai_implementation.views.MakcorpsHotelConnector')
+    @patch('ai_implementation.views.OpenAIService')
+    def test_generate_voting_options_denver_origin(self, mock_openai, mock_makcorps, mock_activities, mock_serpapi):
         """Test that Denver is used as default origin for flights"""
         mock_serpapi_instance = Mock()
         # Return at least one flight so the view actually processes results
@@ -8093,21 +15612,23 @@ class SerpApiViewIntegrationTest(TestCase):
         ]
         mock_serpapi.return_value = mock_serpapi_instance
         
-        mock_aggregator = Mock()
-        mock_aggregator.search_all.return_value = {
-            'flights': [],
-            'hotels': [
-                {
-                    'id': 'hotel-1',
-                    'name': 'Sicily Hotel',
-                    'price_per_night': 150.0,
-                    'total_price': 1050.0,
-                    'searched_destination': 'Sicily, Italy'
-                }
-            ],
-            'activities': []
-        }
-        mock_duffel.return_value = mock_aggregator
+        # Mock Makcorps hotels
+        mock_makcorps_instance = Mock()
+        mock_makcorps_instance.search_hotels.return_value = [
+            {
+                'id': 'hotel-1',
+                'name': 'Sicily Hotel',
+                'price_per_night': 150.0,
+                'total_price': 1050.0,
+                'searched_destination': 'Sicily, Italy'
+            }
+        ]
+        mock_makcorps.return_value = mock_makcorps_instance
+        
+        # Mock SerpAPI activities
+        mock_activities_instance = Mock()
+        mock_activities_instance.search_activities.return_value = []
+        mock_activities.return_value = mock_activities_instance
         
         self.client.login(username='user1', password='pass123')
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])

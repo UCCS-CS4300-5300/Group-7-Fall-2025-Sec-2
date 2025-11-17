@@ -99,7 +99,7 @@ for group in groups:
         print()
         print("   🔧 TO GENERATE OPTIONS:")
         print("      1. Ensure 2+ members have submitted preferences")
-        print("      2. Go to group page → 'Manage Trips' tab")
+        print("      2. Go to group page → 'Find A Trip' tab")
         print("      3. Click 'Find Your Trip' button")
         print("      4. Wait 30-60 seconds")
         print()

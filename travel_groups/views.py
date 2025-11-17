@@ -114,53 +114,74 @@ def group_detail(request, group_id):
         consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
         
         if consensus:
-            # Get the 3 voting options
-            options = GroupItineraryOption.objects.filter(
+            # Get the active voting option (only one shown at a time)
+            active_option = GroupItineraryOption.objects.filter(
                 group=group,
-                consensus=consensus
-            ).select_related('selected_flight', 'selected_hotel')
+                consensus=consensus,
+                status='active'
+            ).select_related('selected_flight', 'selected_hotel').first()
             
-            if options.exists():
-                # Get activities for each option
+            # Also get pending options count for display
+            pending_count = GroupItineraryOption.objects.filter(
+                group=group,
+                consensus=consensus,
+                status='pending'
+            ).count()
+            
+            rejected_count = GroupItineraryOption.objects.filter(
+                group=group,
+                consensus=consensus,
+                status='rejected'
+            ).count()
+            
+            if active_option:
+                # Get activities for the active option and update vote count
                 voting_options = []
-                for option in options:
-                    activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
+                option = active_option
+                
+                # Recalculate vote count from actual votes to ensure accuracy
+                actual_vote_count = ItineraryVote.objects.filter(option=option).count()
+                if option.vote_count != actual_vote_count:
+                    option.vote_count = actual_vote_count
+                    option.save(update_fields=['vote_count'])
+                
+                activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
+                
+                # Get activities matching this option's destination
+                if option.search and activity_ids:
+                    all_activities = ActivityResult.objects.filter(
+                        search=option.search,
+                        external_id__in=activity_ids
+                    )
                     
-                    # Get activities matching this option's destination
-                    if option.search and activity_ids:
-                        all_activities = ActivityResult.objects.filter(
-                            search=option.search,
-                            external_id__in=activity_ids
-                        )
-                        
-                        # Filter activities to match option's destination
-                        activities = []
-                        for activity in all_activities:
-                            try:
-                                activity_raw = json.loads(activity.raw_data)
-                                activity_destination = activity_raw.get('searched_destination', '')
-                                
-                                # If option has a destination, filter by it
-                                if option.destination:
-                                    if activity_destination == option.destination:
-                                        activities.append(activity)
-                                else:
-                                    # No destination filtering - include all activities
+                    # Filter activities to match option's destination
+                    activities = []
+                    for activity in all_activities:
+                        try:
+                            activity_raw = json.loads(activity.raw_data)
+                            activity_destination = activity_raw.get('searched_destination', '')
+                            
+                            # If option has a destination, filter by it
+                            if option.destination:
+                                if activity_destination == option.destination:
                                     activities.append(activity)
-                            except:
-                                # If can't parse raw_data, include activity
+                            else:
+                                # No destination filtering - include all activities
                                 activities.append(activity)
-                        
-                        # If no activities after filtering, fall back to showing all
-                        if not activities and all_activities:
-                            activities = list(all_activities)
-                    else:
-                        activities = []
+                        except:
+                            # If can't parse raw_data, include activity
+                            activities.append(activity)
                     
-                    voting_options.append({
-                        'option': option,
-                        'activities': activities
-                    })
+                    # If no activities after filtering, fall back to showing all
+                    if not activities and all_activities:
+                        activities = list(all_activities)
+                else:
+                    activities = []
+                
+                voting_options.append({
+                    'option': option,
+                    'activities': activities
+                })
                 
                 # Check if user has voted
                 if user_is_member:
@@ -168,7 +189,23 @@ def group_detail(request, group_id):
                 
                 # Get voting stats
                 votes_cast = ItineraryVote.objects.filter(group=group).count()
-                voting_complete = votes_cast >= members.count()
+                total_members = members.count()
+                voting_complete = votes_cast >= total_members
+                
+                # Check if current active option has unanimous "yes" vote (exclude ROLL_AGAIN votes)
+                yes_votes_for_active = ItineraryVote.objects.filter(
+                    group=group, 
+                    option=active_option
+                ).exclude(comment="ROLL_AGAIN").count()
+                is_unanimous = (yes_votes_for_active == total_members) and (votes_cast == total_members)
+                
+                # Store additional context
+                voting_context = {
+                    'pending_count': pending_count,
+                    'rejected_count': rejected_count,
+                    'is_unanimous': is_unanimous,
+                    'votes_for_active': yes_votes_for_active,
+                }
     except Exception as e:
         print(f"Error fetching voting options: {str(e)}")
         voting_options = None
@@ -183,12 +220,16 @@ def group_detail(request, group_id):
         'group_code': group.get_unique_identifier(),
         'user': request.user,  # Explicitly pass user for permission checks
         'prefs_count': prefs_count,  # For "Find Your Trip" button
-        'voting_options': voting_options,  # For Trips tab voting display
+        'voting_options': voting_options,  # For Trips tab voting display (only active option)
         'user_vote': user_vote,
         'votes_cast': votes_cast,
         'voting_complete': voting_complete,
         'today': date.today(),  # For date picker minimum date
     }
+    
+    # Add voting context if available
+    if 'voting_context' in locals():
+        context.update(voting_context)
     return render(request, 'travel_groups/group_detail.html', context)
 
 @login_required

@@ -309,6 +309,20 @@ class GroupItineraryOption(models.Model):
         ('A', 'Option A'),
         ('B', 'Option B'),
         ('C', 'Option C'),
+        ('D', 'Option D'),
+        ('E', 'Option E'),
+        ('F', 'Option F'),
+        ('G', 'Option G'),
+        ('H', 'Option H'),
+        ('I', 'Option I'),
+        ('J', 'Option J'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending - Not yet shown'),
+        ('active', 'Active - Currently being voted on'),
+        ('rejected', 'Rejected - Did not get unanimous vote'),
+        ('accepted', 'Accepted - Got unanimous vote'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -317,6 +331,10 @@ class GroupItineraryOption(models.Model):
     
     # Option identifier
     option_letter = models.CharField(max_length=1, choices=OPTION_CHOICES)
+    
+    # Voting status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', help_text="Current status of this option in the voting process")
+    display_order = models.PositiveIntegerField(default=0, help_text="Order in which options are displayed (0 = not yet shown)")
     
     # Itinerary details
     title = models.CharField(max_length=300)
@@ -348,7 +366,7 @@ class GroupItineraryOption(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['option_letter']
+        ordering = ['display_order', 'option_letter']
         unique_together = ['group', 'consensus', 'option_letter']
         verbose_name = "Group Itinerary Option"
         verbose_name_plural = "Group Itinerary Options"
@@ -384,7 +402,26 @@ class ItineraryVote(models.Model):
         return f"{self.user.username} voted for Option {self.option.option_letter}"
     
     def save(self, *args, **kwargs):
+        # Store old option if this is an update
+        old_option = None
+        if self.pk:
+            try:
+                old_vote = ItineraryVote.objects.get(pk=self.pk)
+                old_option = old_vote.option
+            except ItineraryVote.DoesNotExist:
+                pass
+        
         super().save(*args, **kwargs)
-        # Update vote count on the option
+        # Update vote count on the new option
         self.option.update_vote_count()
+        # Update vote count on old option if vote was changed
+        if old_option and old_option != self.option:
+            old_option.update_vote_count()
+    
+    def delete(self, *args, **kwargs):
+        # Store option before deletion to update its vote count
+        option = self.option
+        super().delete(*args, **kwargs)
+        # Update vote count after deletion
+        option.update_vote_count()
 

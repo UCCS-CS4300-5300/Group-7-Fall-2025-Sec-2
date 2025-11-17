@@ -717,3 +717,290 @@ class SerpApiFlightsConnector:
         
         return flights
 
+
+class SerpApiActivitiesConnector:
+    """
+    Connector for SerpAPI Google search for activities and things to do.
+    Uses Google search to find activities, tours, and attractions.
+    """
+    
+    def __init__(self):
+        """Initialize SerpApi client"""
+        # Get API key from environment variable first
+        self.api_key = os.environ.get('SERP_API_KEY', None)
+        
+        # Try to get from Django settings if available
+        if not self.api_key:
+            try:
+                self.api_key = getattr(settings, 'SERP_API_KEY', None)
+            except Exception:
+                # Django settings not configured yet, that's okay
+                pass
+        
+        self.base_url = "https://serpapi.com/search.json"
+        self.timeout = 30
+        
+        if not self.api_key:
+            print("WARNING: SerpApi API key not configured. Using mock data.")
+        
+        self.headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'GroupGo-TravelApp/1.0'
+        }
+    
+    def search_activities(
+        self,
+        destination: str,
+        start_date: str = None,
+        end_date: str = None,
+        categories: Optional[List[str]] = None,
+        max_results: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for activities and things to do using SerpAPI Google search.
+        
+        Args:
+            destination: Destination location (city name)
+            start_date: Trip start date (optional, for context)
+            end_date: Trip end date (optional, for context)
+            categories: List of activity categories (optional)
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of activity options in standardized format
+        """
+        
+        if not self.api_key:
+            print("Using mock activity data (SerpApi API key not configured)")
+            return self._get_mock_activity_data(destination, categories or [])
+        
+        try:
+            # Build search query
+            query = f"things to do in {destination}"
+            if categories:
+                query += f" {', '.join(categories[:2])}"  # Add up to 2 categories
+            
+            params = {
+                'engine': 'google',
+                'api_key': self.api_key,
+                'q': query,
+                'hl': 'en',
+                'gl': 'us',
+                'num': max_results
+            }
+            
+            print(f"Searching SerpAPI for activities: {query}")
+            
+            response = requests.get(self.base_url, params=params, headers=self.headers, timeout=self.timeout)
+            
+            if response.status_code != 200:
+                print(f"  [ERROR] SerpApi returned status code {response.status_code}")
+                return self._get_mock_activity_data(destination, categories or [])
+            
+            data = response.json()
+            
+            # Check for errors
+            if 'error' in data:
+                error_msg = data.get('error', 'Unknown error')
+                print(f"  [ERROR] SerpApi API error: {error_msg}")
+                return self._get_mock_activity_data(destination, categories or [])
+            
+            activities = self._parse_serpapi_activities_response(data, destination, categories or [], max_results)
+            
+            if not activities:
+                print(f"  [WARNING] No activities found, using mock data")
+                return self._get_mock_activity_data(destination, categories or [])
+            
+            print(f"  [SUCCESS] Found {len(activities)} activities from SerpAPI")
+            return activities[:max_results]
+            
+        except requests.exceptions.RequestException as e:
+            print(f"  [ERROR] SerpApi request error: {str(e)}")
+            return self._get_mock_activity_data(destination, categories or [])
+        except Exception as e:
+            print(f"  [ERROR] SerpApi activities search error: {str(e)}")
+            return self._get_mock_activity_data(destination, categories or [])
+    
+    def _parse_serpapi_activities_response(
+        self,
+        data: Dict[str, Any],
+        destination: str,
+        categories: List[str],
+        max_results: int = 20
+    ) -> List[Dict[str, Any]]:
+        """
+        Parse SerpAPI Google search response for activities.
+        
+        Args:
+            data: Raw JSON response from SerpAPI
+            destination: Destination location
+            categories: Activity categories
+            
+        Returns:
+            List of activity dictionaries in standardized format
+        """
+        activities = []
+        
+        try:
+            # Google search results can be in various formats
+            # Try to extract from organic_results, places_results, or knowledge_graph
+            
+            results = []
+            
+            # Check organic results (regular search results)
+            if 'organic_results' in data:
+                results.extend(data['organic_results'])
+            
+            # Check places results (if available)
+            if 'places_results' in data:
+                if isinstance(data['places_results'], list):
+                    results.extend(data['places_results'])
+                elif isinstance(data['places_results'], dict):
+                    results.append(data['places_results'])
+            
+            # Check local_results
+            if 'local_results' in data:
+                if isinstance(data['local_results'], list):
+                    results.extend(data['local_results'])
+            
+            # Parse each result
+            for result in results[:max_results]:
+                try:
+                    # Extract activity information
+                    name = result.get('title') or result.get('name') or result.get('place', {}).get('name', 'Unknown Activity')
+                    
+                    # Skip if it's not relevant (e.g., Wikipedia, booking sites)
+                    if any(skip in name.lower() for skip in ['wikipedia', 'booking.com', 'tripadvisor', 'expedia']):
+                        continue
+                    
+                    # Extract description
+                    description = result.get('snippet') or result.get('description') or result.get('about', {}).get('description', '')
+                    
+                    # Extract link
+                    link = result.get('link') or result.get('website') or result.get('place', {}).get('website', '')
+                    
+                    # Extract rating if available
+                    rating = None
+                    if 'rating' in result:
+                        rating = float(result['rating'])
+                    elif 'place' in result and 'rating' in result['place']:
+                        rating = float(result['place']['rating'])
+                    
+                    # Extract review count
+                    review_count = 0
+                    if 'reviews' in result:
+                        review_count = int(result['reviews'])
+                    elif 'place' in result and 'reviews' in result['place']:
+                        review_count = int(result['place']['reviews'])
+                    
+                    # Extract address/location
+                    address = result.get('address') or result.get('place', {}).get('address', '')
+                    
+                    # Determine category
+                    category = 'general'
+                    if categories:
+                        category = categories[0] if categories else 'general'
+                    else:
+                        # Try to infer from description
+                        desc_lower = description.lower()
+                        if any(word in desc_lower for word in ['museum', 'gallery', 'art']):
+                            category = 'museums'
+                        elif any(word in desc_lower for word in ['hiking', 'outdoor', 'nature', 'park']):
+                            category = 'outdoor'
+                        elif any(word in desc_lower for word in ['food', 'restaurant', 'cooking', 'wine']):
+                            category = 'food'
+                        elif any(word in desc_lower for word in ['adventure', 'zip', 'climbing', 'kayak']):
+                            category = 'adventure'
+                        elif any(word in desc_lower for word in ['tour', 'walking', 'sightseeing']):
+                            category = 'culture'
+                    
+                    # Estimate price (Google search doesn't provide prices, so we estimate)
+                    import random
+                    price = random.randint(20, 150)  # Reasonable estimate
+                    
+                    # Estimate duration
+                    duration_hours = random.choice([2, 3, 4, 6])
+                    
+                    activity = {
+                        'id': f'SERP-ACT-{len(activities) + 1}',
+                        'name': name,
+                        'category': category,
+                        'description': description[:500] if description else f'Experience {name} in {destination}',
+                        'price': price,
+                        'currency': 'USD',
+                        'duration_hours': duration_hours,
+                        'rating': rating,
+                        'review_count': review_count,
+                        'included': 'Varies',
+                        'meeting_point': address or f'{destination}',
+                        'cancellation_policy': 'Check with provider',
+                        'max_group_size': None,
+                        'languages': ['English'],
+                        'link': link,
+                        'is_mock': False
+                    }
+                    
+                    activities.append(activity)
+                    
+                except Exception as e:
+                    print(f"  [WARNING] Error parsing activity result: {str(e)}")
+                    continue
+            
+            return activities
+            
+        except Exception as e:
+            print(f"  [ERROR] Error parsing SerpAPI activities response: {str(e)}")
+            return []
+    
+    def _get_mock_activity_data(self, destination: str, categories: List[str]) -> List[Dict[str, Any]]:
+        """Generate mock activity data when SerpAPI is unavailable"""
+        import random
+        
+        activity_types = {
+            'museums': ['Museum Tour', 'Art Gallery Visit', 'Historical Site Tour'],
+            'outdoor': ['Hiking Tour', 'Bike Rental', 'Beach Activities', 'Nature Walk'],
+            'food': ['Food Tour', 'Cooking Class', 'Wine Tasting', 'Restaurant Tour'],
+            'adventure': ['Zip Lining', 'Rock Climbing', 'Kayaking', 'Parasailing'],
+            'culture': ['City Walking Tour', 'Theater Show', 'Music Concert', 'Local Market Visit'],
+            'default': ['City Tour', 'Sightseeing', 'Local Experience']
+        }
+        
+        activities = []
+        for i in range(10):
+            # Pick a category
+            if categories:
+                category = random.choice(categories)
+                activity_list = activity_types.get(category, activity_types['default'])
+            else:
+                category = random.choice(list(activity_types.keys()))
+                activity_list = activity_types[category]
+            
+            activity_name = random.choice(activity_list)
+            price = random.randint(20, 200)
+            duration_hours = random.choice([2, 3, 4, 6, 8])
+            
+            activities.append({
+                'id': f'MOCK-SERP-ACT-{i+1}',
+                'name': f'{activity_name} in {destination}',
+                'category': category,
+                'price': price,
+                'currency': 'USD',
+                'duration_hours': duration_hours,
+                'rating': round(random.uniform(4.0, 5.0), 1),
+                'review_count': random.randint(10, 300),
+                'description': f'Experience an amazing {activity_name.lower()} in {destination}. Perfect for all ages!',
+                'included': random.choice([
+                    'Guide, Equipment',
+                    'Tickets, Transportation',
+                    'Meals, Guide',
+                    'Equipment only'
+                ]),
+                'meeting_point': f'{destination} Central Location',
+                'cancellation_policy': random.choice(['Free cancellation up to 24h', 'Non-refundable', '50% refund']),
+                'max_group_size': random.randint(6, 20),
+                'languages': random.sample(['English', 'Spanish', 'French', 'German'], random.randint(1, 3)),
+                'is_mock': True
+            })
+        
+        return activities
+

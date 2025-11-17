@@ -283,7 +283,7 @@ Include only the top 5 recommendations for each category.
             for a in activity_results[:6]
         ]
 
-        prompt = f"""Analyze {len(member_preferences)} members' travel preferences. Create 3 itinerary options for voting.
+        prompt = f"""Analyze {len(member_preferences)} members' travel preferences. Create 5-8 diverse itinerary options for voting.
 
 {date_info}
 MEMBERS: {member_summary}
@@ -297,17 +297,17 @@ DATA:
 
 REQUIREMENTS:
 - Balance ALL {len(member_preferences)} members' preferences
+- Create 5-8 DIVERSE options with different destinations, budgets, and styles
 - Use DIFFERENT destinations per option when possible (check "searched_destination" field)
-- Option A: ${min_budget:.2f} budget, cheapest choices for ONE destination
-- Option B: ${median_budget:.2f} budget, balanced quality, DIFFERENT destination
-- Option C: ${max_budget:.2f} budget, premium quality, DIFFERENT destination
+- Vary budgets: some at ${min_budget:.2f}, some at ${median_budget:.2f}, some at ${max_budget:.2f}
+- Include options that prioritize different members' preferences
 - Explain which member's destination each option prioritizes
 
 JSON OUTPUT:
-{{"options":[{{"option_letter":"A","title":"...","description":"1-2 sentences","selected_flight_id":"exact id","selected_hotel_id":"exact id","selected_activity_ids":["exact ids"],"estimated_total_cost":0.00,"cost_per_person":0.00,"ai_reasoning":"Why this works for ALL members","compromise_explanation":"How this addresses EACH member by name","pros":["...","...","..."],"cons":["...","..."]}},{{"option_letter":"B",...}},{{"option_letter":"C",...}}],
+{{"options":[{{"option_letter":"A","title":"...","description":"1-2 sentences","intended_destination":"exact destination name from searched_destination field","selected_flight_id":"exact id","selected_hotel_id":"exact id","selected_activity_ids":["exact ids"],"estimated_total_cost":0.00,"cost_per_person":0.00,"ai_reasoning":"Why this works for ALL members","compromise_explanation":"How this addresses EACH member by name","pros":["...","...","..."],"cons":["...","..."]}},{{"option_letter":"B",...}},{{"option_letter":"C",...}},{{"option_letter":"D",...}},{{"option_letter":"E",...}},{{"option_letter":"F",...}},{{"option_letter":"G",...}},{{"option_letter":"H",...}}],
 "voting_guidance":"...","consensus_summary":"..."}}
 
-CRITICAL: Use ONLY exact IDs from provided data. Mention ALL {len(member_preferences)} members in reasoning. Match costs to budget tiers."""
+CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provided data. Mention ALL {len(member_preferences)} members in reasoning. Vary budgets and destinations."""
 
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
@@ -337,16 +337,88 @@ CRITICAL: Use ONLY exact IDs from provided data. Mention ALL {len(member_prefere
                 model=self.model,
                 messages=messages,
                 temperature=0.7,  # Reduced for more consistent results
-                max_tokens=1500,  # Increased slightly for detailed responses
+                max_tokens=2000,  # Increased for detailed responses
                 response_format={"type": "json_object"},
                 timeout=90,  # Increased timeout to 90 seconds
             )
 
-            result = json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content
+            
+            # Try to parse JSON, with fallback cleaning
+            try:
+                result = json.loads(content)
+            except json.JSONDecodeError as json_error:
+                print(f"JSON parse error: {str(json_error)}")
+                print(f"Error at line {json_error.lineno}, column {json_error.colno}")
+                print(f"Response content length: {len(content)}")
+                print(f"Response content (first 1000 chars):\n{content[:1000]}")
+                if len(content) > 1000:
+                    print(f"Response content (last 500 chars):\n{content[-500:]}")
+                
+                # Try to fix common JSON issues
+                try:
+                    # Remove markdown code blocks if present
+                    cleaned_content = content
+                    if "```json" in cleaned_content:
+                        cleaned_content = cleaned_content.split("```json")[1].split("```")[0].strip()
+                    elif "```" in cleaned_content:
+                        cleaned_content = cleaned_content.split("```")[1].split("```")[0].strip()
+                    
+                    # Try parsing the cleaned content first
+                    try:
+                        result = json.loads(cleaned_content)
+                        print("✅ Successfully parsed after removing markdown")
+                    except json.JSONDecodeError as inner_error:
+                        print(f"Still failed after markdown removal: {str(inner_error)}")
+                        # If that fails, try to extract JSON object using a more robust method
+                        import re
+                        # Find the first { and try to match balanced braces
+                        start_idx = cleaned_content.find('{')
+                        if start_idx != -1:
+                            # Count braces to find the matching closing brace
+                            brace_count = 0
+                            end_idx = start_idx
+                            for i in range(start_idx, len(cleaned_content)):
+                                if cleaned_content[i] == '{':
+                                    brace_count += 1
+                                elif cleaned_content[i] == '}':
+                                    brace_count -= 1
+                                    if brace_count == 0:
+                                        end_idx = i + 1
+                                        break
+                            
+                            if brace_count == 0:
+                                json_str = cleaned_content[start_idx:end_idx]
+                                # Try to fix common issues in the extracted JSON
+                                # Fix trailing commas before closing braces/brackets
+                                json_str = re.sub(r',\s*}', '}', json_str)
+                                json_str = re.sub(r',\s*]', ']', json_str)
+                                # Try parsing
+                                try:
+                                    result = json.loads(json_str)
+                                    print("✅ Successfully extracted and parsed JSON using balanced brace matching")
+                                except json.JSONDecodeError as parse_error:
+                                    print(f"Failed to parse extracted JSON: {str(parse_error)}")
+                                    print(f"Extracted JSON (first 500 chars): {json_str[:500]}")
+                                    raise json_error
+                            else:
+                                print("Could not find balanced braces in response")
+                                raise json_error
+                        else:
+                            print("Could not find opening brace in response")
+                            raise json_error
+                except Exception as fix_error:
+                    print(f"Failed to fix JSON: {str(fix_error)}")
+                    import traceback
+                    print(traceback.format_exc())
+                    raise json_error
+            
             return result
 
         except Exception as e:
             print(f"Error generating itinerary options: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return {
                 "error": str(e),
                 "options": [],

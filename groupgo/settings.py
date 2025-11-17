@@ -140,6 +140,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Media files
@@ -157,10 +160,6 @@ OPENAI_API_KEY = os.environ.get('OPEN_AI_KEY', '')
 OPENAI_MODEL = 'gpt-4o-mini'
 
 # Travel API Configuration
-# Duffel API (Primary - for flights and hotels)
-# Get your API key from: https://duffel.com/
-DUFFEL_API_KEY = os.environ.get('DUFFEL_API_KEY', '')
-
 # Amadeus API (Alternative for flights)
 AMADEUS_API_KEY = os.environ.get('AMADEUS_API_KEY', '')
 AMADEUS_API_SECRET = os.environ.get('AMADEUS_API_SECRET', '')

@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.db import transaction
+from django.db import transaction, models
 from django.utils import timezone
 from datetime import datetime
 
@@ -36,16 +36,17 @@ from .forms import (
 )
 from .openai_service import OpenAIService
 from .api_connectors import TravelAPIAggregator
-from .duffel_connector import DuffelAggregator
-from .serpapi_connector import SerpApiFlightsConnector
+from .serpapi_connector import SerpApiFlightsConnector, SerpApiActivitiesConnector
+from .makcorps_connector import MakcorpsHotelConnector
 
 from travel_groups.models import TravelGroup, GroupMember, TripPreference
+from .airport_data import search_airports
 
 
 def _generate_options_manually(member_prefs, flight_results, hotel_results, activity_results, search, group):
     """
-    Generate 3 voting options manually without OpenAI.
-    Creates budget-based options: cheapest, mid-range, premium.
+    Generate 5-8 voting options manually without OpenAI.
+    Creates budget-based options with variety: cheapest, mid-range, premium, and variations.
     Ensures each option uses a UNIQUE combination of flights and hotels.
     Validates that destinations match member preferences and that flights/hotels match destinations.
     """
@@ -147,49 +148,51 @@ def _generate_options_manually(member_prefs, flight_results, hotel_results, acti
     
     print(f"[DEBUG] Generated {len(all_combinations)} unique combinations, sorted by cost")
     
-    # Select 3 distinct options: cheapest, middle, most expensive
+    # Select 5-8 distinct options: spread across price range
     selected_combinations = []
-    if len(all_combinations) >= 3:
-        # Pick cheapest, middle, and most expensive
+    target_count = min(8, len(all_combinations))  # Generate up to 8 options
+    
+    if len(all_combinations) >= target_count:
+        # Pick options spread across the price range
+        indices = [
+            0,  # Cheapest
+            len(all_combinations) // 4,
+            len(all_combinations) // 2,  # Middle
+            len(all_combinations) * 3 // 4,
+            len(all_combinations) - 1,  # Most expensive
+        ]
+        # Add more if we have enough combinations
+        if len(all_combinations) >= 8:
+            indices.extend([
+                len(all_combinations) // 8,
+                len(all_combinations) * 5 // 8,
+                len(all_combinations) * 7 // 8,
+            ])
+        
+        # Remove duplicates and ensure we don't exceed available combinations
+        unique_indices = sorted(list(set([i for i in indices if i < len(all_combinations)])))[:target_count]
+        selected_combinations = [all_combinations[i] for i in unique_indices]
+    elif len(all_combinations) >= 3:
+        # Use what we have, spread across range
         selected_combinations = [
             all_combinations[0],  # Cheapest
             all_combinations[len(all_combinations) // 2],  # Middle
             all_combinations[-1],  # Most expensive
         ]
-    elif len(all_combinations) == 2:
-        # Use both and duplicate one with different pairing if possible
-        selected_combinations = [
-            all_combinations[0],  # Cheapest
-            all_combinations[-1],  # Most expensive
-        ]
-        # Try to find a different combination for middle option
-        for combo in all_combinations:
-            if combo not in selected_combinations:
-                selected_combinations.insert(1, combo)
+        # Add more if available
+        for i in range(1, len(all_combinations) - 1):
+            if len(selected_combinations) >= target_count:
                 break
-        if len(selected_combinations) == 2:
-            # No unique middle option, use cheapest with next flight or hotel
-            selected_combinations.insert(1, all_combinations[0])
+            if all_combinations[i] not in selected_combinations:
+                selected_combinations.append(all_combinations[i])
     else:
-        # Only one combination, duplicate it
-        selected_combinations = [all_combinations[0]] * 3
+        # Use all available combinations
+        selected_combinations = all_combinations[:target_count]
     
-    # Ensure we have exactly 3 options and they're unique
-    while len(selected_combinations) < 3:
-        # Duplicate one but with different indices
-        for combo in all_combinations:
-            if combo not in selected_combinations:
-                selected_combinations.append(combo)
-                break
-        if len(selected_combinations) < 3:
-            # Force add the cheapest one again (better than nothing)
-            selected_combinations.append(all_combinations[0])
-            break
-    
-    # Now ensure selected_combinations have unique flight+hotel pairs
+    # Ensure selected_combinations have unique flight+hotel pairs
     unique_selected = []
     used_pairs = set()
-    for combo in selected_combinations[:3]:  # Limit to 3
+    for combo in selected_combinations:
         pair_key = (combo['flight_id'], combo['hotel_id'])
         if pair_key not in used_pairs:
             used_pairs.add(pair_key)
@@ -197,7 +200,7 @@ def _generate_options_manually(member_prefs, flight_results, hotel_results, acti
     
     # Fill remaining slots if needed
     idx = 0
-    while len(unique_selected) < 3 and idx < len(all_combinations):
+    while len(unique_selected) < target_count and idx < len(all_combinations):
         combo = all_combinations[idx]
         pair_key = (combo['flight_id'], combo['hotel_id'])
         if pair_key not in used_pairs:
@@ -210,14 +213,19 @@ def _generate_options_manually(member_prefs, flight_results, hotel_results, acti
     
     # Create option objects
     options = []
-    tier_names = ['Budget-Friendly', 'Balanced', 'Premium']
+    tier_names = ['Budget-Friendly', 'Economy', 'Balanced', 'Comfort', 'Premium', 'Luxury', 'Ultra-Premium', 'Exclusive']
     tier_descriptions = [
         'Affordable option with economical flight and hotel choices.',
+        'Economy option with budget-friendly choices.',
         'Mid-range option with good value flight and hotel choices.',
+        'Comfort option with quality accommodations.',
         'Premium option with high-quality flight and hotel choices.',
+        'Luxury option with top-tier accommodations.',
+        'Ultra-premium option with exceptional quality.',
+        'Exclusive option with the finest accommodations.',
     ]
     
-    for idx, combo in enumerate(unique_selected[:3]):  # Ensure exactly 3
+    for idx, combo in enumerate(unique_selected[:target_count]):
         dest = combo['destination']
         flight = combo['flight']
         hotel = combo['hotel']
@@ -432,8 +440,8 @@ def perform_search(request, search_id):
         return render(request, "ai_implementation/searching.html", {"search": search})
 
     try:
-        # Initialize Duffel API aggregator (falls back to mock data if no API key)
-        aggregator = DuffelAggregator()
+        # Initialize SerpAPI for flights and activities, Makcorps for hotels
+        serpapi_flights = SerpApiFlightsConnector()
 
         # Prepare preferences
         preferences = {
@@ -449,16 +457,80 @@ def perform_search(request, search_id):
             "rooms": search.rooms,
         }
 
-        # Search all APIs
-        api_results = aggregator.search_all(
-            destination=search.destination,
-            origin=search.origin,
-            start_date=search.start_date.strftime("%Y-%m-%d"),
-            end_date=search.end_date.strftime("%Y-%m-%d"),
-            adults=search.adults,
-            rooms=search.rooms,
-            preferences=preferences,
-        )
+        # Search flights using SerpAPI
+        flight_results = []
+        if search.origin:
+            try:
+                print(f"Searching flights using SerpAPI: {search.origin} -> {search.destination}")
+                flight_results = serpapi_flights.search_flights(
+                    origin=search.origin,
+                    destination=search.destination,
+                    departure_date=search.start_date.strftime("%Y-%m-%d"),
+                    return_date=search.end_date.strftime("%Y-%m-%d"),
+                    adults=search.adults,
+                    max_results=50
+                )
+                print(f"Found {len(flight_results)} flights from SerpAPI")
+            except Exception as e:
+                print(f"Error searching flights with SerpAPI: {str(e)}")
+                flight_results = []
+
+        # Search hotels using Makcorps
+        makcorps_hotels = MakcorpsHotelConnector()
+        hotel_results = []
+        try:
+            print(f"Searching hotels using Makcorps: {search.destination}")
+            hotel_results = makcorps_hotels.search_hotels(
+                location=search.destination,
+                check_in=search.start_date.strftime("%Y-%m-%d"),
+                check_out=search.end_date.strftime("%Y-%m-%d"),
+                adults=search.adults,
+                rooms=search.rooms,
+                max_results=50
+            )
+            print(f"Found {len(hotel_results)} hotels from Makcorps")
+        except Exception as e:
+            print(f"Error searching hotels with Makcorps: {str(e)}")
+            hotel_results = []
+
+        # Search activities using SerpAPI
+        serpapi_activities = SerpApiActivitiesConnector()
+        activity_results = []
+        try:
+            print(f"Searching activities using SerpAPI: {search.destination}")
+            activity_categories = None
+            if preferences and 'activity_preferences' in preferences:
+                activity_categories = preferences['activity_preferences']
+                if isinstance(activity_categories, str):
+                    # Try to parse as comma-separated or JSON
+                    try:
+                        import json
+                        cats = json.loads(activity_categories)
+                        if isinstance(cats, list):
+                            activity_categories = cats
+                    except:
+                        # Treat as comma-separated string
+                        activity_categories = [c.strip() for c in activity_categories.split(',')]
+            
+            activity_results = serpapi_activities.search_activities(
+                destination=search.destination,
+                start_date=search.start_date.strftime("%Y-%m-%d"),
+                end_date=search.end_date.strftime("%Y-%m-%d"),
+                categories=activity_categories,
+                max_results=50
+            )
+            print(f"Found {len(activity_results)} activities from SerpAPI")
+        except Exception as e:
+            print(f"Error searching activities with SerpAPI: {str(e)}")
+            activity_results = []
+        
+        # Combine results: use SerpAPI for flights and activities, Makcorps for hotels
+        api_results = {
+            "flights": flight_results,
+            "hotels": hotel_results,
+            "activities": activity_results,
+            "errors": []
+        }
 
         # Save raw results to database
         with transaction.atomic():
@@ -908,6 +980,427 @@ def view_itinerary(request, itinerary_id):
 
 
 @login_required
+def airport_autocomplete(request):
+    """Autocomplete endpoint for airport/city search"""
+    query = request.GET.get('q', '').strip()
+    
+    if not query:
+        return JsonResponse({'airports': []})
+    
+    airports = search_airports(query, limit=10)
+    
+    return JsonResponse({
+        'airports': [
+            {
+                'code': a['code'],
+                'display': a['display'],
+                'full_display': a['full_display'],
+                'city': a['city'],
+                'country': a['country']
+            }
+            for a in airports
+        ]
+    })
+
+
+def _convert_decimals_to_float(obj):
+    """Recursively convert Decimal objects to float for JSON serialization"""
+    from decimal import Decimal
+    
+    if isinstance(obj, Decimal):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {key: _convert_decimals_to_float(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_decimals_to_float(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(_convert_decimals_to_float(item) for item in obj)
+    else:
+        return obj
+
+
+def _generate_single_new_option(group, consensus, search, member_prefs):
+    """Helper function to generate a single new itinerary option from existing search data"""
+    from ai_implementation.openai_service import OpenAIService
+    import random
+    from decimal import Decimal
+    
+    # Get existing search results
+    flights = FlightResult.objects.filter(search=search)
+    hotels = HotelResult.objects.filter(search=search)
+    activities = ActivityResult.objects.filter(search=search)
+    
+    if not flights.exists() or not hotels.exists():
+        return None
+    
+    # Prepare lightweight data for OpenAI
+    lightweight_flights = []
+    for flight in flights[:10]:
+        lightweight_flights.append({
+            "id": flight.external_id,
+            "price": float(flight.price),
+            "searched_destination": flight.searched_destination or search.destination,
+            "total_amount": float(flight.price),
+            "owner": {},
+        })
+    
+    lightweight_hotels = []
+    for hotel in hotels[:15]:
+        lightweight_hotels.append({
+            "id": hotel.external_id,
+            "name": hotel.name,
+            "price_per_night": float(hotel.price_per_night),
+            "rating": hotel.rating,
+            "searched_destination": hotel.searched_destination or search.destination,
+        })
+    
+    lightweight_activities = []
+    for activity in activities[:20]:
+        lightweight_activities.append({
+            "id": activity.external_id,
+            "name": activity.name,
+            "price": float(activity.price),
+            "category": activity.category,
+            "searched_destination": activity.searched_destination or search.destination,
+        })
+    
+    # Convert all data to JSON-serializable format (convert Decimals to float)
+    member_prefs_clean = _convert_decimals_to_float(member_prefs)
+    lightweight_flights_clean = _convert_decimals_to_float(lightweight_flights)
+    lightweight_hotels_clean = _convert_decimals_to_float(lightweight_hotels)
+    lightweight_activities_clean = _convert_decimals_to_float(lightweight_activities)
+    
+    # Generate one option using OpenAI or manual fallback
+    try:
+        openai_service = OpenAIService()
+        options_data = openai_service.generate_three_itinerary_options(
+            member_preferences=member_prefs_clean,
+            flight_results=lightweight_flights_clean,
+            hotel_results=lightweight_hotels_clean,
+            activity_results=lightweight_activities_clean,
+            selected_dates={
+                "start_date": search.start_date.strftime("%Y-%m-%d"),
+                "end_date": search.end_date.strftime("%Y-%m-%d"),
+                "duration_days": (search.end_date - search.start_date).days,
+            },
+        )
+        # Take the first option from the generated options
+        if options_data.get("options"):
+            option_data = options_data["options"][0]  # Take first option
+        else:
+            return None
+    except Exception as e:
+        print(f"[WARNING] OpenAI not available for new option: {str(e)}")
+        # Use manual generation
+        manual_options = _generate_options_manually(
+            member_prefs=member_prefs_clean,
+            flight_results=lightweight_flights_clean,
+            hotel_results=lightweight_hotels_clean,
+            activity_results=lightweight_activities_clean,
+            search=search,
+            group=group
+        )
+        if manual_options.get("options"):
+            option_data = manual_options["options"][0]  # Take first option
+        else:
+            return None
+    
+    # Get intended destination
+    intended_dest = option_data.get("intended_destination", "")
+    if not intended_dest:
+        title = option_data.get("title", "")
+        if " to " in title:
+            intended_dest = title.split(" to ")[-1].strip()
+    
+    # Find matching flight and hotel
+    selected_flight = None
+    flight_id = option_data.get("selected_flight_id")
+    if flight_id:
+        flight = FlightResult.objects.filter(search=search, external_id=flight_id).first()
+        if flight:
+            selected_flight = flight
+    
+    selected_hotel = None
+    hotel_id = option_data.get("selected_hotel_id")
+    if hotel_id:
+        hotel = HotelResult.objects.filter(search=search, external_id=hotel_id).first()
+        if hotel:
+            selected_hotel = hotel
+    
+    # Calculate costs
+    total_cost = 0.0
+    if selected_flight:
+        total_cost += float(selected_flight.price)
+    if selected_hotel:
+        total_cost += float(selected_hotel.total_price)
+    
+    cost_per_person = total_cost / group.member_count if group.member_count > 0 else total_cost
+    
+    # Get next available option letter
+    existing_letters = set(GroupItineraryOption.objects.filter(group=group).values_list('option_letter', flat=True))
+    available_letters = [letter for letter, _ in GroupItineraryOption.OPTION_CHOICES if letter not in existing_letters]
+    if not available_letters:
+        # If all letters used, use a random one
+        option_letter = random.choice([letter for letter, _ in GroupItineraryOption.OPTION_CHOICES])
+    else:
+        option_letter = available_letters[0]
+    
+    # Create the new option
+    new_option = GroupItineraryOption.objects.create(
+        group=group,
+        consensus=consensus,
+        option_letter=option_letter,
+        title=option_data["title"],
+        description=option_data["description"],
+        destination=intended_dest,
+        search=search,
+        selected_flight=selected_flight,
+        selected_hotel=selected_hotel,
+        selected_activities=json.dumps(option_data.get("selected_activity_ids", [])),
+        estimated_total_cost=total_cost,
+        cost_per_person=cost_per_person,
+        ai_reasoning=option_data.get("ai_reasoning", ""),
+        compromise_explanation=option_data.get("compromise_explanation", ""),
+        status='active',
+        display_order=GroupItineraryOption.objects.filter(group=group).aggregate(
+            max_order=models.Max('display_order')
+        )['max_order'] or 0 + 1,
+    )
+    
+    return new_option
+
+
+@login_required
+@require_http_methods(["POST"])
+def roll_again(request, group_id, option_id):
+    """Handle 'Roll Again' - vote no and advance to next option"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    current_option = get_object_or_404(GroupItineraryOption, id=option_id, group=group)
+    
+    # Verify user is a member
+    try:
+        GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Not a group member"})
+    
+    # Check if user already voted on THIS OPTION - update or create their vote
+    existing_vote = ItineraryVote.objects.filter(
+        group=group, 
+        user=request.user,
+        option=current_option
+    ).first()
+    
+    # Create or update vote with "ROLL_AGAIN" marker in comment to indicate "no" vote
+    if existing_vote:
+        existing_vote.comment = "ROLL_AGAIN"
+        existing_vote.save()
+    else:
+        # Check if user has a vote for a different option (shouldn't happen, but handle it)
+        other_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+        if other_vote:
+            # Update existing vote to point to current option
+            other_vote.option = current_option
+            other_vote.comment = "ROLL_AGAIN"
+            other_vote.save()
+        else:
+            # Create a new vote record marking "no"
+            ItineraryVote.objects.create(
+                option=current_option,
+                user=request.user,
+                group=group,
+                comment="ROLL_AGAIN"  # Special marker for "no" vote
+            )
+    
+    # Check how many members have voted on THIS OPTION (all votes, yes or no)
+    total_members = GroupMember.objects.filter(group=group).count()
+    votes_cast = ItineraryVote.objects.filter(
+        group=group,
+        option=current_option
+    ).count()
+    
+    # Check if all members have voted on this option
+    if votes_cast >= total_members:
+        # Check if this option has unanimous "yes" votes (votes without ROLL_AGAIN comment)
+        yes_votes = ItineraryVote.objects.filter(
+            group=group, 
+            option=current_option
+        ).exclude(comment="ROLL_AGAIN").count()
+        
+        if yes_votes == total_members:
+            # Unanimous yes - should not happen if someone clicked Roll Again, but handle it
+            current_option.status = 'accepted'
+            current_option.is_winner = True
+            current_option.save()
+            return JsonResponse({
+                "success": False,
+                "error": "This option has unanimous approval and should be accepted"
+            })
+        else:
+            # Not unanimous - reject and load next pending option
+            current_option.status = 'rejected'
+            current_option.save()
+            
+            # Clear all votes for the rejected option (so members can vote on next option)
+            ItineraryVote.objects.filter(group=group, option=current_option).delete()
+            
+            # Get next pending option (already generated and stored)
+            pending_options = list(GroupItineraryOption.objects.filter(
+                group=group,
+                status='pending'
+            ).order_by('display_order', 'option_letter'))
+            
+            if pending_options:
+                # Activate the first pending option
+                next_option = pending_options[0]
+                next_option.status = 'active'
+                
+                # Set display order (increment from highest existing)
+                max_order = GroupItineraryOption.objects.filter(group=group).aggregate(
+                    max_order=models.Max('display_order')
+                )['max_order'] or 0
+                next_option.display_order = max_order + 1
+                next_option.save()
+                
+                return JsonResponse({
+                    "success": True,
+                    "message": f"Rolled again! Now showing Option {next_option.option_letter}",
+                    "next_option_id": str(next_option.id),
+                    "next_option_letter": next_option.option_letter,
+                    "remaining_pending": len(pending_options) - 1,
+                    "advanced": True
+                })
+            else:
+                # No more pending options - try to generate a new one
+                search = current_option.search
+                consensus = current_option.consensus
+                
+                # Get member preferences for generating new option
+                trip_preferences = TripPreference.objects.filter(group=group, is_completed=True)
+                member_prefs = []
+                for pref in trip_preferences:
+                    member_prefs.append({
+                        "user": pref.user.username,
+                        "destination": pref.destination,
+                        "start_date": pref.start_date.strftime("%Y-%m-%d"),
+                        "end_date": pref.end_date.strftime("%Y-%m-%d"),
+                        "budget": str(pref.budget),
+                        "travel_method": pref.travel_method,
+                        "rental_car": pref.rental_car,
+                        "accommodation_preference": pref.accommodation_preference or "",
+                        "activity_preferences": pref.activity_preferences or "",
+                        "dietary_restrictions": pref.dietary_restrictions or "",
+                        "accessibility_needs": pref.accessibility_needs or "",
+                        "notes": pref.additional_notes or "",
+                    })
+                
+                # Generate a new option
+                next_option = _generate_single_new_option(group, consensus, search, member_prefs)
+                
+                if not next_option:
+                    return JsonResponse({
+                        "success": False,
+                        "error": "No more options available. Please generate new trip options."
+                    })
+                
+                return JsonResponse({
+                    "success": True,
+                    "message": f"Rolled again! Generated new Option {next_option.option_letter}",
+                    "next_option_id": str(next_option.id),
+                    "next_option_letter": next_option.option_letter,
+                    "advanced": True
+                })
+    else:
+        # Not everyone has voted yet - just record the "no" vote
+        return JsonResponse({
+            "success": True,
+            "message": "Your 'Roll Again' vote has been recorded. Waiting for other members to vote...",
+            "waiting": True,
+            "votes_cast": votes_cast,
+            "total_members": total_members
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def advance_to_next_option(request, group_id):
+    """Advance to the next pending option when current one is rejected"""
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Verify user is a member
+    try:
+        GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        return JsonResponse({"success": False, "error": "Not a group member"})
+    
+    # Get current active option
+    current_active = GroupItineraryOption.objects.filter(group=group, status='active').first()
+    
+    if not current_active:
+        return JsonResponse({"success": False, "error": "No active option found"})
+    
+    # Check if all members have voted on the current active option (required before advancing)
+    total_members = GroupMember.objects.filter(group=group).count()
+    votes_cast = ItineraryVote.objects.filter(
+        group=group,
+        option=current_active
+    ).count()
+    
+    if votes_cast < total_members:
+        return JsonResponse({
+            "success": False,
+            "error": "All members must vote on the current option before advancing to next option"
+        })
+    
+    # Check if current option is unanimous
+    votes_for_active = votes_cast
+    if votes_for_active == total_members:
+        # Unanimous - should not advance, option should be accepted
+        return JsonResponse({
+            "success": False,
+            "error": "Current option has unanimous vote and should be accepted"
+        })
+    
+    # Mark current option as rejected
+    current_active.status = 'rejected'
+    current_active.save()
+    
+    # Clear all votes for the rejected option (so members can vote on next option)
+    ItineraryVote.objects.filter(group=group, option=current_active).delete()
+    
+    # Get next pending option randomly
+    pending_options = list(GroupItineraryOption.objects.filter(
+        group=group,
+        status='pending'
+    ))
+    
+    if not pending_options:
+        return JsonResponse({
+            "success": False,
+            "error": "No more pending options available"
+        })
+    
+    # Randomly select next option
+    import random
+    next_option = random.choice(pending_options)
+    next_option.status = 'active'
+    
+    # Set display order (increment from highest existing)
+    max_order = GroupItineraryOption.objects.filter(group=group).aggregate(
+        max_order=models.Max('display_order')
+    )['max_order'] or 0
+    next_option.display_order = max_order + 1
+    next_option.save()
+    
+    return JsonResponse({
+        "success": True,
+        "message": f"Advanced to Option {next_option.option_letter}",
+        "next_option_id": str(next_option.id),
+        "next_option_letter": next_option.option_letter,
+        "remaining_pending": len(pending_options) - 1
+    })
+
+
+@login_required
 def generate_voting_options(request, group_id):
     """Generate 3 itinerary options for group voting based on member preferences"""
     group = get_object_or_404(TravelGroup, id=group_id)
@@ -943,9 +1436,10 @@ def generate_voting_options(request, group_id):
                 status=400,
             )
 
-        # Get dates from JSON body or use None as fallback
+        # Get dates and origin from JSON body or use None as fallback
         selected_start_date = body_data.get("start_date")
         selected_end_date = body_data.get("end_date")
+        selected_origin = body_data.get("origin", "").strip()
 
         # Collect all member preferences
         trip_preferences = TripPreference.objects.filter(group=group, is_completed=True)
@@ -1022,17 +1516,33 @@ def generate_voting_options(request, group_id):
             )
 
             # Search for travel options for EACH destination
-            aggregator = DuffelAggregator()
             serpapi_flights = SerpApiFlightsConnector()
+            serpapi_activities = SerpApiActivitiesConnector()
 
-            # Get origin from first member preference or use default
-            # Default origin is Denver
-            origin_location = "Denver"  # Default origin for flights
-            # Check if any member preference has origin information
-            for pref in trip_preferences:
-                # TripPreference doesn't have origin, but we could add logic to infer from user location
-                # For now, using default origin (Denver)
-                pass
+            # Get origin from user input or use default
+            if selected_origin:
+                # Extract airport code if it's in the format "CODE - City, Country" or just use the value
+                origin_location = selected_origin
+                # If it contains a dash, try to extract the code (format: "DEN - Denver, USA")
+                if ' - ' in origin_location:
+                    origin_location = origin_location.split(' - ')[0].strip()
+                # If it's just a 3-letter code, use it directly
+                elif len(origin_location) == 3 and origin_location.isupper():
+                    origin_location = origin_location
+                # Otherwise, try to find the airport code from the city name
+                else:
+                    # Search for airport by city name
+                    airports = search_airports(origin_location, limit=1)
+                    if airports:
+                        origin_location = airports[0]['code']
+                    else:
+                        # Fallback: use the input as-is (might be a city name)
+                        origin_location = origin_location
+                print(f"[*] Using selected origin: {origin_location}")
+            else:
+                # Default origin is Denver
+                origin_location = "Denver"
+                print(f"[*] Using default origin: {origin_location}")
 
             # Combine results from all destinations
             all_flights = []
@@ -1088,24 +1598,75 @@ def generate_voting_options(request, group_id):
                     print(f"  [ERROR] Cannot proceed without real flight data for {destination}")
                     # Still continue to other destinations, but log the error
 
-                # Use DuffelAggregator for hotels and activities only
-                api_results = aggregator.search_all(
-                    destination=destination,
-                    origin=None,  # Not needed for hotels/activities
-                    start_date=search_start_date.strftime("%Y-%m-%d"),
-                    end_date=search_end_date.strftime("%Y-%m-%d"),
-                    adults=group.member_count,
-                    rooms=search.rooms,
-                )
+                # Use Makcorps for hotels
+                makcorps_hotels = MakcorpsHotelConnector()
+                try:
+                    print(f"  [HOTEL] Searching hotels using Makcorps: {destination}")
+                    hotel_results = makcorps_hotels.search_hotels(
+                        location=destination,
+                        check_in=search_start_date.strftime("%Y-%m-%d"),
+                        check_out=search_end_date.strftime("%Y-%m-%d"),
+                        adults=group.member_count,
+                        rooms=search.rooms,
+                        max_results=20
+                    )
+                    
+                    # Tag hotels with destination
+                    for hotel in hotel_results:
+                        hotel["searched_destination"] = destination
+                        all_hotels.append(hotel)
+                    
+                    print(f"  [OK] Added {len(hotel_results)} hotels from Makcorps")
+                except Exception as e:
+                    print(f"  [ERROR] Error with Makcorps for {destination}: {str(e)}")
+                    import traceback
+                    from django.conf import settings
+                    if settings.DEBUG:
+                        print(traceback.format_exc())
 
-                # Add hotels and activities
-                for hotel in api_results["hotels"]:
-                    hotel["searched_destination"] = destination
-                    all_hotels.append(hotel)
-
-                for activity in api_results["activities"]:
-                    activity["searched_destination"] = destination
-                    all_activities.append(activity)
+                # Use SerpAPI for activities
+                try:
+                    print(f"  [ACTIVITY] Searching activities using SerpAPI: {destination}")
+                    # Get activity preferences from member preferences if available
+                    activity_categories = []
+                    for pref in trip_preferences:
+                        if pref.activity_preferences:
+                            if isinstance(pref.activity_preferences, str):
+                                # Try to parse as comma-separated or JSON
+                                try:
+                                    import json
+                                    cats = json.loads(pref.activity_preferences)
+                                    if isinstance(cats, list):
+                                        activity_categories.extend(cats)
+                                except:
+                                    # Treat as comma-separated string
+                                    activity_categories.extend([c.strip() for c in pref.activity_preferences.split(',')])
+                            elif isinstance(pref.activity_preferences, list):
+                                activity_categories.extend(pref.activity_preferences)
+                    
+                    # Remove duplicates
+                    activity_categories = list(set(activity_categories))[:3]  # Limit to 3 categories
+                    
+                    activity_results = serpapi_activities.search_activities(
+                        destination=destination,
+                        start_date=search_start_date.strftime("%Y-%m-%d"),
+                        end_date=search_end_date.strftime("%Y-%m-%d"),
+                        categories=activity_categories if activity_categories else None,
+                        max_results=20
+                    )
+                    
+                    # Tag activities with destination
+                    for activity in activity_results:
+                        activity["searched_destination"] = destination
+                        all_activities.append(activity)
+                    
+                    print(f"  [OK] Added {len(activity_results)} activities from SerpAPI")
+                except Exception as e:
+                    print(f"  [ERROR] Error with SerpAPI activities for {destination}: {str(e)}")
+                    import traceback
+                    from django.conf import settings
+                    if settings.DEBUG:
+                        print(traceback.format_exc())
 
             print(f"\n[OK] Combined Results:")
             print(
@@ -1393,13 +1954,52 @@ def generate_voting_options(request, group_id):
                 del lightweight_flights, lightweight_hotels, lightweight_activities
                 gc.collect()
 
-            # Create the 3 options in database
+            # Create all options in database (5-8 options)
+            all_options_created = []
             for option_data in options_data.get("options", []):
                 # Get intended destination from option_data (this is the correct destination)
                 intended_dest = option_data.get("intended_destination", "")
                 if not intended_dest:
-                    # Fallback: extract from title
-                    intended_dest = option_data.get("title", "").split(" to ")[-1] if " to " in option_data.get("title", "") else ""
+                    # Fallback 1: extract from title
+                    title = option_data.get("title", "")
+                    if " to " in title:
+                        intended_dest = title.split(" to ")[-1].strip()
+                    elif " in " in title:
+                        intended_dest = title.split(" in ")[-1].strip()
+                    elif " at " in title:
+                        intended_dest = title.split(" at ")[-1].strip()
+                
+                # Fallback 2: Try to get destination from flight_id or hotel_id
+                if not intended_dest:
+                    flight_id = option_data.get("selected_flight_id")
+                    hotel_id = option_data.get("selected_hotel_id")
+                    
+                    if flight_id:
+                        # Look up the flight to get its destination
+                        flight = FlightResult.objects.filter(search=search, external_id=flight_id).first()
+                        if flight and flight.searched_destination:
+                            intended_dest = flight.searched_destination
+                            print(f"  [FALLBACK] Extracted destination from flight: {intended_dest}")
+                    
+                    if not intended_dest and hotel_id:
+                        # Look up the hotel to get its destination
+                        hotel = HotelResult.objects.filter(search=search, external_id=hotel_id).first()
+                        if hotel and hotel.searched_destination:
+                            intended_dest = hotel.searched_destination
+                            print(f"  [FALLBACK] Extracted destination from hotel: {intended_dest}")
+                
+                # Fallback 3: Use first available destination from search results
+                if not intended_dest:
+                    # Get any destination from available flights or hotels
+                    first_flight = FlightResult.objects.filter(search=search).first()
+                    if first_flight and first_flight.searched_destination:
+                        intended_dest = first_flight.searched_destination
+                        print(f"  [FALLBACK] Using first available flight destination: {intended_dest}")
+                    else:
+                        first_hotel = HotelResult.objects.filter(search=search).first()
+                        if first_hotel and first_hotel.searched_destination:
+                            intended_dest = first_hotel.searched_destination
+                            print(f"  [FALLBACK] Using first available hotel destination: {intended_dest}")
                 
                 print(f"[DB LOOKUP] Option {option_data.get('option_letter', '?')}: Looking for flight/hotel for destination: {intended_dest}")
                 
@@ -1407,62 +2007,136 @@ def generate_voting_options(request, group_id):
                 selected_flight = None
                 flight_id = option_data.get("selected_flight_id")
                 if flight_id:
-                    # First try to find flight by ID AND destination
-                    selected_flight = FlightResult.objects.filter(
-                        search=search, external_id=flight_id, searched_destination=intended_dest
+                    # First try to find flight by ID (exact match)
+                    flight_by_id = FlightResult.objects.filter(
+                        search=search, external_id=flight_id
                     ).first()
                     
-                    if not selected_flight:
-                        # Flight ID exists but doesn't match destination - reject it
-                        print(f"  [WARNING] Flight ID '{flight_id}' exists but doesn't match destination {intended_dest}")
-                        # Find a flight that matches the intended destination
-                        selected_flight = FlightResult.objects.filter(
-                            search=search, searched_destination=intended_dest
-                        ).first()
-                        if selected_flight:
-                            print(f"  [FIX] Found matching flight: {selected_flight.airline} to {selected_flight.searched_destination}")
-                    else:
-                        print(f"  [OK] Flight found: {selected_flight.airline} to {selected_flight.searched_destination}")
+                    if flight_by_id:
+                        # Check if destination matches (exact or contains)
+                        flight_dest = flight_by_id.searched_destination or ""
+                        if intended_dest and (intended_dest.lower() in flight_dest.lower() or flight_dest.lower() in intended_dest.lower()):
+                            selected_flight = flight_by_id
+                            print(f"  [OK] Flight found by ID: {selected_flight.airline} to {selected_flight.searched_destination}")
+                        else:
+                            print(f"  [WARNING] Flight ID '{flight_id}' exists but destination mismatch: '{flight_dest}' vs '{intended_dest}'")
+                            # Try to find a flight that matches the intended destination
+                            if intended_dest:
+                                # Try exact match first
+                                selected_flight = FlightResult.objects.filter(
+                                    search=search, searched_destination=intended_dest
+                                ).first()
+                                
+                                # If no exact match, try flexible matching
+                                if not selected_flight:
+                                    all_flights = FlightResult.objects.filter(search=search)
+                                    for flight in all_flights:
+                                        flight_dest = (flight.searched_destination or "").lower()
+                                        intended_lower = intended_dest.lower()
+                                        if intended_lower in flight_dest or flight_dest in intended_lower:
+                                            selected_flight = flight
+                                            print(f"  [FIX] Found matching flight (flexible): {selected_flight.airline} to {selected_flight.searched_destination}")
+                                            break
+                                
+                                if selected_flight:
+                                    print(f"  [FIX] Found matching flight: {selected_flight.airline} to {selected_flight.searched_destination}")
+                                else:
+                                    # Last resort: use the flight by ID anyway
+                                    selected_flight = flight_by_id
+                                    print(f"  [FALLBACK] Using flight by ID despite destination mismatch: {selected_flight.airline} to {selected_flight.searched_destination}")
                 
-                # If still no flight, find any flight for this destination
+                # If still no flight, find any flight for this destination (flexible matching)
                 if not selected_flight and intended_dest:
                     print(f"  [RETRY] Looking for any flight to {intended_dest}...")
+                    # Try exact match first
                     selected_flight = FlightResult.objects.filter(
                         search=search, searched_destination=intended_dest
                     ).first()
-                    if selected_flight:
-                        print(f"  [OK] Found flight: {selected_flight.airline} to {selected_flight.searched_destination}")
+                    
+                    # If no exact match, try flexible matching
+                    if not selected_flight:
+                        all_flights = FlightResult.objects.filter(search=search)
+                        for flight in all_flights:
+                            flight_dest = (flight.searched_destination or "").lower()
+                            intended_lower = intended_dest.lower()
+                            if intended_lower in flight_dest or flight_dest in intended_lower:
+                                selected_flight = flight
+                                print(f"  [OK] Found flight (flexible match): {selected_flight.airline} to {selected_flight.searched_destination}")
+                                break
+                    
+                    if not selected_flight:
+                        # Last resort: get any flight from this search
+                        selected_flight = FlightResult.objects.filter(search=search).first()
+                        if selected_flight:
+                            print(f"  [FALLBACK] Using any available flight: {selected_flight.airline} to {selected_flight.searched_destination}")
 
                 # Get selected hotel - MUST match intended destination
                 selected_hotel = None
                 hotel_id = option_data.get("selected_hotel_id")
                 
                 if hotel_id:
-                    # First try to find hotel by ID AND destination
-                    selected_hotel = HotelResult.objects.filter(
-                        search=search, external_id=hotel_id, searched_destination=intended_dest
+                    # First try to find hotel by ID (exact match)
+                    hotel_by_id = HotelResult.objects.filter(
+                        search=search, external_id=hotel_id
                     ).first()
                     
-                    if not selected_hotel:
-                        # Hotel ID exists but doesn't match destination - reject it
-                        print(f"  [WARNING] Hotel ID '{hotel_id}' exists but doesn't match destination {intended_dest}")
-                        # Find a hotel that matches the intended destination
-                        selected_hotel = HotelResult.objects.filter(
-                            search=search, searched_destination=intended_dest
-                        ).first()
-                        if selected_hotel:
-                            print(f"  [FIX] Found matching hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
-                    else:
-                        print(f"  [OK] Hotel found: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                    if hotel_by_id:
+                        # Check if destination matches (exact or contains)
+                        hotel_dest = hotel_by_id.searched_destination or ""
+                        if intended_dest and (intended_dest.lower() in hotel_dest.lower() or hotel_dest.lower() in intended_dest.lower()):
+                            selected_hotel = hotel_by_id
+                            print(f"  [OK] Hotel found by ID: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                        else:
+                            print(f"  [WARNING] Hotel ID '{hotel_id}' exists but destination mismatch: '{hotel_dest}' vs '{intended_dest}'")
+                            # Try to find a hotel that matches the intended destination
+                            if intended_dest:
+                                # Try exact match first
+                                selected_hotel = HotelResult.objects.filter(
+                                    search=search, searched_destination=intended_dest
+                                ).first()
+                                
+                                # If no exact match, try flexible matching
+                                if not selected_hotel:
+                                    all_hotels = HotelResult.objects.filter(search=search)
+                                    for hotel in all_hotels:
+                                        hotel_dest = (hotel.searched_destination or "").lower()
+                                        intended_lower = intended_dest.lower()
+                                        if intended_lower in hotel_dest or hotel_dest in intended_lower:
+                                            selected_hotel = hotel
+                                            print(f"  [FIX] Found matching hotel (flexible): {selected_hotel.name} in {selected_hotel.searched_destination}")
+                                            break
+                                
+                                if selected_hotel:
+                                    print(f"  [FIX] Found matching hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                                else:
+                                    # Last resort: use the hotel by ID anyway
+                                    selected_hotel = hotel_by_id
+                                    print(f"  [FALLBACK] Using hotel by ID despite destination mismatch: {selected_hotel.name} in {selected_hotel.searched_destination}")
                 
-                # If still no hotel, find any hotel for this destination
+                # If still no hotel, find any hotel for this destination (flexible matching)
                 if not selected_hotel and intended_dest:
                     print(f"  [RETRY] Looking for any hotel in {intended_dest}...")
+                    # Try exact match first
                     selected_hotel = HotelResult.objects.filter(
                         search=search, searched_destination=intended_dest
                     ).first()
-                    if selected_hotel:
-                        print(f"  [OK] Found hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
+                    
+                    # If no exact match, try flexible matching
+                    if not selected_hotel:
+                        all_hotels = HotelResult.objects.filter(search=search)
+                        for hotel in all_hotels:
+                            hotel_dest = (hotel.searched_destination or "").lower()
+                            intended_lower = intended_dest.lower()
+                            if intended_lower in hotel_dest or hotel_dest in intended_lower:
+                                selected_hotel = hotel
+                                print(f"  [OK] Found hotel (flexible match): {selected_hotel.name} in {selected_hotel.searched_destination}")
+                                break
+                    
+                    if not selected_hotel:
+                        # Last resort: get any hotel from this search
+                        selected_hotel = HotelResult.objects.filter(search=search).first()
+                        if selected_hotel:
+                            print(f"  [FALLBACK] Using any available hotel: {selected_hotel.name} in {selected_hotel.searched_destination}")
                 
                 # Use intended destination as the option destination
                 option_destination = intended_dest
@@ -1487,7 +2161,7 @@ def generate_voting_options(request, group_id):
                 cost_per_person = final_total_cost / group.member_count if group.member_count > 0 else final_total_cost
 
                 # Create option
-                GroupItineraryOption.objects.create(
+                option = GroupItineraryOption.objects.create(
                     group=group,
                     consensus=consensus,
                     option_letter=option_data["option_letter"],
@@ -1506,14 +2180,28 @@ def generate_voting_options(request, group_id):
                     compromise_explanation=option_data.get(
                         "compromise_explanation", ""
                     ),
+                    status='pending',  # All start as pending
+                    display_order=0,  # Will be set when activated
                 )
+                all_options_created.append(option)
 
-            print("[OK] 3 itinerary options generated!")
+            # Randomly select one option to be active, rest stay pending
+            import random
+            if all_options_created:
+                active_option = random.choice(all_options_created)
+                active_option.status = 'active'
+                active_option.display_order = 1
+                active_option.save()
+                print(f"[OK] {len(all_options_created)} itinerary options generated!")
+                print(f"[OK] Option {active_option.option_letter} randomly selected as first active option")
+                print(f"[OK] {len(all_options_created) - 1} options stored as pending")
+            else:
+                print("[WARNING] No options were created!")
             # Return JSON response for AJAX call instead of redirect
             return JsonResponse(
                 {
                     "success": True,
-                    "message": "3 itinerary options generated! Group members can now vote.",
+                    "message": f"{len(all_options_created)} itinerary options generated! One option is now active for voting.",
                 }
             )
 
@@ -1645,49 +2333,162 @@ def cast_vote(request, group_id, option_id):
     except GroupMember.DoesNotExist:
         return JsonResponse({"success": False, "error": "Not a group member"})
 
-    # Check if user already voted
-    existing_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+    # Check if user already voted on THIS OPTION
+    existing_vote = ItineraryVote.objects.filter(
+        group=group, 
+        user=request.user,
+        option=option
+    ).first()
 
     if existing_vote:
-        # Change vote
-        existing_vote.option = option
+        # Update existing vote (user changed their mind)
         existing_vote.comment = request.POST.get("comment", "")
         existing_vote.save()
         message = "Vote updated successfully!"
     else:
-        # New vote
-        ItineraryVote.objects.create(
-            option=option,
-            user=request.user,
-            group=group,
-            comment=request.POST.get("comment", ""),
-        )
-        message = "Vote cast successfully!"
+        # Check if user has a vote for a different option
+        other_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+        if other_vote:
+            # Update existing vote to point to current option
+            old_option = other_vote.option
+            other_vote.option = option
+            other_vote.comment = request.POST.get("comment", "")
+            other_vote.save()
+            # Update old option's vote count
+            old_option.update_vote_count()
+            message = "Vote updated successfully!"
+        else:
+            # New vote
+            ItineraryVote.objects.create(
+                option=option,
+                user=request.user,
+                group=group,
+                comment=request.POST.get("comment", ""),
+            )
+            message = "Vote cast successfully!"
+    
+    # Ensure option's vote count is updated
+    option.update_vote_count()
 
-    # Check if all members have voted
+    # Check if all members have voted on THIS OPTION
     total_members = GroupMember.objects.filter(group=group).count()
-    votes_cast = ItineraryVote.objects.filter(group=group).count()
-
-    if votes_cast >= total_members:
-        # Determine winner
-        winner = (
-            GroupItineraryOption.objects.filter(group=group)
-            .order_by("-vote_count")
-            .first()
-        )
-
-        if winner:
-            # Mark as winner
-            GroupItineraryOption.objects.filter(group=group).update(is_winner=False)
-            winner.is_winner = True
-            winner.save()
-
+    votes_cast = ItineraryVote.objects.filter(
+        group=group,
+        option=option
+    ).count()
+    
+    print(f"[DEBUG cast_vote] Option {option.id} ({option.title[:50]}...)")
+    print(f"[DEBUG cast_vote] Votes cast on this option: {votes_cast}, Total members: {total_members}")
+    print(f"[DEBUG cast_vote] Option status: {option.status}, is_winner: {option.is_winner}")
+    
+    # Get the active option - use the option we're voting on if it's active
+    active_option = option if option.status == 'active' else GroupItineraryOption.objects.filter(group=group, status='active').first()
+    
+    unanimous = False
+    advanced = False
+    all_voted = votes_cast >= total_members
+    
+    print(f"[DEBUG cast_vote] Active option: {active_option.id if active_option else None}")
+    print(f"[DEBUG cast_vote] All voted: {all_voted}, Option is active: {option.status == 'active'}")
+    
+    # Only check for advancement if we're voting on the active option
+    if active_option and option.id == active_option.id and all_voted:
+        # Check if all votes are "yes" votes (not ROLL_AGAIN) for the active option
+        yes_votes_for_active = ItineraryVote.objects.filter(
+            group=group, 
+            option=active_option
+        ).exclude(comment="ROLL_AGAIN").count()
+        
+        print(f"[DEBUG cast_vote] Yes votes (excluding ROLL_AGAIN): {yes_votes_for_active}, Total members: {total_members}")
+        
+        if yes_votes_for_active == total_members:
+            # Unanimous yes vote! Mark as accepted
+            print(f"[DEBUG cast_vote] UNANIMOUS VOTE DETECTED! Marking option as accepted...")
+            active_option.status = 'accepted'
+            active_option.is_winner = True
+            active_option.save(update_fields=['status', 'is_winner'])
+            
+            # Refresh from database to confirm save
+            active_option.refresh_from_db()
+            print(f"[SUCCESS] Option {active_option.id} marked as accepted and winner for group {group.id}")
+            print(f"[DEBUG] Status: {active_option.status}, is_winner: {active_option.is_winner}")
+            print(f"[DEBUG] Group ID: {group.id}, Group Name: {group.name}")
+            print(f"[DEBUG] Total members: {total_members}, Yes votes: {yes_votes_for_active}")
+            unanimous = True
+            message = "🎉 Unanimous vote! This option has been selected as the group trip!"
+        else:
+            print(f"[DEBUG cast_vote] Not unanimous - {yes_votes_for_active} yes votes out of {total_members} members")
+            # Not unanimous - someone voted "no" (ROLL_AGAIN)
+            # Reject and load next pending option automatically
+            active_option.status = 'rejected'
+            active_option.save()
+            
+            # Clear all votes for the rejected option (so members can vote on next option)
+            ItineraryVote.objects.filter(group=group, option=active_option).delete()
+            
+            # Get next pending option (already generated and stored)
+            pending_options = list(GroupItineraryOption.objects.filter(
+                group=group,
+                status='pending'
+            ).order_by('display_order', 'option_letter'))
+            
+            if pending_options:
+                # Activate the first pending option
+                next_option = pending_options[0]
+                next_option.status = 'active'
+                
+                # Set display order (increment from highest existing)
+                max_order = GroupItineraryOption.objects.filter(group=group).aggregate(
+                    max_order=models.Max('display_order')
+                )['max_order'] or 0
+                next_option.display_order = max_order + 1
+                next_option.save()
+                
+                advanced = True
+                message = f"Not unanimous. Option {active_option.option_letter} rejected. Advanced to Option {next_option.option_letter}."
+            else:
+                # No more pending options - try to generate a new one
+                search = active_option.search
+                consensus = active_option.consensus
+                
+                # Get member preferences for generating new option
+                trip_preferences = TripPreference.objects.filter(group=group, is_completed=True)
+                member_prefs = []
+                for pref in trip_preferences:
+                    member_prefs.append({
+                        "user": pref.user.username,
+                        "destination": pref.destination,
+                        "start_date": pref.start_date.strftime("%Y-%m-%d"),
+                        "end_date": pref.end_date.strftime("%Y-%m-%d"),
+                        "budget": str(pref.budget),
+                        "travel_method": pref.travel_method,
+                        "rental_car": pref.rental_car,
+                        "accommodation_preference": pref.accommodation_preference or "",
+                        "activity_preferences": pref.activity_preferences or "",
+                        "dietary_restrictions": pref.dietary_restrictions or "",
+                        "accessibility_needs": pref.accessibility_needs or "",
+                        "notes": pref.additional_notes or "",
+                    })
+                
+                # Generate a new option
+                next_option = _generate_single_new_option(group, consensus, search, member_prefs)
+                
+                if next_option:
+                    advanced = True
+                    message = f"Not unanimous. Option {active_option.option_letter} rejected. Generated new Option {next_option.option_letter}."
+                else:
+                    message = f"Not unanimous. Option {active_option.option_letter} rejected. No more options available. Please generate new trip options."
+    
     return JsonResponse(
         {
             "success": True,
             "message": message,
             "votes_cast": votes_cast,
             "total_members": total_members,
+            "unanimous": unanimous,
+            "all_voted": all_voted,
+            "active_option_id": str(active_option.id) if active_option else None,
+            "advanced": advanced,
         }
     )
 

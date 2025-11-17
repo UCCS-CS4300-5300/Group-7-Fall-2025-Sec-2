@@ -450,6 +450,113 @@ class DashboardViewTest(TestCase):
         response = self.client.get(reverse('accounts:dashboard'))
         self.assertEqual(len(response.context['active_trips']), 1)
         self.assertEqual(len(response.context['saved_itineraries']), 1)
+    
+    def test_dashboard_shows_accepted_group_trips(self):
+        """Test that dashboard displays accepted group trips"""
+        import json
+        from travel_groups.models import TravelGroup, GroupMember
+        from ai_implementation.models import GroupItineraryOption, GroupConsensus, TravelSearch, FlightResult, HotelResult, ActivityResult
+        
+        self.client.login(username='testuser', password='testpass123')
+        
+        # Create a group and add user as member
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=group, user=self.user, role='admin')
+        
+        # Create another member
+        user2 = User.objects.create_user(username='user2', password='pass123')
+        GroupMember.objects.create(group=group, user=user2, role='member')
+        
+        # Create search and consensus
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=self.user,
+            consensus_preferences=json.dumps({'destination': 'Paris'})
+        )
+        
+        # Create flight and hotel
+        from datetime import datetime
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        # Create an accepted trip option
+        accepted_option = GroupItineraryOption.objects.create(
+            group=group,
+            consensus=consensus,
+            search=search,
+            option_letter='A',
+            status='accepted',
+            is_winner=True,
+            title='Paris Adventure',
+            description='A great trip to Paris',
+            destination='Paris',
+            selected_flight=flight,
+            selected_hotel=hotel,
+            selected_activities=json.dumps(['activity1']),
+            estimated_total_cost=1200.00,
+            cost_per_person=600.00
+        )
+        
+        # Create an activity
+        activity = ActivityResult.objects.create(
+            search=search,
+            external_id='activity1',
+            name='Eiffel Tower Tour',
+            price=50.00
+        )
+        
+        response = self.client.get(reverse('accounts:dashboard'))
+        self.assertEqual(response.status_code, 200)
+        
+        # Check that accepted_group_trips is in context
+        self.assertIn('accepted_group_trips', response.context)
+        accepted_trips = response.context['accepted_group_trips']
+        self.assertEqual(len(accepted_trips), 1)
+        self.assertEqual(accepted_trips[0]['option'].id, accepted_option.id)
+        self.assertEqual(len(accepted_trips[0]['activities']), 1)
+    
+    def test_dashboard_no_accepted_trips(self):
+        """Test dashboard when user has no accepted group trips"""
+        self.client.login(username='testuser', password='testpass123')
+        response = self.client.get(reverse('accounts:dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('accepted_group_trips', response.context)
+        self.assertEqual(len(response.context['accepted_group_trips']), 0)
+    
+    def test_dashboard_user_not_in_groups(self):
+        """Test dashboard when user is not a member of any groups"""
+        user3 = User.objects.create_user(username='user3', password='pass123')
+        UserProfile.objects.create(user=user3, phone_number='')
+        self.client.login(username='user3', password='pass123')
+        response = self.client.get(reverse('accounts:dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('accepted_group_trips', response.context)
+        self.assertEqual(len(response.context['accepted_group_trips']), 0)
 
 
 class LogoutViewTest(TestCase):
