@@ -20,6 +20,7 @@ from django.test import TestCase, Client, RequestFactory
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.http import JsonResponse
+from django.utils import timezone
 
 from travel_groups.models import TravelGroup, GroupMember, TripPreference
 from .models import (
@@ -126,8 +127,8 @@ class FlightResultModelTest(TestCase):
             airline="Delta",
             price=450.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=8),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=8),
             duration="8h 30m",
             stops=1,
             booking_class="Economy",
@@ -144,8 +145,8 @@ class FlightResultModelTest(TestCase):
             airline="United",
             price=550.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=9),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=9),
             duration="9h",
             stops=0,
             ai_score=95.0,
@@ -974,8 +975,8 @@ class CodeCoverageTest(TestCase):
             airline="Mock Airlines",
             price=500.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=8),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=8),
             duration="8h",
             stops=0,
             is_mock=True,
@@ -1051,8 +1052,8 @@ class SearchResultsViewTest(TestCase):
             airline="Delta",
             price=500.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=8),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=8),
             duration="8h",
             stops=1,
         )
@@ -1533,8 +1534,8 @@ class ModelPropertyTest(TestCase):
             airline="JAL",
             price=800.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=13),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=13),
             duration="13h",
             stops=0,
             booking_class="Business",
@@ -1942,8 +1943,8 @@ class ModelRelationshipTest(TestCase):
             airline="Austrian",
             price=400.00,
             currency="EUR",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=2),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=2),
             duration="2h",
             stops=0,
         )
@@ -1953,8 +1954,8 @@ class ModelRelationshipTest(TestCase):
             airline="Lufthansa",
             price=450.00,
             currency="EUR",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=2),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=2),
             duration="2h 15m",
             stops=0,
         )
@@ -2447,8 +2448,8 @@ class ModelCascadeTest(TestCase):
             airline="SAS",
             price=400.00,
             currency="EUR",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=2),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=2),
             duration="2h",
             stops=0,
         )
@@ -3261,8 +3262,8 @@ class QueryOptimizationTest(TestCase):
             airline="Lufthansa",
             price=400.00,
             currency="EUR",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=2),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=2),
             duration="2h",
             stops=0,
         )
@@ -3366,8 +3367,8 @@ class CurrencyHandlingTest(TestCase):
             airline="United",
             price=500.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=10),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=10),
             duration="10h",
             stops=1,
         )
@@ -3430,8 +3431,8 @@ class SaveItineraryViewTest(TestCase):
             airline="Alitalia",
             price=450.00,
             currency="EUR",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=2),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=2),
             duration="2h",
             stops=0,
         )
@@ -3553,8 +3554,8 @@ class ResultOrderingTest(TestCase):
                 airline=f"Airline {i}",
                 price=price,
                 currency="USD",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now() + timedelta(hours=8),
+                departure_time=timezone.now(),
+                arrival_time=timezone.now() + timedelta(hours=8),
                 duration="8h",
                 stops=1,
             )
@@ -3931,8 +3932,8 @@ class ModelStringRepresentationTest(TestCase):
             airline="SAS",
             price=450.00,
             currency="NOK",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=1),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=1),
             duration="1h",
             stops=0,
         )
@@ -4117,8 +4118,8 @@ class SearchResultsFiltersComprehensive(TestCase):
                 airline=f"Airline {i}",
                 price=300.00 + (i * 100),
                 currency="EUR",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now() + timedelta(hours=2),
+                departure_time=timezone.now(),
+                arrival_time=timezone.now() + timedelta(hours=2),
                 duration="2h",
                 stops=i % 2,
             )
@@ -5007,8 +5008,8 @@ class ResultCreationTest(TestCase):
                 airline=f"Airline {i}",
                 price=400.00 + (i * 50),
                 currency="USD",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now() + timedelta(hours=3),
+                departure_time=timezone.now(),
+                arrival_time=timezone.now() + timedelta(hours=3),
                 duration="3h",
                 stops=0,
             )
@@ -5485,8 +5486,8 @@ class CastVoteEdgeCaseTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=self.option.search,
@@ -5721,8 +5722,8 @@ class RollAgainTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=self.option.search,
@@ -6059,8 +6060,8 @@ class HelperFunctionTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=search,
@@ -6157,8 +6158,8 @@ class HelperFunctionTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         member_prefs = [{"user": "testuser", "destination": "Paris"}]
@@ -6193,8 +6194,8 @@ class HelperFunctionTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=search,
@@ -6599,11 +6600,16 @@ class OpenAIServiceErrorTest(TestCase):
         original_key = os.environ.get("OPENAI_API_KEY")
         if "OPENAI_API_KEY" in os.environ:
             del os.environ["OPENAI_API_KEY"]
+        
+        # Also clear from Django settings if it exists
+        from django.conf import settings
+        original_settings_key = getattr(settings, 'OPENAI_API_KEY', None)
 
         try:
-            service = OpenAIService()
-            # Should handle missing key gracefully
-            self.assertIsNotNone(service)
+            # Should raise ValueError when no API key is available
+            with self.assertRaises(ValueError) as context:
+                service = OpenAIService()
+            self.assertIn("OpenAI API key not found", str(context.exception))
         finally:
             if original_key:
                 os.environ["OPENAI_API_KEY"] = original_key
@@ -6870,8 +6876,8 @@ class ViewsErrorHandlingTest(TestCase):
             external_id="flight1",
             airline="Test Airline",
             price=500.00,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=self.option.search,
@@ -7484,8 +7490,8 @@ class GenerateVotingOptionsDestinationFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         url = reverse("ai_implementation:generate_voting_options", args=[self.group.id])
@@ -7570,8 +7576,8 @@ class GenerateVotingOptionsDestinationFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         url = reverse("ai_implementation:generate_voting_options", args=[self.group.id])
@@ -7656,8 +7662,8 @@ class GenerateVotingOptionsDestinationFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination=None,
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         # Hotel with searched_destination
@@ -8192,8 +8198,8 @@ class GenerateVotingOptionsDestinationMatchingTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris, France",  # Different from intended 'Paris'
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -8292,8 +8298,8 @@ class GenerateVotingOptionsDestinationMatchingTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Rome",  # Different from intended 'Paris'
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -8407,8 +8413,8 @@ class GenerateVotingOptionsDestinationMatchingTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         FlightResult.objects.create(
             search=search,
@@ -8416,8 +8422,8 @@ class GenerateVotingOptionsDestinationMatchingTest(TestCase):
             airline="Test",
             price=600.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -9047,8 +9053,8 @@ class ViewVotingOptionsTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -9157,8 +9163,8 @@ class VotingResultsTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -9655,8 +9661,8 @@ class OptionCreationEdgeCasesTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         url = reverse("ai_implementation:generate_voting_options", args=[self.group.id])
@@ -9765,8 +9771,8 @@ class OptionCreationEdgeCasesTest(TestCase):
             airline="Test",
             price=0.00,  # Zero price
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -9889,8 +9895,8 @@ class ActivityFilteringFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -9982,8 +9988,8 @@ class GenerateSingleNewOptionTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=self.search,
@@ -10033,8 +10039,8 @@ class GenerateSingleNewOptionTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         hotel = HotelResult.objects.create(
             search=self.search,
@@ -10283,8 +10289,8 @@ class GenerateVotingOptionsManualFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
         FlightResult.objects.create(
             search=search,
@@ -10292,8 +10298,8 @@ class GenerateVotingOptionsManualFallbackTest(TestCase):
             airline="Test",
             price=600.00,
             searched_destination="Rome",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -10394,8 +10400,8 @@ class GenerateVotingOptionsManualFallbackTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -10466,8 +10472,8 @@ class CastVoteEdgeCasesTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -10634,8 +10640,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -10731,8 +10737,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -10828,8 +10834,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",  # Will be used as fallback
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -10925,8 +10931,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris, France",  # Will match flexibly with "Paris"
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11022,8 +11028,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11123,8 +11129,8 @@ class DestinationFallbackLogicTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Rome",  # Different from intended "Paris"
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11221,8 +11227,8 @@ class CastVoteNewOptionGenerationTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -11464,8 +11470,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris, France",  # Mismatch
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         # Flight f2 has exact match "Paris"
@@ -11475,8 +11481,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test2",
             price=600.00,
             searched_destination="Paris",  # Exact match
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11578,8 +11584,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Rome",  # Different from intended "Paris"
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11682,8 +11688,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         # Hotel h1 has "Paris, France" (mismatch with intended "Paris")
@@ -11791,8 +11797,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11889,8 +11895,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -11992,8 +11998,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Rome",  # Different from intended "Paris"
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -12090,8 +12096,8 @@ class FlightHotelDestinationMismatchTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         # Only Rome hotel available (will use as last resort)
@@ -12226,8 +12232,8 @@ class DestinationFallbackFromFlightHotelTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",  # Will be extracted as fallback
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -12323,8 +12329,8 @@ class DestinationFallbackFromFlightHotelTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -12420,8 +12426,8 @@ class DestinationFallbackFromFlightHotelTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",  # Will be used as first available
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         HotelResult.objects.create(
@@ -12598,8 +12604,8 @@ class CastVoteNewOptionSuccessTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -12772,8 +12778,8 @@ class SaveItineraryTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -12837,8 +12843,8 @@ class SaveItineraryTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -12989,8 +12995,8 @@ class PerformSearchAIScoreUpdateTest(TestCase):
             airline="Test",
             price=500.00,
             searched_destination="Paris",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now(),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now(),
         )
 
         hotel = HotelResult.objects.create(
@@ -13869,8 +13875,8 @@ class ModelFieldEdgeCaseTest(TestCase):
             airline="Test Air",
             price=500.00,
             currency="USD",
-            departure_time=datetime.now(),
-            arrival_time=datetime.now() + timedelta(hours=12),
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=12),
             duration="12h",
             stops=3,  # Many stops
         )
@@ -14009,8 +14015,8 @@ class BulkOperationsTest(TestCase):
                 airline=f"Airline {i}",
                 price=400.00 + i,
                 currency="USD",
-                departure_time=datetime.now(),
-                arrival_time=datetime.now() + timedelta(hours=5),
+                departure_time=timezone.now(),
+                arrival_time=timezone.now() + timedelta(hours=5),
                 duration="5h",
                 stops=0,
             )
