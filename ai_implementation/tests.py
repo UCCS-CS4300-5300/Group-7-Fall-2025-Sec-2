@@ -32,7 +32,11 @@ from .forms import (
     ItineraryFeedbackForm, SaveItineraryForm, RefineSearchForm
 )
 from .openai_service import OpenAIService
-from .serpapi_connector import SerpApiFlightsConnector, SerpApiActivitiesConnector
+from .serpapi_connector import (
+    SerpApiFlightsConnector,
+    SerpApiActivitiesConnector,
+    SerpApiConnectorError,
+)
 from .makcorps_connector import MakcorpsHotelConnector
 
 
@@ -1025,12 +1029,13 @@ class SearchResultsViewTest(TestCase):
         self.assertEqual(response.status_code, 302)
         
     def test_search_results_without_results(self):
-        """Test search results redirects when no results exist"""
+        """Test search results page renders with needs_results flag when empty"""
         self.client.login(username='testuser', password='pass123')
         url = reverse('ai_implementation:search_results', args=[self.search.id])
         response = self.client.get(url)
-        # Should redirect to perform_search
-        self.assertEqual(response.status_code, 302)
+        # View renders results page with needs_results flag when no data exists
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['needs_results'])
         
     def test_search_results_with_results(self):
         """Test search results displays existing results"""
@@ -2125,15 +2130,15 @@ class ErrorHandlingTest(TestCase):
         
         service = OpenAIService()
         
-        result = service.generate_three_itinerary_options(
-            member_preferences=[],
-            flight_results=[],
-            hotel_results=[],
-            activity_results=[]
-        )
-        
-        # Should return error dict instead of raising
-        self.assertIn('error', result)
+        with self.assertRaises(Exception) as exc:
+            service.generate_three_itinerary_options(
+                member_preferences=[],
+                flight_results=[],
+                hotel_results=[],
+                activity_results=[]
+            )
+
+        self.assertIn('API Error', str(exc.exception))
         
     def test_searched_destination_field(self):
         """Test searched_destination field can be null or empty"""
@@ -5114,8 +5119,9 @@ class ViewsEdgeCaseTest(TestCase):
         url = reverse('ai_implementation:perform_search', args=[search.id])
         
         response = self.client.post(url)
-        # View returns 500 on exception
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content.decode())
+        self.assertTrue(payload.get('success'))
         
     def test_advanced_search_invalid_form(self):
         """Test advanced_search with invalid form data"""
@@ -6164,15 +6170,14 @@ class SerpApiConnectorErrorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        results = connector.search_flights(
-            origin='JFK',
-            destination='LAX',
-            departure_date='2025-06-01'
-        )
-        
-        # Should return mock data on error
-        self.assertIsInstance(results, list)
-        self.assertGreater(len(results), 0)
+        with self.assertRaises(SerpApiConnectorError) as context:
+            connector.search_flights(
+                origin='JFK',
+                destination='LAX',
+                departure_date='2025-06-01'
+            )
+
+        self.assertIn('SerpApi request failed', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_flights_invalid_response(self, mock_get):
@@ -6187,14 +6192,14 @@ class SerpApiConnectorErrorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        results = connector.search_flights(
-            origin='JFK',
-            destination='LAX',
-            departure_date='2025-06-01'
-        )
-        
-        # Should return mock data on error
-        self.assertIsInstance(results, list)
+        with self.assertRaises(SerpApiConnectorError) as context:
+            connector.search_flights(
+                origin='JFK',
+                destination='LAX',
+                departure_date='2025-06-01'
+            )
+
+        self.assertIn('SerpApi Google Flights search error', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_flights_no_api_key(self, mock_get):
@@ -6272,14 +6277,14 @@ class SerpApiConnectorErrorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        results = connector.search_flights(
-            origin='JFK',
-            destination='LAX',
-            departure_date='2025-06-01'
-        )
-        
-        # Should handle empty response
-        self.assertIsInstance(results, list)
+        with self.assertRaises(SerpApiConnectorError) as context:
+            connector.search_flights(
+                origin='JFK',
+                destination='LAX',
+                departure_date='2025-06-01'
+            )
+
+        self.assertIn('SerpApi Google Flights search error', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_activities_invalid_response(self, mock_get):
@@ -6606,6 +6611,31 @@ class ViewsErrorHandlingTest(TestCase):
             password='test123'
         )
         GroupMember.objects.create(group=self.group, user=self.user, role='admin')
+        self.consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user,
+            consensus_preferences='{}'
+        )
+        self.search = TravelSearch.objects.create(
+            user=self.user,
+            group=self.group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        self.option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.consensus,
+            option_letter='A',
+            title='Base Option',
+            description='Test',
+            search=self.search,
+            status='pending',
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning='Test'
+        )
     
     def test_cast_vote_not_group_member(self):
         """Test cast_vote rejects non-group members"""
@@ -9581,10 +9611,12 @@ class SearchViewsTest(TestCase):
     def test_advanced_search_post(self):
         """Test advanced_search POST request"""
         url = reverse('ai_implementation:advanced_search')
+        future_start = (date.today() + timedelta(days=30)).isoformat()
+        future_end = (date.today() + timedelta(days=37)).isoformat()
         response = self.client.post(url, {
             'destination': 'Paris',
-            'start_date': '2025-06-01',
-            'end_date': '2025-06-08',
+            'start_date': future_start,
+            'end_date': future_end,
             'adults': 2
         })
         # Should redirect to perform_search
@@ -12462,10 +12494,12 @@ class AdvancedSearchGroupPrefillTest(TestCase):
     def test_advanced_search_post_with_group_id(self):
         """Test advanced_search POST with group_id"""
         url = reverse('ai_implementation:advanced_search')
+        future_start = (date.today() + timedelta(days=30)).isoformat()
+        future_end = (date.today() + timedelta(days=37)).isoformat()
         response = self.client.post(url, {
             'destination': 'Paris',
-            'start_date': '2025-06-01',
-            'end_date': '2025-06-08',
+            'start_date': future_start,
+            'end_date': future_end,
             'adults': 2,
             'group_id': str(self.group.id)
         })
@@ -12942,6 +12976,7 @@ class GenerateVotingOptionsOpenAIFallbackTest(TestCase):
         # Mock OpenAI to raise ValueError (API key not configured)
         mock_service = Mock()
         mock_service.generate_group_consensus.side_effect = ValueError("OpenAI API key not configured")
+        mock_service.generate_three_itinerary_options.side_effect = ValueError("OpenAI unavailable")
         mock_openai.return_value = mock_service
         
         url = reverse('ai_implementation:generate_voting_options', args=[self.group.id])
@@ -14182,14 +14217,14 @@ class SerpApiConnectorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(SerpApiConnectorError) as context:
             connector.search_flights(
                 origin='Denver',
                 destination='Sicily',
                 departure_date='2026-04-17'
             )
         
-        self.assertIn('SerpApi returned status 400', str(context.exception))
+        self.assertIn('SerpApi Google Flights search error', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_flights_api_error_in_response(self, mock_get):
@@ -14204,14 +14239,14 @@ class SerpApiConnectorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(SerpApiConnectorError) as context:
             connector.search_flights(
                 origin='Denver',
                 destination='Sicily',
                 departure_date='2026-04-17'
             )
         
-        self.assertIn('SerpApi API error', str(context.exception))
+        self.assertIn('SerpApi Google Flights search error', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_flights_no_flights_found(self, mock_get):
@@ -14227,14 +14262,14 @@ class SerpApiConnectorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(SerpApiConnectorError) as context:
             connector.search_flights(
                 origin='Denver',
                 destination='Sicily',
                 departure_date='2026-04-17'
             )
         
-        self.assertIn('No flights found', str(context.exception))
+        self.assertIn('SerpApi Google Flights search error', str(context.exception))
     
     @patch('ai_implementation.serpapi_connector.requests.get')
     def test_search_flights_request_exception(self, mock_get):
@@ -14244,7 +14279,7 @@ class SerpApiConnectorTest(TestCase):
         connector = SerpApiFlightsConnector()
         connector.api_key = 'test-key'
         
-        with self.assertRaises(Exception) as context:
+        with self.assertRaises(SerpApiConnectorError) as context:
             connector.search_flights(
                 origin='Denver',
                 destination='Sicily',
@@ -15497,6 +15532,57 @@ class SerpApiViewIntegrationTest(TestCase):
     @patch('ai_implementation.views.OpenAIService')
     def test_generate_voting_options_with_serpapi(self, mock_openai, mock_makcorps, mock_activities, mock_serpapi):
         """Test generate_voting_options uses SerpApi for flights"""
+        mock_service = Mock()
+        mock_service.generate_group_consensus.return_value = {
+            'consensus_preferences': {'destinations': ['Sicily, Italy', 'Alberta, Canada']},
+            'compromise_areas': [],
+            'unanimous_preferences': [],
+            'conflicting_preferences': [],
+            'group_dynamics_notes': 'Mock consensus'
+        }
+        mock_service.generate_three_itinerary_options.return_value = {
+            'options': [
+                {
+                    'option_letter': 'A',
+                    'title': 'Budget Trip to Sicily',
+                    'description': 'Option A',
+                    'selected_flight_id': 'serp-flight-1',
+                    'selected_hotel_id': 'hotel-1',
+                    'selected_activity_ids': [],
+                    'intended_destination': 'Sicily, Italy',
+                    'estimated_total_cost': 1800,
+                    'cost_per_person': 900,
+                    'ai_reasoning': 'Mock reasoning'
+                },
+                {
+                    'option_letter': 'B',
+                    'title': 'Balanced Trip to Alberta',
+                    'description': 'Option B',
+                    'selected_flight_id': 'serp-flight-2',
+                    'selected_hotel_id': 'hotel-2',
+                    'selected_activity_ids': [],
+                    'intended_destination': 'Alberta, Canada',
+                    'estimated_total_cost': 2100,
+                    'cost_per_person': 1050,
+                    'ai_reasoning': 'Mock reasoning'
+                },
+                {
+                    'option_letter': 'C',
+                    'title': 'Premium Multi-city Adventure',
+                    'description': 'Option C',
+                    'selected_flight_id': 'serp-flight-1',
+                    'selected_hotel_id': 'hotel-2',
+                    'selected_activity_ids': [],
+                    'intended_destination': 'Sicily, Italy',
+                    'estimated_total_cost': 2500,
+                    'cost_per_person': 1250,
+                    'ai_reasoning': 'Mock reasoning'
+                }
+            ],
+            'voting_guidance': 'Mock guidance',
+            'consensus_summary': 'Mock summary'
+        }
+        mock_openai.return_value = mock_service
         # Mock SerpApi connector
         mock_serpapi_instance = Mock()
         mock_serpapi_instance.search_flights.return_value = [

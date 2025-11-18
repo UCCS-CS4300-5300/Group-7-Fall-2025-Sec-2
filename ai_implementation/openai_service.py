@@ -418,12 +418,9 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
         except Exception as e:
             print(f"Error generating itinerary options: {str(e)}")
             import traceback
+
             print(traceback.format_exc())
-            return {
-                "error": str(e),
-                "options": [],
-                "note": "Unable to generate options due to error",
-            }
+            raise
 
     def generate_group_consensus(
         self, member_preferences: List[Dict[str, Any]]

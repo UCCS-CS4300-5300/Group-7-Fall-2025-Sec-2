@@ -12,6 +12,30 @@ from .models import TravelSearch, AIGeneratedItinerary
 class TravelSearchForm(forms.ModelForm):
     """Form for creating a new travel search"""
     
+    origin = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Los Angeles, LAX'
+            }
+        )
+    )
+
+    rooms = forms.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=10,
+        initial=1,
+        widget=forms.NumberInput(
+            attrs={
+                'class': 'form-control',
+                'min': '1',
+                'max': '10'
+            }
+        )
+    )
+
     # Additional fields not in the model
     travel_method = forms.ChoiceField(
         choices=[
@@ -51,10 +75,6 @@ class TravelSearchForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'e.g., New York, Paris, Tokyo'
             }),
-            'origin': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'e.g., Los Angeles, LAX'
-            }),
             'start_date': forms.DateInput(attrs={
                 'class': 'form-control',
                 'type': 'date'
@@ -67,11 +87,6 @@ class TravelSearchForm(forms.ModelForm):
                 'class': 'form-control',
                 'min': '1',
                 'max': '20'
-            }),
-            'rooms': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '1',
-                'max': '10'
             }),
             'budget_min': forms.NumberInput(attrs={
                 'class': 'form-control',
@@ -126,6 +141,10 @@ class TravelSearchForm(forms.ModelForm):
             activity_prefs = self.data.getlist('activity_preferences')
             if activity_prefs:
                 cleaned_data['activity_categories'] = ','.join(activity_prefs)
+
+        # Default rooms to 1 when omitted
+        if not cleaned_data.get('rooms'):
+            cleaned_data['rooms'] = 1
         
         return cleaned_data
 

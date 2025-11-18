@@ -248,9 +248,9 @@ class MakcorpsHotelConnector:
         try:
             check_in_date = datetime.strptime(check_in, '%Y-%m-%d')
             check_out_date = datetime.strptime(check_out, '%Y-%m-%d')
-            return max(1, (check_out_date - check_in_date).days)
+            return max(0, (check_out_date - check_in_date).days)
         except:
-            return 1
+            return 0
     
     def _get_mock_hotel_data(
         self,
