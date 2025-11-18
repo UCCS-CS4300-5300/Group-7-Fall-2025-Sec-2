@@ -21,11 +21,12 @@ load_dotenv()
 # Detect if we're running tests
 # Check for test command in sys.argv, coverage test runner, or test environment variable
 TESTING = (
-    'test' in sys.argv or 
-    'pytest' in sys.argv[0] or 
-    any('test' in arg.lower() for arg in sys.argv) or
-    os.environ.get('DJANGO_TESTING', '').lower() == 'true' or
-    'coverage' in sys.argv[0] and 'test' in ' '.join(sys.argv)
+    (len(sys.argv) > 1 and sys.argv[1] == 'test') or  # Direct test command
+    'test' in sys.argv or  # Test command anywhere in args
+    'pytest' in sys.argv[0] or  # Pytest runner
+    any('test' in arg.lower() for arg in sys.argv) or  # Test in any argument
+    os.environ.get('DJANGO_TESTING', '').lower() == 'true' or  # Environment variable
+    ('coverage' in sys.argv[0].lower() and 'test' in ' '.join(sys.argv).lower())  # Coverage with test
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -143,7 +144,11 @@ STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Use non-manifest storage during tests to avoid requiring static files collection
+if TESTING:
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+else:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Media files
 MEDIA_URL = "/media/"
