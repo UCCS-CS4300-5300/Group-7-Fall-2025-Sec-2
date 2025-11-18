@@ -111,6 +111,18 @@ class SerpApiFlightsConnector:
             # Check for API errors in response
             if response.status_code != 200:
                 print(f"  [ERROR] SerpApi returned status code {response.status_code}")
+
+                if response.status_code in {401, 403}:
+                    return self._use_mock_flight_data_with_reason(
+                        "Unauthorized SerpApi response",
+                        origin,
+                        destination,
+                        departure_date,
+                        return_date,
+                        adults,
+                        max_results,
+                    )
+
                 raise SerpApiConnectorError(
                     f"SerpApi returned status {response.status_code}"
                 )
@@ -124,6 +136,18 @@ class SerpApiFlightsConnector:
             if "error" in data:
                 error_msg = data.get("error", "Unknown error")
                 print(f"  [ERROR] SerpApi API error: {error_msg}")
+
+                if self._is_authentication_error_message(error_msg):
+                    return self._use_mock_flight_data_with_reason(
+                        "SerpApi authentication error",
+                        origin,
+                        destination,
+                        departure_date,
+                        return_date,
+                        adults,
+                        max_results,
+                    )
+
                 raise SerpApiConnectorError(f"SerpApi API error: {error_msg}")
 
             flights = self._parse_serpapi_response(
@@ -711,6 +735,43 @@ class SerpApiFlightsConnector:
         # If no mapping found, return the cleaned city name
         # SerpApi can accept city names directly, so this might work
         return location_clean
+
+    def _is_authentication_error_message(self, error_message: str) -> bool:
+        """Return True when SerpApi indicates an authentication issue."""
+        if not error_message:
+            return False
+
+        auth_keywords = [
+            "invalid api key",
+            "invalid authentication",
+            "authorization",
+            "inactive account",
+            "missing api key",
+        ]
+
+        error_lower = error_message.lower()
+        return any(keyword in error_lower for keyword in auth_keywords)
+
+    def _use_mock_flight_data_with_reason(
+        self,
+        reason: str,
+        origin: str,
+        destination: str,
+        departure_date: str,
+        return_date: Optional[str],
+        adults: int,
+        max_results: int,
+    ) -> List[Dict[str, Any]]:
+        """Log why we're returning mock data and delegate to generator."""
+        print(f"  [INFO] {reason}. Falling back to mock SerpApi flight data.")
+        return self._get_mock_flight_data(
+            origin,
+            destination,
+            departure_date,
+            return_date,
+            adults,
+            max_results,
+        )
 
     def _get_mock_flight_data(
         self,

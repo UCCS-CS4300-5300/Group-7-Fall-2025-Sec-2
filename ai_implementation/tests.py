@@ -6260,6 +6260,27 @@ class SerpApiConnectorErrorTest(TestCase):
         self.assertIn("SerpApi Google Flights search error", str(context.exception))
 
     @patch("ai_implementation.serpapi_connector.requests.get")
+    def test_search_flights_fallback_on_unauthorized(self, mock_get):
+        """Unauthorized responses should fall back to mock data"""
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+
+        mock_response = Mock()
+        mock_response.status_code = 401
+        mock_response.json.return_value = {"error": "Invalid API key"}
+        mock_get.return_value = mock_response
+
+        connector = SerpApiFlightsConnector()
+        connector.api_key = "invalid-key"
+
+        results = connector.search_flights(
+            origin="JFK", destination="LAX", departure_date="2025-06-01"
+        )
+
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        self.assertTrue(all(flight.get("is_mock") for flight in results))
+
+    @patch("ai_implementation.serpapi_connector.requests.get")
     def test_search_flights_no_api_key(self, mock_get):
         """Test search_flights without API key returns mock data"""
         from ai_implementation.serpapi_connector import SerpApiFlightsConnector

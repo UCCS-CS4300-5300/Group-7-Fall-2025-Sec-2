@@ -1,0 +1,545 @@
+﻿2025-11-18T01:16:36.7820937Z Current runner version: '2.329.0'
+2025-11-18T01:16:36.7842871Z ##[group]Runner Image Provisioner
+2025-11-18T01:16:36.7843962Z Hosted Compute Agent
+2025-11-18T01:16:36.7844773Z Version: 20251016.436
+2025-11-18T01:16:36.7845420Z Commit: 8ab8ac8bfd662a3739dab9fe09456aba92132568
+2025-11-18T01:16:36.7846180Z Build Date: 2025-10-15T20:44:12Z
+2025-11-18T01:16:36.7846764Z ##[endgroup]
+2025-11-18T01:16:36.7847330Z ##[group]Operating System
+2025-11-18T01:16:36.7848063Z Ubuntu
+2025-11-18T01:16:36.7848924Z 24.04.3
+2025-11-18T01:16:36.7849715Z LTS
+2025-11-18T01:16:36.7850769Z ##[endgroup]
+2025-11-18T01:16:36.7851806Z ##[group]Runner Image
+2025-11-18T01:16:36.7853012Z Image: ubuntu-24.04
+2025-11-18T01:16:36.7853949Z Version: 20251112.124.1
+2025-11-18T01:16:36.7855913Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20251112.124/images/ubuntu/Ubuntu2404-Readme.md
+2025-11-18T01:16:36.7858948Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20251112.124
+2025-11-18T01:16:36.7860419Z ##[endgroup]
+2025-11-18T01:16:36.7861498Z ##[group]GITHUB_TOKEN Permissions
+2025-11-18T01:16:36.7864403Z Contents: read
+2025-11-18T01:16:36.7865258Z Metadata: read
+2025-11-18T01:16:36.7866109Z ##[endgroup]
+2025-11-18T01:16:36.7868459Z Secret source: Actions
+2025-11-18T01:16:36.7869172Z Prepare workflow directory
+2025-11-18T01:16:36.8371754Z Prepare all required actions
+2025-11-18T01:16:36.8410614Z Getting action download info
+2025-11-18T01:16:37.1878929Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-11-18T01:16:37.5545442Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2025-11-18T01:16:37.6359432Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2025-11-18T01:16:37.8406917Z Complete job name: tests
+2025-11-18T01:16:37.9139030Z ##[group]Run actions/checkout@v4
+2025-11-18T01:16:37.9140296Z with:
+2025-11-18T01:16:37.9141192Z   repository: UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:37.9142878Z   token: ***
+2025-11-18T01:16:37.9143604Z   ssh-strict: true
+2025-11-18T01:16:37.9144347Z   ssh-user: git
+2025-11-18T01:16:37.9145116Z   persist-credentials: true
+2025-11-18T01:16:37.9145989Z   clean: true
+2025-11-18T01:16:37.9146753Z   sparse-checkout-cone-mode: true
+2025-11-18T01:16:37.9147698Z   fetch-depth: 1
+2025-11-18T01:16:37.9148471Z   fetch-tags: false
+2025-11-18T01:16:37.9149235Z   show-progress: true
+2025-11-18T01:16:37.9150009Z   lfs: false
+2025-11-18T01:16:37.9150733Z   submodules: false
+2025-11-18T01:16:37.9151524Z   set-safe-directory: true
+2025-11-18T01:16:37.9152762Z env:
+2025-11-18T01:16:37.9155598Z   OPENAI_API_KEY: ***
+2025-11-18T01:16:37.9156472Z   HOTEL_API_KEY: ***
+2025-11-18T01:16:37.9157770Z   SERP_API_KEY: ***
+2025-11-18T01:16:37.9158514Z ##[endgroup]
+2025-11-18T01:16:38.0232510Z Syncing repository: UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:38.0235565Z ##[group]Getting Git version info
+2025-11-18T01:16:38.0237328Z Working directory is '/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2'
+2025-11-18T01:16:38.0239824Z [command]/usr/bin/git version
+2025-11-18T01:16:38.0295025Z git version 2.51.2
+2025-11-18T01:16:38.0321177Z ##[endgroup]
+2025-11-18T01:16:38.0334610Z Temporarily overriding HOME='/home/runner/work/_temp/471059ba-2d26-45d2-a089-d8a7cec92293' before making global git config changes
+2025-11-18T01:16:38.0337360Z Adding repository directory to the temporary git global config as a safe directory
+2025-11-18T01:16:38.0347551Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:38.0381015Z Deleting the contents of '/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2'
+2025-11-18T01:16:38.0384112Z ##[group]Initializing the repository
+2025-11-18T01:16:38.0388594Z [command]/usr/bin/git init /home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:38.0477915Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-11-18T01:16:38.0480978Z hint: is subject to change. To configure the initial branch name to use in all
+2025-11-18T01:16:38.0484331Z hint: of your new repositories, which will suppress this warning, call:
+2025-11-18T01:16:38.0486840Z hint:
+2025-11-18T01:16:38.0488458Z hint: 	git config --global init.defaultBranch <name>
+2025-11-18T01:16:38.0490431Z hint:
+2025-11-18T01:16:38.0492675Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-11-18T01:16:38.0496000Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-11-18T01:16:38.0498440Z hint:
+2025-11-18T01:16:38.0499638Z hint: 	git branch -m <name>
+2025-11-18T01:16:38.0500819Z hint:
+2025-11-18T01:16:38.0502017Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-11-18T01:16:38.0504654Z Initialized empty Git repository in /home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/.git/
+2025-11-18T01:16:38.0510516Z [command]/usr/bin/git remote add origin https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:38.0529025Z ##[endgroup]
+2025-11-18T01:16:38.0531505Z ##[group]Disabling automatic garbage collection
+2025-11-18T01:16:38.0533983Z [command]/usr/bin/git config --local gc.auto 0
+2025-11-18T01:16:38.0562816Z ##[endgroup]
+2025-11-18T01:16:38.0565055Z ##[group]Setting up auth
+2025-11-18T01:16:38.0570032Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-11-18T01:16:38.0603257Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-11-18T01:16:38.0917815Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-11-18T01:16:38.0950542Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-11-18T01:16:38.1167027Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-11-18T01:16:38.1207891Z ##[endgroup]
+2025-11-18T01:16:38.1210315Z ##[group]Fetching the repository
+2025-11-18T01:16:38.1219894Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +034b55a5d0f73c21083f394daaf5807c930b8e29:refs/remotes/origin/feature-fix_hotels
+2025-11-18T01:16:38.5565017Z From https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2
+2025-11-18T01:16:38.5565978Z  * [new ref]         034b55a5d0f73c21083f394daaf5807c930b8e29 -> origin/feature-fix_hotels
+2025-11-18T01:16:38.5595491Z ##[endgroup]
+2025-11-18T01:16:38.5596342Z ##[group]Determining the checkout info
+2025-11-18T01:16:38.5598266Z ##[endgroup]
+2025-11-18T01:16:38.5603830Z [command]/usr/bin/git sparse-checkout disable
+2025-11-18T01:16:38.5643589Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-11-18T01:16:38.5670636Z ##[group]Checking out the ref
+2025-11-18T01:16:38.5675272Z [command]/usr/bin/git checkout --progress --force -B feature-fix_hotels refs/remotes/origin/feature-fix_hotels
+2025-11-18T01:16:38.5934518Z Switched to a new branch 'feature-fix_hotels'
+2025-11-18T01:16:38.5937541Z branch 'feature-fix_hotels' set up to track 'origin/feature-fix_hotels'.
+2025-11-18T01:16:38.5943959Z ##[endgroup]
+2025-11-18T01:16:38.5976681Z [command]/usr/bin/git log -1 --format=%H
+2025-11-18T01:16:38.5997862Z 034b55a5d0f73c21083f394daaf5807c930b8e29
+2025-11-18T01:16:38.6214815Z ##[group]Run actions/setup-python@v5
+2025-11-18T01:16:38.6215345Z with:
+2025-11-18T01:16:38.6215886Z   python-version: 3.12.x
+2025-11-18T01:16:38.6216468Z   cache: pip
+2025-11-18T01:16:38.6216807Z   check-latest: false
+2025-11-18T01:16:38.6217285Z   token: ***
+2025-11-18T01:16:38.6217633Z   update-environment: true
+2025-11-18T01:16:38.6218011Z   allow-prereleases: false
+2025-11-18T01:16:38.6218569Z   freethreaded: false
+2025-11-18T01:16:38.6218900Z env:
+2025-11-18T01:16:38.6219763Z   OPENAI_API_KEY: ***
+2025-11-18T01:16:38.6220149Z   HOTEL_API_KEY: ***
+2025-11-18T01:16:38.6220638Z   SERP_API_KEY: ***
+2025-11-18T01:16:38.6220969Z ##[endgroup]
+2025-11-18T01:16:38.7862695Z ##[group]Installed versions
+2025-11-18T01:16:38.7965907Z Successfully set up CPython (3.12.12)
+2025-11-18T01:16:38.7967243Z ##[endgroup]
+2025-11-18T01:16:38.8557594Z [command]/opt/hostedtoolcache/Python/3.12.12/x64/bin/pip cache dir
+2025-11-18T01:16:39.1732629Z /home/runner/.cache/pip
+2025-11-18T01:16:39.3883179Z Cache hit for: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.12-pip-c01dbae4cbc541fc42c115ebac4b95107e7fddedd7affbc2b07807e70d850173
+2025-11-18T01:16:40.4315214Z Received 30544598 of 30544598 (100.0%), 36.1 MBs/sec
+2025-11-18T01:16:40.4316780Z Cache Size: ~29 MB (30544598 B)
+2025-11-18T01:16:40.4342091Z [command]/usr/bin/tar -xf /home/runner/work/_temp/57385225-e034-42b5-9d59-301c084c8c57/cache.tzst -P -C /home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2 --use-compress-program unzstd
+2025-11-18T01:16:40.5383544Z Cache restored successfully
+2025-11-18T01:16:40.5445922Z Cache restored from key: setup-python-Linux-x64-24.04-Ubuntu-python-3.12.12-pip-c01dbae4cbc541fc42c115ebac4b95107e7fddedd7affbc2b07807e70d850173
+2025-11-18T01:16:40.5615693Z ##[group]Run python -m pip install --upgrade pip
+2025-11-18T01:16:40.5616194Z [36;1mpython -m pip install --upgrade pip[0m
+2025-11-18T01:16:40.5616551Z [36;1mpip install coverage[0m
+2025-11-18T01:16:40.5616965Z [36;1mif [ -f requirements.txt ]; then pip install -r requirements.txt; fi[0m
+2025-11-18T01:16:40.5617412Z [36;1mpython manage.py makemigrations[0m
+2025-11-18T01:16:40.5617740Z [36;1mpython manage.py migrate[0m
+2025-11-18T01:16:40.5618079Z [36;1mpython manage.py collectstatic --noinput[0m
+2025-11-18T01:16:40.5658546Z shell: /usr/bin/bash -e {0}
+2025-11-18T01:16:40.5658853Z env:
+2025-11-18T01:16:40.5659784Z   OPENAI_API_KEY: ***
+2025-11-18T01:16:40.5660142Z   HOTEL_API_KEY: ***
+2025-11-18T01:16:40.5660557Z   SERP_API_KEY: ***
+2025-11-18T01:16:40.5660877Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:40.5661348Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib/pkgconfig
+2025-11-18T01:16:40.5661847Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:40.5662424Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:40.5662849Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:40.5663253Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib
+2025-11-18T01:16:40.5663613Z ##[endgroup]
+2025-11-18T01:16:41.0909094Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages (25.3)
+2025-11-18T01:16:42.0527856Z Collecting coverage
+2025-11-18T01:16:42.1555727Z   Downloading coverage-7.11.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (9.1 kB)
+2025-11-18T01:16:42.1740711Z Downloading coverage-7.11.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (251 kB)
+2025-11-18T01:16:42.2253418Z Installing collected packages: coverage
+2025-11-18T01:16:42.3404663Z Successfully installed coverage-7.11.3
+2025-11-18T01:16:42.9074537Z Collecting Django==4.2.11 (from -r requirements.txt (line 1))
+2025-11-18T01:16:42.9087472Z   Using cached Django-4.2.11-py3-none-any.whl.metadata (4.2 kB)
+2025-11-18T01:16:42.9385884Z Collecting gunicorn==23.0.0 (from -r requirements.txt (line 2))
+2025-11-18T01:16:42.9397753Z   Using cached gunicorn-23.0.0-py3-none-any.whl.metadata (4.4 kB)
+2025-11-18T01:16:43.1908019Z Collecting pillow==12.0.0 (from -r requirements.txt (line 3))
+2025-11-18T01:16:43.1920842Z   Using cached pillow-12.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (8.8 kB)
+2025-11-18T01:16:43.2274168Z Collecting whitenoise==6.6.0 (from -r requirements.txt (line 4))
+2025-11-18T01:16:43.2285507Z   Using cached whitenoise-6.6.0-py3-none-any.whl.metadata (3.7 kB)
+2025-11-18T01:16:43.5707342Z Collecting coverage==7.11.0 (from -r requirements.txt (line 5))
+2025-11-18T01:16:43.5720787Z   Using cached coverage-7.11.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (9.0 kB)
+2025-11-18T01:16:43.6537455Z Collecting openai==1.54.0 (from -r requirements.txt (line 6))
+2025-11-18T01:16:43.6549265Z   Using cached openai-1.54.0-py3-none-any.whl.metadata (24 kB)
+2025-11-18T01:16:43.6946754Z Collecting requests==2.31.0 (from -r requirements.txt (line 7))
+2025-11-18T01:16:43.6958787Z   Using cached requests-2.31.0-py3-none-any.whl.metadata (4.6 kB)
+2025-11-18T01:16:43.7239150Z Collecting python-dotenv==1.0.0 (from -r requirements.txt (line 8))
+2025-11-18T01:16:43.7255990Z   Using cached python_dotenv-1.0.0-py3-none-any.whl.metadata (21 kB)
+2025-11-18T01:16:43.7745863Z Collecting celery==5.3.4 (from -r requirements.txt (line 9))
+2025-11-18T01:16:43.7756992Z   Using cached celery-5.3.4-py3-none-any.whl.metadata (21 kB)
+2025-11-18T01:16:43.8310055Z Collecting redis==5.0.1 (from -r requirements.txt (line 10))
+2025-11-18T01:16:43.8321807Z   Using cached redis-5.0.1-py3-none-any.whl.metadata (8.9 kB)
+2025-11-18T01:16:43.8576588Z Collecting django-celery-beat==2.5.0 (from -r requirements.txt (line 11))
+2025-11-18T01:16:43.8588337Z   Using cached django_celery_beat-2.5.0-py3-none-any.whl.metadata (12 kB)
+2025-11-18T01:16:43.8895957Z Collecting httpx==0.27.0 (from -r requirements.txt (line 12))
+2025-11-18T01:16:43.8907056Z   Using cached httpx-0.27.0-py3-none-any.whl.metadata (7.2 kB)
+2025-11-18T01:16:43.9251743Z Collecting flake8==6.1.0 (from -r requirements.txt (line 13))
+2025-11-18T01:16:43.9262744Z   Using cached flake8-6.1.0-py2.py3-none-any.whl.metadata (3.8 kB)
+2025-11-18T01:16:43.9502106Z Collecting flake8-django==1.4 (from -r requirements.txt (line 14))
+2025-11-18T01:16:43.9504176Z   Using cached flake8_django-1.4-py3-none-any.whl
+2025-11-18T01:16:43.9928399Z Collecting flake8-html==0.4.3 (from -r requirements.txt (line 15))
+2025-11-18T01:16:43.9939185Z   Using cached flake8_html-0.4.3-py2.py3-none-any.whl.metadata (3.3 kB)
+2025-11-18T01:16:44.0372963Z Collecting flake8-bugbear==23.12.2 (from -r requirements.txt (line 16))
+2025-11-18T01:16:44.0384175Z   Using cached flake8_bugbear-23.12.2-py3-none-any.whl.metadata (29 kB)
+2025-11-18T01:16:44.0900965Z Collecting flake8-black==0.3.6 (from -r requirements.txt (line 17))
+2025-11-18T01:16:44.0912491Z   Using cached flake8_black-0.3.6-py3-none-any.whl.metadata (12 kB)
+2025-11-18T01:16:44.1379346Z Collecting asgiref<4,>=3.6.0 (from Django==4.2.11->-r requirements.txt (line 1))
+2025-11-18T01:16:44.1390394Z   Using cached asgiref-3.10.0-py3-none-any.whl.metadata (9.3 kB)
+2025-11-18T01:16:44.1685281Z Collecting sqlparse>=0.3.1 (from Django==4.2.11->-r requirements.txt (line 1))
+2025-11-18T01:16:44.1696083Z   Using cached sqlparse-0.5.3-py3-none-any.whl.metadata (3.9 kB)
+2025-11-18T01:16:44.1995793Z Collecting packaging (from gunicorn==23.0.0->-r requirements.txt (line 2))
+2025-11-18T01:16:44.2006669Z   Using cached packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+2025-11-18T01:16:44.2346371Z Collecting anyio<5,>=3.5.0 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.2357425Z   Using cached anyio-4.11.0-py3-none-any.whl.metadata (4.1 kB)
+2025-11-18T01:16:44.2584773Z Collecting distro<2,>=1.7.0 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.2595464Z   Using cached distro-1.9.0-py3-none-any.whl.metadata (6.8 kB)
+2025-11-18T01:16:44.3477322Z Collecting jiter<1,>=0.4.0 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.3488596Z   Using cached jiter-0.12.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (5.2 kB)
+2025-11-18T01:16:44.4769707Z Collecting pydantic<3,>=1.9.0 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.4781431Z   Using cached pydantic-2.12.4-py3-none-any.whl.metadata (89 kB)
+2025-11-18T01:16:44.5018970Z Collecting sniffio (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.5030391Z   Using cached sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+2025-11-18T01:16:44.5496376Z Collecting tqdm>4 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.5507782Z   Using cached tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+2025-11-18T01:16:44.5835289Z Collecting typing-extensions<5,>=4.11 (from openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:44.5846783Z   Using cached typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+2025-11-18T01:16:44.6170548Z Collecting certifi (from httpx==0.27.0->-r requirements.txt (line 12))
+2025-11-18T01:16:44.6182078Z   Using cached certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+2025-11-18T01:16:44.6479077Z Collecting httpcore==1.* (from httpx==0.27.0->-r requirements.txt (line 12))
+2025-11-18T01:16:44.6490491Z   Using cached httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+2025-11-18T01:16:44.6766756Z Collecting idna (from httpx==0.27.0->-r requirements.txt (line 12))
+2025-11-18T01:16:44.6778081Z   Using cached idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+2025-11-18T01:16:44.7733019Z Collecting charset-normalizer<4,>=2 (from requests==2.31.0->-r requirements.txt (line 7))
+2025-11-18T01:16:44.7745485Z   Using cached charset_normalizer-3.4.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (37 kB)
+2025-11-18T01:16:44.8184418Z Collecting urllib3<3,>=1.21.1 (from requests==2.31.0->-r requirements.txt (line 7))
+2025-11-18T01:16:44.8195921Z   Using cached urllib3-2.5.0-py3-none-any.whl.metadata (6.5 kB)
+2025-11-18T01:16:44.8644444Z Collecting billiard<5.0,>=4.1.0 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:44.9659683Z   Downloading billiard-4.2.3-py3-none-any.whl.metadata (4.8 kB)
+2025-11-18T01:16:45.0118869Z Collecting kombu<6.0,>=5.3.2 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.0130090Z   Using cached kombu-5.6.0-py3-none-any.whl.metadata (3.5 kB)
+2025-11-18T01:16:45.0508821Z Collecting vine<6.0,>=5.0.0 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.0520191Z   Using cached vine-5.1.0-py3-none-any.whl.metadata (2.7 kB)
+2025-11-18T01:16:45.0887730Z Collecting click<9.0,>=8.1.2 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.1060914Z   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+2025-11-18T01:16:45.1333793Z Collecting click-didyoumean>=0.3.0 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.1345120Z   Using cached click_didyoumean-0.3.1-py3-none-any.whl.metadata (3.9 kB)
+2025-11-18T01:16:45.1576568Z Collecting click-repl>=0.2.0 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.1587767Z   Using cached click_repl-0.3.0-py3-none-any.whl.metadata (3.6 kB)
+2025-11-18T01:16:45.1801060Z Collecting click-plugins>=1.1.1 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.1812734Z   Using cached click_plugins-1.1.1.2-py2.py3-none-any.whl.metadata (6.5 kB)
+2025-11-18T01:16:45.2064144Z Collecting tzdata>=2022.7 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.2075691Z   Using cached tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+2025-11-18T01:16:45.2320696Z Collecting python-dateutil>=2.8.2 (from celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.2332479Z   Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+2025-11-18T01:16:45.2956880Z Collecting cron-descriptor>=1.2.32 (from django-celery-beat==2.5.0->-r requirements.txt (line 11))
+2025-11-18T01:16:45.2968168Z   Using cached cron_descriptor-2.0.6-py3-none-any.whl.metadata (8.1 kB)
+2025-11-18T01:16:45.3229723Z Collecting django-timezone-field>=5.0 (from django-celery-beat==2.5.0->-r requirements.txt (line 11))
+2025-11-18T01:16:45.3241235Z   Using cached django_timezone_field-7.1-py3-none-any.whl.metadata (13 kB)
+2025-11-18T01:16:45.3533127Z Collecting python-crontab>=2.3.4 (from django-celery-beat==2.5.0->-r requirements.txt (line 11))
+2025-11-18T01:16:45.3544789Z   Using cached python_crontab-3.3.0-py3-none-any.whl.metadata (17 kB)
+2025-11-18T01:16:45.3782950Z Collecting mccabe<0.8.0,>=0.7.0 (from flake8==6.1.0->-r requirements.txt (line 13))
+2025-11-18T01:16:45.3794596Z   Using cached mccabe-0.7.0-py2.py3-none-any.whl.metadata (5.0 kB)
+2025-11-18T01:16:45.4036759Z Collecting pycodestyle<2.12.0,>=2.11.0 (from flake8==6.1.0->-r requirements.txt (line 13))
+2025-11-18T01:16:45.4048087Z   Using cached pycodestyle-2.11.1-py2.py3-none-any.whl.metadata (4.5 kB)
+2025-11-18T01:16:45.4302120Z Collecting pyflakes<3.2.0,>=3.1.0 (from flake8==6.1.0->-r requirements.txt (line 13))
+2025-11-18T01:16:45.4314111Z   Using cached pyflakes-3.1.0-py2.py3-none-any.whl.metadata (3.5 kB)
+2025-11-18T01:16:45.4816233Z Collecting astroid<3.0.0,>=2.15.2 (from flake8-django==1.4->-r requirements.txt (line 14))
+2025-11-18T01:16:45.4828368Z   Using cached astroid-2.15.8-py3-none-any.whl.metadata (4.7 kB)
+2025-11-18T01:16:45.5159181Z Collecting jinja2>=3.1.0 (from flake8-html==0.4.3->-r requirements.txt (line 15))
+2025-11-18T01:16:45.5170487Z   Using cached jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2025-11-18T01:16:45.5495011Z Collecting pygments>=2.2.0 (from flake8-html==0.4.3->-r requirements.txt (line 15))
+2025-11-18T01:16:45.5506350Z   Using cached pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+2025-11-18T01:16:45.5865178Z Collecting attrs>=19.2.0 (from flake8-bugbear==23.12.2->-r requirements.txt (line 16))
+2025-11-18T01:16:45.5876520Z   Using cached attrs-25.4.0-py3-none-any.whl.metadata (10 kB)
+2025-11-18T01:16:45.6518247Z Collecting black>=22.1.0 (from flake8-black==0.3.6->-r requirements.txt (line 17))
+2025-11-18T01:16:45.6530233Z   Using cached black-25.11.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (85 kB)
+2025-11-18T01:16:45.7179289Z Collecting lazy-object-proxy>=1.4.0 (from astroid<3.0.0,>=2.15.2->flake8-django==1.4->-r requirements.txt (line 14))
+2025-11-18T01:16:45.7191384Z   Using cached lazy_object_proxy-1.12.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (5.1 kB)
+2025-11-18T01:16:45.8969471Z Collecting wrapt<2,>=1.14 (from astroid<3.0.0,>=2.15.2->flake8-django==1.4->-r requirements.txt (line 14))
+2025-11-18T01:16:45.8983296Z   Using cached wrapt-1.17.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (6.4 kB)
+2025-11-18T01:16:45.9259784Z Collecting h11>=0.16 (from httpcore==1.*->httpx==0.27.0->-r requirements.txt (line 12))
+2025-11-18T01:16:45.9270940Z   Using cached h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2025-11-18T01:16:45.9657792Z Collecting amqp<6.0.0,>=5.1.1 (from kombu<6.0,>=5.3.2->celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:45.9669080Z   Using cached amqp-5.3.1-py3-none-any.whl.metadata (8.9 kB)
+2025-11-18T01:16:45.9976070Z Collecting annotated-types>=0.6.0 (from pydantic<3,>=1.9.0->openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:45.9987447Z   Using cached annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+2025-11-18T01:16:46.7193947Z Collecting pydantic-core==2.41.5 (from pydantic<3,>=1.9.0->openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:46.7207446Z   Using cached pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.3 kB)
+2025-11-18T01:16:46.7470734Z Collecting typing-inspection>=0.4.2 (from pydantic<3,>=1.9.0->openai==1.54.0->-r requirements.txt (line 6))
+2025-11-18T01:16:46.7482578Z   Using cached typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+2025-11-18T01:16:46.7838351Z Collecting mypy-extensions>=0.4.3 (from black>=22.1.0->flake8-black==0.3.6->-r requirements.txt (line 17))
+2025-11-18T01:16:46.7849173Z   Using cached mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)
+2025-11-18T01:16:46.8107564Z Collecting pathspec>=0.9.0 (from black>=22.1.0->flake8-black==0.3.6->-r requirements.txt (line 17))
+2025-11-18T01:16:46.8118365Z   Using cached pathspec-0.12.1-py3-none-any.whl.metadata (21 kB)
+2025-11-18T01:16:46.8423882Z Collecting platformdirs>=2 (from black>=22.1.0->flake8-black==0.3.6->-r requirements.txt (line 17))
+2025-11-18T01:16:46.8434740Z   Using cached platformdirs-4.5.0-py3-none-any.whl.metadata (12 kB)
+2025-11-18T01:16:46.8669215Z Collecting pytokens>=0.3.0 (from black>=22.1.0->flake8-black==0.3.6->-r requirements.txt (line 17))
+2025-11-18T01:16:46.8680239Z   Using cached pytokens-0.3.0-py3-none-any.whl.metadata (2.0 kB)
+2025-11-18T01:16:46.9266621Z Collecting prompt-toolkit>=3.0.36 (from click-repl>=0.2.0->celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:46.9277400Z   Using cached prompt_toolkit-3.0.52-py3-none-any.whl.metadata (6.4 kB)
+2025-11-18T01:16:47.0197318Z Collecting MarkupSafe>=2.0 (from jinja2>=3.1.0->flake8-html==0.4.3->-r requirements.txt (line 15))
+2025-11-18T01:16:47.0209041Z   Using cached markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2025-11-18T01:16:47.0539696Z Collecting wcwidth (from prompt-toolkit>=3.0.36->click-repl>=0.2.0->celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:47.0550546Z   Using cached wcwidth-0.2.14-py2.py3-none-any.whl.metadata (15 kB)
+2025-11-18T01:16:47.0850265Z Collecting six>=1.5 (from python-dateutil>=2.8.2->celery==5.3.4->-r requirements.txt (line 9))
+2025-11-18T01:16:47.0861934Z   Using cached six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+2025-11-18T01:16:47.1077821Z Using cached Django-4.2.11-py3-none-any.whl (8.0 MB)
+2025-11-18T01:16:47.1145543Z Using cached gunicorn-23.0.0-py3-none-any.whl (85 kB)
+2025-11-18T01:16:47.1157105Z Using cached pillow-12.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.0 MB)
+2025-11-18T01:16:47.1219936Z Using cached whitenoise-6.6.0-py3-none-any.whl (19 kB)
+2025-11-18T01:16:47.1231167Z Using cached coverage-7.11.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (250 kB)
+2025-11-18T01:16:47.1243121Z Using cached openai-1.54.0-py3-none-any.whl (389 kB)
+2025-11-18T01:16:47.1256597Z Using cached httpx-0.27.0-py3-none-any.whl (75 kB)
+2025-11-18T01:16:47.1267846Z Using cached requests-2.31.0-py3-none-any.whl (62 kB)
+2025-11-18T01:16:47.1278928Z Using cached python_dotenv-1.0.0-py3-none-any.whl (19 kB)
+2025-11-18T01:16:47.1289764Z Using cached celery-5.3.4-py3-none-any.whl (421 kB)
+2025-11-18T01:16:47.1303558Z Using cached redis-5.0.1-py3-none-any.whl (250 kB)
+2025-11-18T01:16:47.1315973Z Using cached django_celery_beat-2.5.0-py3-none-any.whl (97 kB)
+2025-11-18T01:16:47.1327114Z Using cached flake8-6.1.0-py2.py3-none-any.whl (58 kB)
+2025-11-18T01:16:47.1338292Z Using cached flake8_html-0.4.3-py2.py3-none-any.whl (13 kB)
+2025-11-18T01:16:47.1348922Z Using cached flake8_bugbear-23.12.2-py3-none-any.whl (31 kB)
+2025-11-18T01:16:47.1359768Z Using cached flake8_black-0.3.6-py3-none-any.whl (9.9 kB)
+2025-11-18T01:16:47.1370375Z Using cached anyio-4.11.0-py3-none-any.whl (109 kB)
+2025-11-18T01:16:47.1381814Z Using cached asgiref-3.10.0-py3-none-any.whl (24 kB)
+2025-11-18T01:16:47.1392812Z Using cached astroid-2.15.8-py3-none-any.whl (278 kB)
+2025-11-18T01:16:47.1535395Z Downloading billiard-4.2.3-py3-none-any.whl (87 kB)
+2025-11-18T01:16:47.1799780Z Using cached charset_normalizer-3.4.4-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (153 kB)
+2025-11-18T01:16:47.1976947Z Downloading click-8.3.1-py3-none-any.whl (108 kB)
+2025-11-18T01:16:47.2154937Z Using cached distro-1.9.0-py3-none-any.whl (20 kB)
+2025-11-18T01:16:47.2165926Z Using cached httpcore-1.0.9-py3-none-any.whl (78 kB)
+2025-11-18T01:16:47.2177204Z Using cached idna-3.11-py3-none-any.whl (71 kB)
+2025-11-18T01:16:47.2188911Z Using cached jiter-0.12.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (361 kB)
+2025-11-18T01:16:47.2201677Z Using cached kombu-5.6.0-py3-none-any.whl (213 kB)
+2025-11-18T01:16:47.2213817Z Using cached vine-5.1.0-py3-none-any.whl (9.6 kB)
+2025-11-18T01:16:47.2224502Z Using cached amqp-5.3.1-py3-none-any.whl (50 kB)
+2025-11-18T01:16:47.2235690Z Using cached mccabe-0.7.0-py2.py3-none-any.whl (7.3 kB)
+2025-11-18T01:16:47.2246398Z Using cached pycodestyle-2.11.1-py2.py3-none-any.whl (31 kB)
+2025-11-18T01:16:47.2257239Z Using cached pydantic-2.12.4-py3-none-any.whl (463 kB)
+2025-11-18T01:16:47.2271766Z Using cached pydantic_core-2.41.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+2025-11-18T01:16:47.2297571Z Using cached pyflakes-3.1.0-py2.py3-none-any.whl (62 kB)
+2025-11-18T01:16:47.2308854Z Using cached typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+2025-11-18T01:16:47.2319720Z Using cached urllib3-2.5.0-py3-none-any.whl (129 kB)
+2025-11-18T01:16:47.2331643Z Using cached wrapt-1.17.3-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (88 kB)
+2025-11-18T01:16:47.2342818Z Using cached annotated_types-0.7.0-py3-none-any.whl (13 kB)
+2025-11-18T01:16:47.2353701Z Using cached attrs-25.4.0-py3-none-any.whl (67 kB)
+2025-11-18T01:16:47.2365252Z Using cached black-25.11.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (1.7 MB)
+2025-11-18T01:16:47.2387661Z Using cached certifi-2025.11.12-py3-none-any.whl (159 kB)
+2025-11-18T01:16:47.2399253Z Using cached click_didyoumean-0.3.1-py3-none-any.whl (3.6 kB)
+2025-11-18T01:16:47.2409822Z Using cached click_plugins-1.1.1.2-py2.py3-none-any.whl (11 kB)
+2025-11-18T01:16:47.2420275Z Using cached click_repl-0.3.0-py3-none-any.whl (10 kB)
+2025-11-18T01:16:47.2431229Z Using cached cron_descriptor-2.0.6-py3-none-any.whl (74 kB)
+2025-11-18T01:16:47.2442195Z Using cached django_timezone_field-7.1-py3-none-any.whl (13 kB)
+2025-11-18T01:16:47.2452845Z Using cached h11-0.16.0-py3-none-any.whl (37 kB)
+2025-11-18T01:16:47.2463887Z Using cached jinja2-3.1.6-py3-none-any.whl (134 kB)
+2025-11-18T01:16:47.2476015Z Using cached lazy_object_proxy-1.12.0-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (71 kB)
+2025-11-18T01:16:47.2487377Z Using cached markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+2025-11-18T01:16:47.2497919Z Using cached mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+2025-11-18T01:16:47.2508499Z Using cached packaging-25.0-py3-none-any.whl (66 kB)
+2025-11-18T01:16:47.2519572Z Using cached pathspec-0.12.1-py3-none-any.whl (31 kB)
+2025-11-18T01:16:47.2530399Z Using cached platformdirs-4.5.0-py3-none-any.whl (18 kB)
+2025-11-18T01:16:47.2541224Z Using cached prompt_toolkit-3.0.52-py3-none-any.whl (391 kB)
+2025-11-18T01:16:47.2554775Z Using cached pygments-2.19.2-py3-none-any.whl (1.2 MB)
+2025-11-18T01:16:47.2574322Z Using cached python_crontab-3.3.0-py3-none-any.whl (27 kB)
+2025-11-18T01:16:47.2585437Z Using cached python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+2025-11-18T01:16:47.2597593Z Using cached pytokens-0.3.0-py3-none-any.whl (12 kB)
+2025-11-18T01:16:47.2608256Z Using cached six-1.17.0-py2.py3-none-any.whl (11 kB)
+2025-11-18T01:16:47.2619026Z Using cached sniffio-1.3.1-py3-none-any.whl (10 kB)
+2025-11-18T01:16:47.2629585Z Using cached sqlparse-0.5.3-py3-none-any.whl (44 kB)
+2025-11-18T01:16:47.2640546Z Using cached tqdm-4.67.1-py3-none-any.whl (78 kB)
+2025-11-18T01:16:47.2651913Z Using cached typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+2025-11-18T01:16:47.2662904Z Using cached tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+2025-11-18T01:16:47.2676154Z Using cached wcwidth-0.2.14-py2.py3-none-any.whl (37 kB)
+2025-11-18T01:16:47.4803574Z Installing collected packages: python-crontab, wrapt, whitenoise, wcwidth, vine, urllib3, tzdata, typing-extensions, tqdm, sqlparse, sniffio, six, redis, pytokens, python-dotenv, pygments, pyflakes, pycodestyle, platformdirs, pillow, pathspec, packaging, mypy-extensions, mccabe, MarkupSafe, lazy-object-proxy, jiter, idna, h11, distro, coverage, click, charset-normalizer, certifi, billiard, attrs, asgiref, annotated-types, typing-inspection, requests, python-dateutil, pydantic-core, prompt-toolkit, jinja2, httpcore, gunicorn, flake8, Django, cron-descriptor, click-plugins, click-didyoumean, black, astroid, anyio, amqp, pydantic, kombu, httpx, flake8-html, flake8-django, flake8-bugbear, flake8-black, django-timezone-field, click-repl, openai, celery, django-celery-beat
+2025-11-18T01:16:49.4215575Z   Attempting uninstall: coverage
+2025-11-18T01:16:49.4246809Z     Found existing installation: coverage 7.11.3
+2025-11-18T01:16:49.4299277Z     Uninstalling coverage-7.11.3:
+2025-11-18T01:16:49.4314555Z       Successfully uninstalled coverage-7.11.3
+2025-11-18T01:16:54.1242187Z 
+2025-11-18T01:16:54.1306131Z Successfully installed Django-4.2.11 MarkupSafe-3.0.3 amqp-5.3.1 annotated-types-0.7.0 anyio-4.11.0 asgiref-3.10.0 astroid-2.15.8 attrs-25.4.0 billiard-4.2.3 black-25.11.0 celery-5.3.4 certifi-2025.11.12 charset-normalizer-3.4.4 click-8.3.1 click-didyoumean-0.3.1 click-plugins-1.1.1.2 click-repl-0.3.0 coverage-7.11.0 cron-descriptor-2.0.6 distro-1.9.0 django-celery-beat-2.5.0 django-timezone-field-7.1 flake8-6.1.0 flake8-black-0.3.6 flake8-bugbear-23.12.2 flake8-django-1.4 flake8-html-0.4.3 gunicorn-23.0.0 h11-0.16.0 httpcore-1.0.9 httpx-0.27.0 idna-3.11 jinja2-3.1.6 jiter-0.12.0 kombu-5.6.0 lazy-object-proxy-1.12.0 mccabe-0.7.0 mypy-extensions-1.1.0 openai-1.54.0 packaging-25.0 pathspec-0.12.1 pillow-12.0.0 platformdirs-4.5.0 prompt-toolkit-3.0.52 pycodestyle-2.11.1 pydantic-2.12.4 pydantic-core-2.41.5 pyflakes-3.1.0 pygments-2.19.2 python-crontab-3.3.0 python-dateutil-2.9.0.post0 python-dotenv-1.0.0 pytokens-0.3.0 redis-5.0.1 requests-2.31.0 six-1.17.0 sniffio-1.3.1 sqlparse-0.5.3 tqdm-4.67.1 typing-extensions-4.15.0 typing-inspection-0.4.2 tzdata-2025.2 urllib3-2.5.0 vine-5.1.0 wcwidth-0.2.14 whitenoise-6.6.0 wrapt-1.17.3
+2025-11-18T01:16:56.1765807Z No changes detected
+2025-11-18T01:16:57.1167999Z Operations to perform:
+2025-11-18T01:16:57.1168733Z   Apply all migrations: accounts, admin, ai_implementation, auth, contenttypes, django_celery_beat, sessions, travel_groups
+2025-11-18T01:16:57.1169353Z Running migrations:
+2025-11-18T01:16:57.1892437Z   Applying ai_implementation.0006_alter_hotelresult_total_price... OK
+2025-11-18T01:16:58.0098882Z 
+2025-11-18T01:16:58.0099763Z 127 static files copied to '/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/staticfiles', 379 post-processed.
+2025-11-18T01:16:58.0608447Z ##[group]Run coverage run --concurrency=multiprocessing manage.py test --parallel=auto
+2025-11-18T01:16:58.0609090Z [36;1mcoverage run --concurrency=multiprocessing manage.py test --parallel=auto[0m
+2025-11-18T01:16:58.0609481Z [36;1mexit_code=$?[0m
+2025-11-18T01:16:58.0609702Z [36;1mif [ "$exit_code" -eq 5 ]; then[0m
+2025-11-18T01:16:58.0610006Z [36;1m  echo "No tests found - assuming as 100% coverage"[0m
+2025-11-18T01:16:58.0610290Z [36;1m  exit 0[0m
+2025-11-18T01:16:58.0610491Z [36;1melif [ "$exit_code" -eq 0 ]; then[0m
+2025-11-18T01:16:58.0610751Z [36;1m  echo "All tests passed"[0m
+2025-11-18T01:16:58.0610980Z [36;1melse[0m
+2025-11-18T01:16:58.0611206Z [36;1m  echo "Tests failed with exit code $exit_code"[0m
+2025-11-18T01:16:58.0611491Z [36;1m  exit $exit_code[0m
+2025-11-18T01:16:58.0611692Z [36;1mfi[0m
+2025-11-18T01:16:58.0644703Z shell: /usr/bin/bash -e {0}
+2025-11-18T01:16:58.0644944Z env:
+2025-11-18T01:16:58.0645744Z   OPENAI_API_KEY: ***
+2025-11-18T01:16:58.0646019Z   HOTEL_API_KEY: ***
+2025-11-18T01:16:58.0646364Z   SERP_API_KEY: ***
+2025-11-18T01:16:58.0646630Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:58.0647036Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib/pkgconfig
+2025-11-18T01:16:58.0647432Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:58.0647783Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:58.0648128Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:16:58.0648479Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib
+2025-11-18T01:16:58.0648775Z ##[endgroup]
+2025-11-18T01:17:00.4851605Z Creating test database for alias 'default'...
+2025-11-18T01:17:01.9392153Z Found 577 test(s).
+2025-11-18T01:17:01.9415491Z Cloning test database for alias 'default'...
+2025-11-18T01:17:01.9416124Z Cloning test database for alias 'default'...
+2025-11-18T01:17:01.9417073Z Cloning test database for alias 'default'...
+2025-11-18T01:17:01.9417468Z Cloning test database for alias 'default'...
+2025-11-18T01:17:02.1296632Z System check identified no issues (0 silenced).
+2025-11-18T01:17:05.9272838Z .................../opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/db/models/fields/__init__.py:1595: RuntimeWarning: DateTimeField FlightResult.departure_time received a naive datetime (2025-11-18 01:17:05.925025) while time zone support is active.
+2025-11-18T01:17:05.9275512Z   warnings.warn(
+2025-11-18T01:17:05.9279636Z /opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/db/models/fields/__init__.py:1595: RuntimeWarning: DateTimeField FlightResult.arrival_time received a naive datetime (2025-11-18 01:17:05.925027) while time zone support is active.
+2025-11-18T01:17:05.9282046Z   warnings.warn(
+2025-11-18T01:17:07.6650229Z ................Destroying test database for alias 'default'...
+2025-11-18T01:17:07.6654902Z Destroying test database for alias 'default'...
+2025-11-18T01:17:07.6659703Z Destroying test database for alias 'default'...
+2025-11-18T01:17:07.6663576Z Destroying test database for alias 'default'...
+2025-11-18T01:17:07.6714104Z Destroying test database for alias 'default'...
+2025-11-18T01:17:07.6762821Z multiprocessing.pool.RemoteTraceback: 
+2025-11-18T01:17:07.6763504Z """
+2025-11-18T01:17:07.6766919Z Traceback (most recent call last):
+2025-11-18T01:17:07.6780220Z   File "/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/ai_implementation/serpapi_connector.py", line 114, in search_flights
+2025-11-18T01:17:07.6781350Z     raise SerpApiConnectorError(
+2025-11-18T01:17:07.6782059Z ai_implementation.serpapi_connector.SerpApiConnectorError: SerpApi returned status 401
+2025-11-18T01:17:07.6782845Z 
+2025-11-18T01:17:07.6783139Z The above exception was the direct cause of the following exception:
+2025-11-18T01:17:07.6783585Z 
+2025-11-18T01:17:07.6783737Z Traceback (most recent call last):
+2025-11-18T01:17:07.6784965Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 58, in testPartExecutor
+2025-11-18T01:17:07.6785778Z     yield
+2025-11-18T01:17:07.6786428Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 634, in run
+2025-11-18T01:17:07.6787178Z     self._callTestMethod(testMethod)
+2025-11-18T01:17:07.6788032Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 589, in _callTestMethod
+2025-11-18T01:17:07.6788841Z     if method() is not None:
+2025-11-18T01:17:07.6789198Z        ^^^^^^^^
+2025-11-18T01:17:07.6790177Z   File "/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/ai_implementation/tests.py", line 1405, in test_aggregator_with_preferences
+2025-11-18T01:17:07.6791240Z     flights = flights_connector.search_flights(
+2025-11-18T01:17:07.6791689Z               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6792884Z   File "/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/ai_implementation/serpapi_connector.py", line 160, in search_flights
+2025-11-18T01:17:07.6800117Z     raise SerpApiConnectorError("SerpApi Google Flights search error") from e
+2025-11-18T01:17:07.6806612Z ai_implementation.serpapi_connector.SerpApiConnectorError: SerpApi Google Flights search error
+2025-11-18T01:17:07.6807264Z 
+2025-11-18T01:17:07.6807571Z During handling of the above exception, another exception occurred:
+2025-11-18T01:17:07.6808012Z 
+2025-11-18T01:17:07.6808163Z Traceback (most recent call last):
+2025-11-18T01:17:07.6809026Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/multiprocessing/pool.py", line 125, in worker
+2025-11-18T01:17:07.6809871Z     result = (True, func(*args, **kwds))
+2025-11-18T01:17:07.6810279Z                     ^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6811222Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 449, in _run_subsuite
+2025-11-18T01:17:07.6812555Z     result = runner.run(subsuite)
+2025-11-18T01:17:07.6812946Z              ^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6813806Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 366, in run
+2025-11-18T01:17:07.6814643Z     test(result)
+2025-11-18T01:17:07.6815360Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/suite.py", line 84, in __call__
+2025-11-18T01:17:07.6816138Z     return self.run(*args, **kwds)
+2025-11-18T01:17:07.6816521Z            ^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6817238Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/suite.py", line 122, in run
+2025-11-18T01:17:07.6817958Z     test(result)
+2025-11-18T01:17:07.6818787Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/testcases.py", line 381, in __call__
+2025-11-18T01:17:07.6819705Z     self._setup_and_call(result)
+2025-11-18T01:17:07.6820664Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/testcases.py", line 416, in _setup_and_call
+2025-11-18T01:17:07.6821626Z     super().__call__(result)
+2025-11-18T01:17:07.6822510Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 690, in __call__
+2025-11-18T01:17:07.6823282Z     return self.run(*args, **kwds)
+2025-11-18T01:17:07.6823661Z            ^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6824375Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 633, in run
+2025-11-18T01:17:07.6825136Z     with outcome.testPartExecutor(self):
+2025-11-18T01:17:07.6825560Z          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6826307Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/contextlib.py", line 158, in __exit__
+2025-11-18T01:17:07.6827048Z     self.gen.throw(value)
+2025-11-18T01:17:07.6827835Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 75, in testPartExecutor
+2025-11-18T01:17:07.6828688Z     _addError(self.result, test_case, exc_info)
+2025-11-18T01:17:07.6829722Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/case.py", line 100, in _addError
+2025-11-18T01:17:07.6830508Z     result.addError(test, exc_info)
+2025-11-18T01:17:07.6831416Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 291, in addError
+2025-11-18T01:17:07.6912883Z     self.check_picklable(test, err)
+2025-11-18T01:17:07.6913970Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 216, in check_picklable
+2025-11-18T01:17:07.6914925Z     self._confirm_picklable(err)
+2025-11-18T01:17:07.6915920Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 186, in _confirm_picklable
+2025-11-18T01:17:07.6916904Z     pickle.loads(pickle.dumps(obj))
+2025-11-18T01:17:07.6917319Z                  ^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6917758Z TypeError: cannot pickle 'traceback' object
+2025-11-18T01:17:07.6918199Z """
+2025-11-18T01:17:07.6918343Z 
+2025-11-18T01:17:07.6918645Z The above exception was the direct cause of the following exception:
+2025-11-18T01:17:07.6919089Z 
+2025-11-18T01:17:07.6919238Z Traceback (most recent call last):
+2025-11-18T01:17:07.6920041Z   File "/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/manage.py", line 22, in <module>
+2025-11-18T01:17:07.6920797Z     main()
+2025-11-18T01:17:07.6921443Z   File "/home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2/manage.py", line 18, in main
+2025-11-18T01:17:07.6922341Z     execute_from_command_line(sys.argv)
+2025-11-18T01:17:07.6923475Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/__init__.py", line 442, in execute_from_command_line
+2025-11-18T01:17:07.6924532Z     utility.execute()
+2025-11-18T01:17:07.6925440Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/__init__.py", line 436, in execute
+2025-11-18T01:17:07.6926696Z     self.fetch_command(subcommand).run_from_argv(self.argv)
+2025-11-18T01:17:07.6927856Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/commands/test.py", line 24, in run_from_argv
+2025-11-18T01:17:07.6928905Z     super().run_from_argv(argv)
+2025-11-18T01:17:07.6929874Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/base.py", line 412, in run_from_argv
+2025-11-18T01:17:07.6930861Z     self.execute(*args, **cmd_options)
+2025-11-18T01:17:07.6931818Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/base.py", line 458, in execute
+2025-11-18T01:17:07.6932900Z     output = self.handle(*args, **options)
+2025-11-18T01:17:07.6933320Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6934314Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/core/management/commands/test.py", line 68, in handle
+2025-11-18T01:17:07.6935365Z     failures = test_runner.run_tests(test_labels)
+2025-11-18T01:17:07.6935829Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6936732Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 1061, in run_tests
+2025-11-18T01:17:07.6937627Z     result = self.run_suite(suite)
+2025-11-18T01:17:07.6938009Z              ^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6938868Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 983, in run_suite
+2025-11-18T01:17:07.6939750Z     return runner.run(suite)
+2025-11-18T01:17:07.6940098Z            ^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6940800Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/runner.py", line 240, in run
+2025-11-18T01:17:07.6941520Z     test(result)
+2025-11-18T01:17:07.6942193Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/unittest/suite.py", line 84, in __call__
+2025-11-18T01:17:07.6964262Z     return self.run(*args, **kwds)
+2025-11-18T01:17:07.6964688Z            ^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6965578Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/site-packages/django/test/runner.py", line 534, in run
+2025-11-18T01:17:07.6966529Z     subsuite_index, events = test_results.next(timeout=0.1)
+2025-11-18T01:17:07.6967046Z                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-11-18T01:17:07.6967868Z   File "/opt/hostedtoolcache/Python/3.12.12/x64/lib/python3.12/multiprocessing/pool.py", line 873, in next
+2025-11-18T01:17:07.6968637Z     raise value
+2025-11-18T01:17:07.6968989Z TypeError: cannot pickle 'traceback' object
+2025-11-18T01:17:07.8968615Z ##[error]Process completed with exit code 1.
+2025-11-18T01:17:07.9042924Z ##[group]Run actions/upload-artifact@v4
+2025-11-18T01:17:07.9043228Z with:
+2025-11-18T01:17:07.9043418Z   name: coverage-xml
+2025-11-18T01:17:07.9043628Z   path: coverage.xml
+2025-11-18T01:17:07.9043842Z   if-no-files-found: ignore
+2025-11-18T01:17:07.9044059Z   compression-level: 6
+2025-11-18T01:17:07.9044256Z   overwrite: false
+2025-11-18T01:17:07.9044450Z   include-hidden-files: false
+2025-11-18T01:17:07.9044665Z env:
+2025-11-18T01:17:07.9045602Z   OPENAI_API_KEY: ***
+2025-11-18T01:17:07.9045850Z   HOTEL_API_KEY: ***
+2025-11-18T01:17:07.9046186Z   SERP_API_KEY: ***
+2025-11-18T01:17:07.9046450Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:17:07.9046858Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib/pkgconfig
+2025-11-18T01:17:07.9047250Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:17:07.9047598Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:17:07.9047978Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.12/x64
+2025-11-18T01:17:07.9048330Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.12/x64/lib
+2025-11-18T01:17:07.9048624Z ##[endgroup]
+2025-11-18T01:17:08.1119680Z No files were found with the provided path: coverage.xml. No artifacts will be uploaded.
+2025-11-18T01:17:08.1278061Z Post job cleanup.
+2025-11-18T01:17:08.2212779Z [command]/usr/bin/git version
+2025-11-18T01:17:08.2247971Z git version 2.51.2
+2025-11-18T01:17:08.2288912Z Temporarily overriding HOME='/home/runner/work/_temp/780e3119-d2c9-4a99-b55f-2dd6b34f6444' before making global git config changes
+2025-11-18T01:17:08.2290339Z Adding repository directory to the temporary git global config as a safe directory
+2025-11-18T01:17:08.2294771Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Group-7-Fall-2025-Sec-2/Group-7-Fall-2025-Sec-2
+2025-11-18T01:17:08.2339487Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-11-18T01:17:08.2371864Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-11-18T01:17:08.2601177Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-11-18T01:17:08.2620919Z http.https://github.com/.extraheader
+2025-11-18T01:17:08.2632898Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-11-18T01:17:08.2662615Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-11-18T01:17:08.2981261Z Cleaning up orphan processes
