@@ -56,6 +56,91 @@
                     <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> Active Trips</h5>
                 </div>
                 <div class="card-body">
+                    {% if accepted_group_trips %}
+                        {% for trip_data in accepted_group_trips %}
+                        {% with option=trip_data.option activities=trip_data.activities %}
+                        <div class="card active-trip-card mb-4 border-success">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-users"></i> {{ option.group.name }} - Selected Trip
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">
+                                    {% if option.destination %}
+                                        A Trip to {{ option.destination }}
+                                    {% else %}
+                                        {{ option.title }}
+                                    {% endif %}
+                                </h5>
+                                
+                                <p class="card-text text-muted mb-3">{{ option.description }}</p>
+                                
+                                {% if option.destination %}
+                                <div class="alert alert-info mb-3">
+                                    <strong><i class="fas fa-map-marker-alt"></i> Destination:</strong> {{ option.destination }}
+                                </div>
+                                {% endif %}
+                                
+                                {% if option.search %}
+                                <div class="alert alert-light mb-3">
+                                    <strong><i class="fas fa-calendar"></i> Travel Dates:</strong> 
+                                    {{ option.search.start_date|date:"M d, Y" }} - {{ option.search.end_date|date:"M d, Y" }}
+                                </div>
+                                {% endif %}
+                                
+                                <div class="row mb-3">
+                                    {% if option.selected_flight %}
+                                    <div class="col-md-6 mb-2">
+                                        <h6 class="text-primary"><i class="fas fa-plane"></i> Flight</h6>
+                                        <p class="small mb-1">
+                                            <strong>{{ option.selected_flight.airline }}</strong><br>
+                                            <span class="text-success">${{ option.selected_flight.price }}</span>
+                                            {% if option.selected_flight.duration %}<br><i class="far fa-clock"></i> {{ option.selected_flight.duration }}{% endif %}
+                                            {% if option.selected_flight.stops %}<br><i class="fas fa-plane"></i> {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}{% endif %}
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if option.selected_hotel %}
+                                    <div class="col-md-6 mb-2">
+                                        <h6 class="text-primary"><i class="fas fa-hotel"></i> Hotel</h6>
+                                        <p class="small mb-1">
+                                            <strong>{{ option.selected_hotel.name }}</strong><br>
+                                            <span class="text-success">${{ option.selected_hotel.total_price }} total</span>
+                                            {% if option.selected_hotel.rating %}<br><i class="fas fa-star"></i> {{ option.selected_hotel.rating }}/5{% endif %}
+                                        </p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if activities %}
+                                <div class="mb-3">
+                                    <h6 class="text-primary"><i class="fas fa-ticket-alt"></i> Activities ({{ activities|length }})</h6>
+                                    <ul class="small ps-3 mb-0">
+                                        {% for activity in activities %}
+                                        <li>{{ activity.name }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="text-center mt-3 p-2 bg-light rounded">
+                                    <h4 class="text-primary mb-1">${{ option.estimated_total_cost }}</h4>
+                                    <small class="text-muted">${{ option.cost_per_person }} per person</small>
+                                </div>
+                                
+                                <div class="text-center mt-3">
+                                    <a href="{% url 'travel_groups:group_detail' option.group.id %}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-eye"></i> View Group Details
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                    {% endif %}
+                    
                     {% if active_trips %}
                         {% for trip in active_trips %}
                             <div class="card active-trip-card mb-3">
@@ -75,7 +160,9 @@
                                 </div>
                             </div>
                         {% endfor %}
-                    {% else %}
+                    {% endif %}
+                    
+                    {% if not accepted_group_trips and not active_trips %}
                         <div class="empty-state">
                             <i class="fas fa-map-marked-alt"></i>
                             <h5>No Active Trips</h5>

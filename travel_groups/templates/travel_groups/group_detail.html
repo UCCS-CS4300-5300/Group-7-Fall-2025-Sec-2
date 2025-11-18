@@ -77,7 +77,7 @@
         {% if user_is_member %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="trip-management-tab" data-bs-toggle="tab" data-bs-target="#trip-management" type="button" role="tab">
-                <i class="fas fa-plus"></i> Manage Trips
+                <i class="fas fa-plus"></i> Find A Trip
             </button>
         </li>
         {% endif %}
@@ -142,23 +142,36 @@
         <div class="tab-pane fade" id="itineraries" role="tabpanel">
             {% if voting_options %}
             <!-- Voting Options Available -->
-            <div class="alert alert-success mb-4">
+            <div class="alert {% if is_unanimous %}alert-success{% else %}alert-info{% endif %} mb-4">
                 <h5 class="alert-heading"><i class="fas fa-vote-yea"></i> Voting in Progress!</h5>
-                <p>AI has generated 3 trip options based on your group's preferences. Cast your vote below!</p>
-                <p class="mb-0"><strong>{{ votes_cast }} of {{ members.count }}</strong> members have voted.</p>
+                {% if is_unanimous %}
+                    <p class="mb-2"><strong>🎉 Unanimous Vote!</strong> All members voted for this option!</p>
+                {% else %}
+                    <p>AI has generated multiple trip options. One option is shown at a time. Cast your vote below!</p>
+                {% endif %}
+                <p class="mb-1"><strong>{{ votes_cast }} of {{ members.count }}</strong> members have voted.</p>
+                {% if pending_count %}
+                    <p class="mb-0"><small><i class="fas fa-clock"></i> {{ pending_count }} option{{ pending_count|pluralize }} waiting</small></p>
+                {% endif %}
+                {% if rejected_count %}
+                    <p class="mb-0"><small><i class="fas fa-times-circle"></i> {{ rejected_count }} option{{ rejected_count|pluralize }} rejected</small></p>
+                {% endif %}
             </div>
             
-            <div class="row">
+            <div class="row justify-content-center">
                 {% for option_data in voting_options %}
                 {% with option=option_data.option activities=option_data.activities %}
-                <div class="col-lg-4 mb-4">
+                <div class="col-lg-6 col-xl-5 mb-4">
                     <div class="card h-100 {% if user_vote and user_vote.option == option %}border-success border-3{% else %}border-primary{% endif %}">
-                        <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-warning{% endif %} text-white">
+                        <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-info{% endif %} text-white text-center">
                             <h5 class="mb-0">
-                                Option {{ option.option_letter }}
-                                {% if option.option_letter == 'A' %}💰{% elif option.option_letter == 'B' %}⚖️{% else %}⭐{% endif %}
+                                {% if option.destination %}
+                                    A Trip to {{ option.destination }}
+                                {% else %}
+                                    Option {{ option.option_letter }}
+                                {% endif %}
                             </h5>
-                            <small>{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</small>
+                            <small class="d-block mt-1">{{ option.vote_count }} vote{{ option.vote_count|pluralize }}</small>
                         </div>
                         <div class="card-body">
                             <h6 class="card-title">{{ option.title }}</h6>
@@ -226,14 +239,30 @@
                                 <small class="text-muted">${{ option.cost_per_person }} per person</small>
                             </div>
                         </div>
-                        <div class="card-footer text-center">
-                            <button class="btn {% if user_vote and user_vote.option == option %}btn-success{% else %}btn-outline-primary{% endif %} btn-lg w-100" onclick="castVote('{{ option.id }}', '{{ option.option_letter }}')">
-                                {% if user_vote and user_vote.option == option %}
-                                    ✓ Your Vote
-                                {% else %}
-                                    Vote for Option {{ option.option_letter }}
-                                {% endif %}
-                            </button>
+                        <div class="card-footer">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <button type="button" class="btn {% if user_vote and user_vote.option == option %}btn-success{% else %}btn-success{% endif %} btn-lg w-100" onclick="letsGo('{{ option.id }}', '{{ option.option_letter }}')">
+                                        <i class="fas fa-check-circle"></i> Let's Go
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button type="button" class="btn btn-outline-secondary btn-lg w-100 roll-again-btn" data-option-id="{{ option.id }}" data-option-letter="{{ option.option_letter }}" onclick="rollAgain('{{ option.id }}', '{{ option.option_letter }}'); return false;">
+                                        <i class="fas fa-redo"></i> Roll Again
+                                    </button>
+                                </div>
+                            </div>
+                            {% if user_vote %}
+                                <div class="text-center mt-2">
+                                    {% if user_vote.option == option %}
+                                        {% if user_vote.comment == "ROLL_AGAIN" %}
+                                            <small class="text-warning"><i class="fas fa-redo"></i> You voted "Roll Again"</small>
+                                        {% else %}
+                                            <small class="text-success"><i class="fas fa-check"></i> You voted "Let's Go"</small>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -243,9 +272,23 @@
             
             {% if voting_complete %}
             <div class="text-center mt-4">
-                <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-success btn-lg">
-                    <i class="fas fa-trophy"></i> View Voting Results
-                </a>
+                {% if is_unanimous %}
+                    <div class="alert alert-success">
+                        <h5>🎉 Trip Selected!</h5>
+                        <p>This option received unanimous approval from all group members!</p>
+                        <a href="{% url 'ai_implementation:voting_results' group.id %}" class="btn btn-success btn-lg mt-2">
+                            <i class="fas fa-trophy"></i> View Selected Trip
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <h5>Not Unanimous</h5>
+                        <p>This option did not receive unanimous approval. You can try the next option.</p>
+                        <button class="btn btn-primary btn-lg mt-2" onclick="advanceToNextOption()">
+                            <i class="fas fa-arrow-right"></i> Try Next Option
+                        </button>
+                    </div>
+                {% endif %}
             </div>
             {% endif %}
             
@@ -282,7 +325,7 @@
                         <i class="fas fa-route fa-2x text-muted mb-3"></i>
                         <p class="text-muted">No trips added yet.</p>
                         {% if user_is_member %}
-                            <p class="text-muted">Use the "Manage Trips" tab to find your perfect trip with AI!</p>
+                            <p class="text-muted">Use the "Find A Trip" tab to find your perfect trip with AI!</p>
                         {% endif %}
                     </div>
                 </div>
@@ -305,7 +348,7 @@
                             <i class="fas fa-robot fa-4x text-primary mb-4"></i>
                             <h4 class="mb-3">Find Your Perfect Group Trip!</h4>
                             <p class="lead mb-2">Let AI analyze your group's preferences and create 3 custom itinerary options</p>
-                            <p class="text-muted mb-4">Using real flight data from Duffel API and smart recommendations from OpenAI</p>
+                            <p class="text-muted mb-4">Using real flight data from SerpAPI and smart recommendations from OpenAI</p>
                             
                             <div class="alert alert-info d-inline-block text-start">
                                 <strong>📊 Group Status:</strong><br>
@@ -318,7 +361,7 @@
                                 <button class="btn btn-success btn-lg px-5" onclick="findYourTrip()">
                                     <i class="fas fa-magic"></i> Find Your Trip
                                 </button>
-                                <p class="text-muted mt-2 small">This will generate 3 AI-curated options for your group to vote on</p>
+                                <p class="text-muted mt-2 small">This will generate AI-curated options for your group to vote on</p>
                                 {% else %}
                                 <div class="alert alert-warning">
                                     <strong>⚠️ Need More Preferences!</strong><br>
@@ -563,6 +606,26 @@
                     {% csrf_token %}
                     
                     <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="trip_origin" class="form-label">
+                                <i class="fas fa-map-marker-alt"></i> Starting Location (Airport or City)
+                            </label>
+                            <div class="position-relative">
+                                <input type="text" 
+                                       class="form-control form-control-lg" 
+                                       id="trip_origin" 
+                                       name="origin" 
+                                       placeholder="e.g., Denver, DEN, or Denver International Airport"
+                                       autocomplete="off"
+                                       required>
+                                <div id="origin_autocomplete" class="list-group position-absolute w-100" style="z-index: 1000; display: none; max-height: 300px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></div>
+                            </div>
+                            <small class="text-muted">Where will your trip start? This helps us find real-time flight prices.</small>
+                            <input type="hidden" id="trip_origin_code" name="origin_code">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="trip_start_date" class="form-label">
                                 <i class="fas fa-plane-departure"></i> Start Date
@@ -578,7 +641,7 @@
                         
                         <div class="col-md-6 mb-3">
                             <label for="trip_end_date" class="form-label">
-                                <i class="fas fa-plane-arrival"></i> End Date
+<i class="fas fa-plane-arrival"></i> End Date
                             </label>
                             <input type="date" 
                                    class="form-control form-control-lg" 
@@ -677,13 +740,20 @@ function findYourTrip() {
 }
 
 function confirmAndFindTrip() {
-    // Get selected dates
+    // Get selected dates and origin
     const startDate = document.getElementById('trip_start_date').value;
     const endDate = document.getElementById('trip_end_date').value;
+    const origin = document.getElementById('trip_origin_code').value || document.getElementById('trip_origin').value;
     
     // Validate dates
     if (!startDate || !endDate) {
         alert('Please select both start and end dates.');
+        return;
+    }
+    
+    // Validate origin
+    if (!origin || origin.trim() === '') {
+        alert('Please select a starting location.');
         return;
     }
     
@@ -726,7 +796,7 @@ function confirmAndFindTrip() {
                             <span id="step1">🔍 Analyzing preferences...</span><br>
                             <span id="step2" style="display:none;">✈️ Searching flights...</span><br>
                             <span id="step3" style="display:none;">🏨 Finding hotels...</span><br>
-                            <span id="step4" style="display:none;">🤖 Creating 3 options...</span>
+                            <span id="step4" style="display:none;">🤖 Creating multiple options...</span>
                         </small>
                     </div>
                 </div>
@@ -749,7 +819,8 @@ function confirmAndFindTrip() {
         },
         body: JSON.stringify({
             start_date: startDate,
-            end_date: endDate
+            end_date: endDate,
+            origin: origin
         })
     })
     .then(response => response.json())
@@ -771,8 +842,126 @@ function confirmAndFindTrip() {
     });
 }
 
+// Airport autocomplete functionality
+let autocompleteTimeout;
+
+function initializeAutocomplete() {
+    const originInput = document.getElementById('trip_origin');
+    const originCodeInput = document.getElementById('trip_origin_code');
+    const autocompleteDiv = document.getElementById('origin_autocomplete');
+    
+    if (!originInput || !originCodeInput || !autocompleteDiv) {
+        return;
+    }
+    
+    originInput.addEventListener('input', function(e) {
+        const query = e.target.value.trim();
+        
+        // Clear previous timeout
+        clearTimeout(autocompleteTimeout);
+        
+        // Hide autocomplete if query is too short
+        if (query.length < 2) {
+            autocompleteDiv.style.display = 'none';
+            originCodeInput.value = '';
+            return;
+        }
+        
+        // Debounce the search
+        autocompleteTimeout = setTimeout(() => {
+            fetch(`{% url "ai_implementation:airport_autocomplete" %}?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    displayAutocomplete(data.airports);
+                })
+                .catch(error => {
+                    console.error('Autocomplete error:', error);
+                });
+        }, 300);
+    });
+    
+    // Hide autocomplete when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!originInput.contains(e.target) && !autocompleteDiv.contains(e.target)) {
+            autocompleteDiv.style.display = 'none';
+        }
+    });
+    
+    // Handle keyboard navigation
+    originInput.addEventListener('keydown', function(e) {
+        const items = autocompleteDiv.querySelectorAll('.list-group-item');
+        const activeItem = autocompleteDiv.querySelector('.list-group-item.active');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (activeItem) {
+                activeItem.classList.remove('active');
+                const next = activeItem.nextElementSibling;
+                if (next) {
+                    next.classList.add('active');
+                    next.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (items.length > 0) {
+                items[0].classList.add('active');
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (activeItem) {
+                activeItem.classList.remove('active');
+                const prev = activeItem.previousElementSibling;
+                if (prev) {
+                    prev.classList.add('active');
+                    prev.scrollIntoView({ block: 'nearest' });
+                }
+            }
+        } else if (e.key === 'Enter' && activeItem) {
+            e.preventDefault();
+            activeItem.click();
+        } else if (e.key === 'Escape') {
+            autocompleteDiv.style.display = 'none';
+        }
+    });
+    
+    function displayAutocomplete(airports) {
+        if (!airports || airports.length === 0) {
+            autocompleteDiv.style.display = 'none';
+            return;
+        }
+        
+        autocompleteDiv.innerHTML = '';
+        
+        airports.forEach((airport, index) => {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action';
+            if (index === 0) {
+                item.classList.add('active');
+            }
+            item.innerHTML = `
+                <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">${airport.display}</h6>
+                    <small>${airport.code}</small>
+                </div>
+                <p class="mb-1 small text-muted">${airport.full_display}</p>
+            `;
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                originInput.value = airport.display;
+                originCodeInput.value = airport.code;
+                autocompleteDiv.style.display = 'none';
+            });
+            autocompleteDiv.appendChild(item);
+        });
+        
+        autocompleteDiv.style.display = 'block';
+    }
+}
+
 // Calculate trip duration when dates change
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize autocomplete
+    initializeAutocomplete();
+    
     const startInput = document.getElementById('trip_start_date');
     const endInput = document.getElementById('trip_end_date');
     
@@ -795,21 +984,96 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-function castVote(optionId, optionLetter) {
-    if (confirm(`Vote for Option ${optionLetter}?`)) {
-        fetch(`/ai/group/{{ group.id }}/voting/cast/${optionId}/`, {
+function letsGo(optionId, optionLetter) {
+    // Vote "yes" for this option
+    fetch(`/ai/group/{{ group.id }}/voting/cast/${optionId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'comment='
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Always reload the page after voting
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+        } else {
+            // Log error to console instead of showing alert
+            console.error('Voting error:', data.error || 'Unknown error');
+            // Still reload to show updated state
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Still reload to show updated state
+        window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+    });
+}
+
+// Make rollAgain globally accessible
+window.rollAgain = function(optionId, optionLetter) {
+    console.log('rollAgain called with optionId:', optionId, 'optionLetter:', optionLetter);
+    
+    if (!optionId) {
+        console.error('rollAgain: optionId is missing!');
+        // Just return silently - page will show current state
+        return;
+    }
+    
+    // Vote "no" - reject this option and advance to next (no confirmation needed)
+    const url = `/ai/group/{{ group.id }}/voting/roll-again/${optionId}/`;
+    console.log('Making request to:', url);
+    
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            // Always reload the page after voting
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+        } else {
+            // Log error to console instead of showing alert
+            console.error('Roll again error:', data.error || 'Unknown error');
+            // Still reload to show updated state
+            window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+        }
+    })
+    .catch(error => {
+        console.error('Error in rollAgain:', error);
+        // Still reload to show updated state
+        window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
+    });
+};
+
+function advanceToNextOption() {
+    if (confirm('Move to the next option? All votes will be reset and members will vote again on the new option.')) {
+        fetch(`/ai/group/{{ group.id }}/voting/next/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'),
                 'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'comment='
+            }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.message);
-                // Reload to update vote counts
+                alert(data.message + ` (${data.remaining_pending} more option${data.remaining_pending !== 1 ? 's' : ''} available)`);
+                // Reload to show new option
                 window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
             } else {
                 alert('Error: ' + (data.error || 'Unknown error'));
@@ -817,7 +1081,7 @@ function castVote(optionId, optionLetter) {
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while voting');
+            alert('An error occurred while advancing to next option');
         });
     }
 }
@@ -912,6 +1176,23 @@ function deleteTrip(itineraryId, tripTitle) {
 document.addEventListener('DOMContentLoaded', function() {
     const hash = window.location.hash;
     console.log('Page loaded with hash:', hash);
+    
+    // Set up Roll Again button event listeners (backup to onclick)
+    document.querySelectorAll('.roll-again-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const optionId = this.getAttribute('data-option-id');
+            const optionLetter = this.getAttribute('data-option-letter');
+            console.log('Roll Again button clicked (via event listener) for option:', optionId);
+            if (typeof rollAgain === 'function') {
+                rollAgain(optionId, optionLetter);
+            } else {
+                console.error('rollAgain function not found!');
+                alert('Error: rollAgain function not available. Please refresh the page.');
+            }
+        });
+    });
     
     if (hash === '#trip-management') {
         const tripTab = document.getElementById('trip-management-tab');

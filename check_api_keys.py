@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
 API Keys Test Script
-Tests both OpenAI and Duffel API connections
+Tests OpenAI, SerpAPI (Google Flights), and Duffel API connections
 """
 
 import os
@@ -27,20 +27,30 @@ print()
 print("📋 Step 1: Checking if API keys are loaded...")
 print("-" * 70)
 
-openai_key = settings.OPENAI_API_KEY
-duffel_key = settings.DUFFEL_API_KEY
+# Check if API keys are configured (without exposing their values)
+openai_key_configured = bool(settings.OPENAI_API_KEY)
+serpapi_key_configured = bool(settings.SERP_API_KEY)
+hotel_api_key_configured = bool(settings.HOTEL_API_KEY)
 
-if openai_key:
-    print(f"✅ OpenAI Key Found: {openai_key[:15]}...")
+if openai_key_configured:
+    print("✅ OpenAI Key Found: Configured")
 else:
     print("❌ OpenAI Key NOT FOUND in environment!")
     print("   Add to .env: OPEN_AI_KEY=sk-your-key")
 
-if duffel_key:
-    print(f"✅ Duffel Key Found: {duffel_key[:20]}...")
+if serpapi_key_configured:
+    print("✅ SerpAPI Key Found: Configured")
 else:
-    print("❌ Duffel Key NOT FOUND in environment!")
-    print("   Add to .env: DUFFEL_API_KEY=duffel_test_...")
+    print("❌ SerpAPI Key NOT FOUND in environment!")
+    print("   Add to .env: SERP_API_KEY=your-serpapi-key")
+    print("   Get your key from: https://serpapi.com/")
+
+if hotel_api_key_configured:
+    print("✅ Makcorps Hotel API Key Found: Configured")
+else:
+    print("❌ Makcorps Hotel API Key NOT FOUND in environment!")
+    print("   Add to .env: HOTEL_API_KEY=your-makcorps-key")
+    print("   Get your key from: https://api.makcorps.com/free")
 
 print()
 
@@ -48,7 +58,7 @@ print()
 print("🤖 Step 2: Testing OpenAI API Connection...")
 print("-" * 70)
 
-if openai_key:
+if openai_key_configured:
     try:
         from ai_implementation.openai_service import OpenAIService
         
@@ -78,58 +88,179 @@ else:
 
 print()
 
-# Test 3: Test Duffel API
-print("✈️  Step 3: Testing Duffel API Connection...")
+# Note: Duffel API has been removed - all services now use SerpAPI and Makcorps
+print("ℹ️  Step 3: API Configuration")
+print("-" * 70)
+print("   ✅ Flights: SerpAPI (Google Flights)")
+print("   ✅ Hotels: Makcorps API")
+print("   ✅ Activities: SerpAPI (Google Search)")
+print("   ℹ️  Duffel API has been removed from the project")
+print()
+
+# Test 3: Test Makcorps Hotel API
+print("🏨 Step 3: Testing Makcorps Hotel API Connection...")
 print("-" * 70)
 
-if duffel_key:
+if hotel_api_key_configured:
     try:
-        from ai_implementation.duffel_connector import DuffelFlightSearch
+        from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+        from datetime import datetime, timedelta
         
-        print("Connecting to Duffel API...")
-        duffel = DuffelFlightSearch()
+        print("Connecting to Makcorps Hotel API...")
+        makcorps = MakcorpsHotelConnector()
+        
+        print("Searching for test hotels in New York...")
+        
+        # Search for hotels 30 days from now
+        future_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+        checkout_date = (datetime.now() + timedelta(days=33)).strftime('%Y-%m-%d')
+        
+        hotels = makcorps.search_hotels(
+            location='New York',
+            check_in=future_date,
+            check_out=checkout_date,
+            adults=2,
+            rooms=1,
+            max_results=5
+        )
+        
+        if hotels:
+            print(f"✅ Makcorps Hotel API is WORKING!")
+            print(f"   Found {len(hotels)} hotel(s)")
+            
+            # Check if real or mock data
+            first_hotel = hotels[0]
+            if first_hotel.get('is_mock'):
+                print("⚠️  WARNING: Returning MOCK data (not real Makcorps data)")
+                print("   This means the API key might be invalid or API call failed")
+                print("   Check your HOTEL_API_KEY")
+            else:
+                print(f"   ✅ REAL Makcorps data received!")
+                print(f"   First hotel: {first_hotel.get('name', 'Unknown')} - ${first_hotel.get('price_per_night', 0)}/night")
+                if first_hotel.get('rating'):
+                    print(f"   Rating: ⭐ {first_hotel.get('rating')}/5")
+        else:
+            print("❌ No hotels returned")
+            
+    except Exception as e:
+        print(f"❌ Makcorps Hotel API ERROR: {str(e)}")
+        print("   Possible issues:")
+        print("   - Invalid API key format")
+        print("   - Network connection problem")
+        print("   - Makcorps API service issue")
+        print("   - Check API documentation at: https://api.makcorps.com/free")
+else:
+    print("⏭️  Skipping Makcorps test (no key found)")
+    print("   ⚠️  WARNING: System will use MOCK data for hotels without Makcorps API key")
+    print("   Get your free key from: https://api.makcorps.com/free")
+
+print()
+
+# Test 4: Test SerpAPI (Google Flights)
+print("✈️  Step 4: Testing SerpAPI (Google Flights) Connection...")
+print("-" * 70)
+
+if serpapi_key_configured:
+    try:
+        from ai_implementation.serpapi_connector import SerpApiFlightsConnector
+        from datetime import datetime, timedelta
+        
+        print("Connecting to SerpAPI...")
+        serpapi = SerpApiFlightsConnector()
         
         print("Searching for test flights: LAX → JFK...")
-        from datetime import datetime, timedelta
         
         # Search for flights 30 days from now
         future_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
         return_date = (datetime.now() + timedelta(days=37)).strftime('%Y-%m-%d')
         
-        flights = duffel.search_flights(
+        flights = serpapi.search_flights(
             origin='LAX',
             destination='JFK',
             departure_date=future_date,
             return_date=return_date,
-            adults=1
+            adults=1,
+            max_results=5
         )
         
         if flights:
-            print(f"✅ Duffel API is WORKING!")
+            print(f"✅ SerpAPI is WORKING!")
             print(f"   Found {len(flights)} flight(s)")
             
             # Check if real or mock data
             first_flight = flights[0]
             if first_flight.get('is_mock'):
-                print("⚠️  WARNING: Returning MOCK data (not real Duffel data)")
+                print("⚠️  WARNING: Returning MOCK data (not real SerpAPI data)")
                 print("   This means the API key might be invalid or API call failed")
-                print("   Check your Duffel API key")
+                print("   Check your SerpAPI key at https://serpapi.com/")
             else:
-                print(f"   ✅ REAL Duffel data received!")
+                print(f"   ✅ REAL SerpAPI data received!")
                 print(f"   First flight: {first_flight.get('airline_name', 'Unknown')} - ${first_flight.get('price', 0)}")
                 print(f"   Route: {first_flight.get('route', 'N/A')}")
         else:
             print("❌ No flights returned")
             
     except Exception as e:
-        print(f"❌ Duffel API ERROR: {str(e)}")
+        print(f"❌ SerpAPI ERROR: {str(e)}")
         print("   Possible issues:")
         print("   - Invalid API key format")
+        print("   - No API credits remaining (check https://serpapi.com/)")
         print("   - Network connection problem")
-        print("   - Duffel API service issue")
+        print("   - SerpAPI service issue")
 else:
-    print("⏭️  Skipping Duffel test (no key found)")
-    print("   The system will use mock data for flights")
+    print("⏭️  Skipping SerpAPI flights test (no key found)")
+    print("   ⚠️  WARNING: System will use MOCK data for flights without SerpAPI key")
+    print("   Get your free key from: https://serpapi.com/ (100 searches/month free)")
+
+print()
+
+# Test 5: Test SerpAPI Activities
+print("🎭 Step 5: Testing SerpAPI Activities (Things to Do) Connection...")
+print("-" * 70)
+
+if serpapi_key_configured:
+    try:
+        from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
+        
+        print("Connecting to SerpAPI for activities...")
+        serpapi_activities = SerpApiActivitiesConnector()
+        
+        print("Searching for activities in New York...")
+        
+        activities = serpapi_activities.search_activities(
+            destination='New York',
+            max_results=5
+        )
+        
+        if activities:
+            print(f"✅ SerpAPI Activities is WORKING!")
+            print(f"   Found {len(activities)} activity/activities")
+            
+            # Check if real or mock data
+            first_activity = activities[0]
+            if first_activity.get('is_mock'):
+                print("⚠️  WARNING: Returning MOCK data (not real SerpAPI data)")
+                print("   This means the API key might be invalid or API call failed")
+                print("   Check your SerpAPI key at https://serpapi.com/")
+            else:
+                print(f"   ✅ REAL SerpAPI data received!")
+                print(f"   First activity: {first_activity.get('name', 'Unknown')}")
+                if first_activity.get('rating'):
+                    print(f"   Rating: ⭐ {first_activity.get('rating')}/5")
+        else:
+            print("❌ No activities returned")
+            
+    except Exception as e:
+        print(f"❌ SerpAPI Activities ERROR: {str(e)}")
+        print("   Possible issues:")
+        print("   - Invalid API key format")
+        print("   - No API credits remaining (check https://serpapi.com/)")
+        print("   - Network connection problem")
+        print("   - SerpAPI service issue")
+else:
+    print("⏭️  Skipping SerpAPI activities test (no key found)")
+    print("   ⚠️  WARNING: System will use MOCK data for activities without SerpAPI key")
+    print("   Note: Activities use the same SerpAPI key as flights")
 
 print()
 print("=" * 70)
@@ -138,15 +269,26 @@ print("=" * 70)
 
 summary = []
 
-if openai_key:
-    summary.append("OpenAI: Configured")
+if openai_key_configured:
+    summary.append("OpenAI: ✅ Configured")
 else:
     summary.append("OpenAI: ❌ NOT configured")
 
-if duffel_key:
-    summary.append("Duffel: Configured")
+if serpapi_key_configured:
+    summary.append("SerpAPI (Flights): ✅ Configured")
 else:
-    summary.append("Duffel: ⚠️  NOT configured (will use mock data)")
+    summary.append("SerpAPI (Flights): ❌ NOT configured (will use mock data)")
+
+if hotel_api_key_configured:
+    summary.append("Makcorps (Hotels): ✅ Configured")
+else:
+    summary.append("Makcorps (Hotels): ❌ NOT configured (will use mock data)")
+
+# Note: Activities use SerpAPI (same key as flights)
+if serpapi_key_configured:
+    summary.append("SerpAPI (Activities): ✅ Configured (uses same key as flights)")
+else:
+    summary.append("SerpAPI (Activities): ❌ NOT configured (will use mock data)")
 
 for item in summary:
     print(f"  {item}")
@@ -155,26 +297,54 @@ print()
 print("💡 NEXT STEPS:")
 print()
 
-if not openai_key:
+if not openai_key_configured:
     print("  ❌ OpenAI key required! Add to .env:")
     print("     OPEN_AI_KEY=sk-your-key")
     print()
 
-if not duffel_key:
-    print("  ⚠️  Duffel key recommended (optional):")
-    print("     DUFFEL_API_KEY=duffel_test_your-key")
-    print("     Without it, system uses mock flight data")
+if not serpapi_key_configured:
+    print("  ❌ SerpAPI key required for real flight data! Add to .env:")
+    print("     SERP_API_KEY=your-serpapi-key")
+    print("     Get your free key from: https://serpapi.com/")
+    print("     (100 searches/month free)")
     print()
 
-if openai_key and duffel_key:
-    print("  ✅ Both APIs configured!")
+if not hotel_api_key_configured:
+    print("  ❌ Makcorps Hotel API key required for real hotel data! Add to .env:")
+    print("     HOTEL_API_KEY=your-makcorps-key")
+    print("     Get your free key from: https://api.makcorps.com/free")
+    print()
+
+if not serpapi_key_configured:
+    print("  ⚠️  Note: Activities also use SerpAPI (same key as flights)")
+    print()
+
+if openai_key_configured and serpapi_key_configured and hotel_api_key_configured:
+    print("  ✅ Required APIs configured!")
     print("  ✅ Ready to use 'Find Your Trip' feature!")
     print()
     print("  Test it:")
     print("  1. python manage.py runserver")
     print("  2. Go to group page")
-    print("  3. Click 'Manage Trips' tab")
+    print("  3. Click 'Find A Trip' tab")
     print("  4. Click 'Find Your Trip' button")
+    print()
+elif openai_key_configured and serpapi_key_configured:
+    print("  ⚠️  Makcorps Hotel API key missing - hotels will use mock data")
+    print("  Get your free Makcorps key from: https://api.makcorps.com/free")
+    print()
+elif openai_key_configured and hotel_api_key_configured:
+    print("  ⚠️  SerpAPI key missing - flights will use mock data")
+    print("  Get your free SerpAPI key from: https://serpapi.com/")
+    print()
+elif openai_key_configured:
+    print("  ⚠️  Missing API keys - flights and hotels will use mock data")
+    print()
+elif serpapi_key_configured or hotel_api_key_configured:
+    print("  ⚠️  OpenAI key missing - AI features won't work")
+    print()
+else:
+    print("  ❌ Missing required API keys!")
     print()
 
 print("=" * 70)

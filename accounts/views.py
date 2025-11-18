@@ -84,12 +84,72 @@ def dashboard_view(request):
     from travel_groups.models import GroupMember
     user_groups = GroupMember.objects.filter(user=request.user).select_related('group')
     
+    # Get accepted group trips (trips that were unanimously selected)
+    from ai_implementation.models import GroupItineraryOption
+    from travel_groups.models import TravelGroup
+    
+    # Get all groups the user is a member of
+    user_group_ids = list(user_groups.values_list('group_id', flat=True))
+    
+    # Debug logging
+    print(f"[DEBUG] User {request.user.username} is member of groups: {user_group_ids}")
+    
+    # Get accepted itinerary options for those groups
+    if user_group_ids:
+        accepted_group_trips = GroupItineraryOption.objects.filter(
+            group_id__in=user_group_ids,
+            status='accepted',
+            is_winner=True
+        ).select_related(
+            'group', 
+            'selected_flight', 
+            'selected_hotel',
+            'search'
+        ).order_by('-created_at')
+        
+        print(f"[DEBUG] Found {accepted_group_trips.count()} accepted trips for user {request.user.username}")
+        for trip in accepted_group_trips:
+            print(f"[DEBUG]   - {trip.title} (Group: {trip.group.name}, Status: {trip.status}, Winner: {trip.is_winner}, Group ID: {trip.group.id})")
+    else:
+        accepted_group_trips = GroupItineraryOption.objects.none()
+        print(f"[DEBUG] User {request.user.username} is not a member of any groups")
+    
+    # Prepare trip data with activities for each accepted trip
+    from ai_implementation.models import ActivityResult
+    import json as json_module
+    
+    accepted_trips_data = []
+    for trip_option in accepted_group_trips:
+        # Get activities for this trip
+        activities = []
+        if trip_option.search and trip_option.selected_activities:
+            try:
+                activity_ids = json_module.loads(trip_option.selected_activities)
+                if activity_ids:
+                    activities = list(ActivityResult.objects.filter(
+                        search=trip_option.search,
+                        external_id__in=activity_ids
+                    )[:5])  # Limit to 5 activities for display
+            except:
+                pass
+        
+        accepted_trips_data.append({
+            'option': trip_option,
+            'activities': activities,
+        })
+    
     context = {
         'user_profile': user_profile,
         'saved_itineraries': saved_itineraries,
         'active_trips': active_trips,
         'user_groups': user_groups,
+        'accepted_group_trips': accepted_trips_data,  # This is the list with 'option' and 'activities' keys
     }
+    
+    print(f"[DEBUG] Context - accepted_group_trips count: {len(accepted_trips_data)}")
+    for trip_data in accepted_trips_data:
+        print(f"[DEBUG]   - {trip_data['option'].title} with {len(trip_data['activities'])} activities")
+    
     return render(request, 'accounts/dashboard.html', context)
 
 def logout_view(request):

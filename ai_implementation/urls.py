@@ -28,5 +28,14 @@ urlpatterns = [
     path('search/<uuid:search_id>/save/', views.save_itinerary, name='save_itinerary'),
     path('itineraries/', views.my_itineraries, name='my_itineraries'),
     path('itinerary/<uuid:itinerary_id>/', views.view_itinerary, name='view_itinerary'),
+    
+    # Airport autocomplete
+    path('airports/autocomplete/', views.airport_autocomplete, name='airport_autocomplete'),
+    
+    # Advance to next voting option
+    path('group/<uuid:group_id>/voting/next/', views.advance_to_next_option, name='advance_to_next_option'),
+    
+    # Roll again (vote no and advance)
+    path('group/<uuid:group_id>/voting/roll-again/<uuid:option_id>/', views.roll_again, name='roll_again'),
 ]
 

@@ -7,3 +7,5 @@ class AiImplementationConfig(AppConfig):
     verbose_name = 'AI Implementation'
 
 
+
+
