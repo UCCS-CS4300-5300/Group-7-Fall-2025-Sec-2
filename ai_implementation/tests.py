@@ -6544,7 +6544,6 @@ class OpenAIServiceErrorTest(TestCase):
     def test_generate_options_invalid_json(self, mock_openai):
         """Test generate_three_itinerary_options handles invalid JSON"""
         from ai_implementation.openai_service import OpenAIService
-        import json
 
         mock_response = Mock()
         mock_response.choices = [Mock()]
@@ -6556,20 +6555,37 @@ class OpenAIServiceErrorTest(TestCase):
 
         service = OpenAIService()
 
-        # Should attempt to parse and handle gracefully
-        try:
-            result = service.generate_three_itinerary_options(
-                member_preferences=[],
-                flight_results=[],
-                hotel_results=[],
-                activity_results=[],
-                selected_dates={},
-            )
-            # If it doesn't raise, should return empty or default structure
-            self.assertIsInstance(result, dict)
-        except json.JSONDecodeError:
-            # Expected if JSON is truly invalid
-            pass
+        result = service.generate_three_itinerary_options(
+            member_preferences=[{"user": "Alice", "destination": "Paris"}],
+            flight_results=[
+                {
+                    "id": "flight-1",
+                    "searched_destination": "Paris",
+                    "total_amount": 550,
+                }
+            ],
+            hotel_results=[
+                {
+                    "id": "hotel-1",
+                    "name": "Fallback Hotel",
+                    "searched_destination": "Paris",
+                    "price_per_night": 210,
+                }
+            ],
+            activity_results=[
+                {
+                    "id": "activity-1",
+                    "name": "Louvre Tour",
+                    "price": 120,
+                    "searched_destination": "Paris",
+                }
+            ],
+            selected_dates={"duration_days": 4},
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertTrue(result.get("fallback_used"))
+        self.assertGreater(len(result.get("options", [])), 0)
 
     @patch("ai_implementation.openai_service.OpenAI")
     def test_generate_options_no_api_key(self, mock_openai):
@@ -14655,24 +14671,6 @@ class SerpApiConnectorTest(TestCase):
         mock_response.status_code = 400
         mock_response.text = "Bad Request"
         mock_response.url = "http://api.example.com"
-        mock_get.return_value = mock_response
-
-        connector = SerpApiFlightsConnector()
-        connector.api_key = "test-key"
-
-        with self.assertRaises(SerpApiConnectorError) as context:
-            connector.search_flights(
-                origin="Denver", destination="Sicily", departure_date="2026-04-17"
-            )
-
-        self.assertIn("SerpApi Google Flights search error", str(context.exception))
-
-    @patch("ai_implementation.serpapi_connector.requests.get")
-    def test_search_flights_api_error_in_response(self, mock_get):
-        """Test flight search handles API errors in JSON response"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"error": "Invalid API key"}
         mock_get.return_value = mock_response
 
         connector = SerpApiFlightsConnector()

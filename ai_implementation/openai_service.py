@@ -413,19 +413,47 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
                                     print(
                                         f"Extracted JSON (first 500 chars): {json_str[:500]}"
                                     )
-                                    raise json_error
+                                    return self._build_fallback_itinerary_options(
+                                        member_preferences,
+                                        flight_results,
+                                        hotel_results,
+                                        activity_results,
+                                        selected_dates,
+                                        str(json_error),
+                                    )
                             else:
                                 print("Could not find balanced braces in response")
-                                raise json_error
+                                return self._build_fallback_itinerary_options(
+                                    member_preferences,
+                                    flight_results,
+                                    hotel_results,
+                                    activity_results,
+                                    selected_dates,
+                                    str(json_error),
+                                )
                         else:
                             print("Could not find opening brace in response")
-                            raise json_error
+                            return self._build_fallback_itinerary_options(
+                                member_preferences,
+                                flight_results,
+                                hotel_results,
+                                activity_results,
+                                selected_dates,
+                                str(json_error),
+                            )
                 except Exception as fix_error:
                     print(f"Failed to fix JSON: {str(fix_error)}")
                     import traceback
 
                     print(traceback.format_exc())
-                    raise json_error
+                    return self._build_fallback_itinerary_options(
+                        member_preferences,
+                        flight_results,
+                        hotel_results,
+                        activity_results,
+                        selected_dates,
+                        str(json_error),
+                    )
 
             return result
 
@@ -435,6 +463,208 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
 
             print(traceback.format_exc())
             raise
+
+    def _build_fallback_itinerary_options(
+        self,
+        member_preferences: List[Dict[str, Any]],
+        flight_results: List[Dict[str, Any]],
+        hotel_results: List[Dict[str, Any]],
+        activity_results: List[Dict[str, Any]],
+        selected_dates: Optional[Dict[str, Any]],
+        error_message: str,
+    ) -> Dict[str, Any]:
+        """Create deterministic itinerary options when AI JSON parsing fails."""
+
+        letters = list("ABCDEFGH")
+        group_size = max(len(member_preferences), 1)
+        duration_days_raw = 0
+        if selected_dates:
+            duration_days_raw = (
+                selected_dates.get("duration_days")
+                or selected_dates.get("duration")
+                or selected_dates.get("nights")
+                or 0
+            )
+        duration_days = int(self._safe_float(duration_days_raw, 4) or 4)
+        if duration_days <= 0:
+            duration_days = 4
+
+        def destination_for_option(
+            flight: Dict[str, Any], hotel: Dict[str, Any], member_index: int
+        ) -> str:
+            candidates = [
+                flight.get("searched_destination") if flight else None,
+                flight.get("destination") if flight else None,
+                hotel.get("searched_destination") if hotel else None,
+                hotel.get("destination") if hotel else None,
+            ]
+            if member_preferences:
+                pref = member_preferences[member_index % len(member_preferences)]
+                candidates.append(pref.get("destination"))
+            for candidate in candidates:
+                if candidate:
+                    return candidate
+            return "Flexible Destination"
+
+        max_options = max(
+            len(flight_results),
+            len(hotel_results),
+            len(activity_results),
+            len(member_preferences),
+            1,
+        )
+        max_options = min(3, max_options)
+
+        fallback_options: List[Dict[str, Any]] = []
+        for idx in range(max_options):
+            flight = flight_results[idx % len(flight_results)] if flight_results else {}
+            hotel = hotel_results[idx % len(hotel_results)] if hotel_results else {}
+
+            activities_subset: List[Dict[str, Any]] = []
+            if activity_results:
+                start_index = idx % len(activity_results)
+                take = min(2, len(activity_results))
+                for offset in range(take):
+                    activities_subset.append(
+                        activity_results[(start_index + offset) % len(activity_results)]
+                    )
+
+            destination = destination_for_option(flight, hotel, idx)
+            flight_cost = self._safe_float(
+                (flight.get("total_amount") if flight else None)
+                or (flight.get("price") if flight else None)
+                or (flight.get("price_per_person") if flight else None)
+                or (flight.get("cost") if flight else None)
+            )
+            hotel_total = self._safe_float(
+                (hotel.get("total_price") if hotel else None),
+                0.0,
+            )
+            if hotel_total == 0.0:
+                hotel_total = (
+                    self._safe_float((hotel.get("price_per_night") if hotel else None))
+                    * duration_days
+                )
+            activity_cost = sum(
+                self._safe_float(
+                    activity.get("price")
+                    or activity.get("total_price")
+                    or activity.get("cost")
+                )
+                for activity in activities_subset
+            )
+            estimated_total_cost = round(flight_cost + hotel_total + activity_cost, 2)
+            cost_per_person = round(
+                (
+                    estimated_total_cost / group_size
+                    if group_size
+                    else estimated_total_cost
+                ),
+                2,
+            )
+
+            selected_activity_ids = [
+                activity.get("id") or activity.get("external_id")
+                for activity in activities_subset
+                if activity.get("id") or activity.get("external_id")
+            ]
+
+            member_focus = (
+                member_preferences[idx % len(member_preferences)].get("user")
+                if member_preferences
+                else "the group"
+            )
+
+            option_letter = letters[idx]
+            fallback_options.append(
+                {
+                    "option_letter": option_letter,
+                    "title": f"{destination} Fallback Option {option_letter}",
+                    "description": (
+                        "Deterministic fallback itinerary assembled from existing "
+                        "flight, hotel, and activity data."
+                    ),
+                    "intended_destination": destination,
+                    "selected_flight_id": (
+                        flight.get("id") or flight.get("external_id")
+                    ),
+                    "selected_hotel_id": (hotel.get("id") or hotel.get("external_id")),
+                    "selected_activity_ids": selected_activity_ids,
+                    "estimated_total_cost": estimated_total_cost,
+                    "cost_per_person": cost_per_person,
+                    "ai_reasoning": (
+                        "OpenAI response could not be parsed, so this option "
+                        "uses the top available travel components as a stopgap."
+                    ),
+                    "compromise_explanation": (
+                        f"Balances {member_focus}'s stated preferences with the "
+                        "currently available search results."
+                    ),
+                    "pros": [
+                        "Provides immediate option when AI output is invalid",
+                        "Relies on real search data already fetched",
+                    ],
+                    "cons": [
+                        "Lacks nuanced AI analysis; review manually",
+                        "Activities may repeat if limited search results",
+                    ],
+                }
+            )
+
+        if not fallback_options:
+            destination = (
+                member_preferences[0].get("destination")
+                if member_preferences
+                else "Flexible Destination"
+            )
+            fallback_options.append(
+                {
+                    "option_letter": "A",
+                    "title": f"{destination} Fallback Option",
+                    "description": "AI output unavailable; please review search results manually.",
+                    "intended_destination": destination,
+                    "selected_flight_id": None,
+                    "selected_hotel_id": None,
+                    "selected_activity_ids": [],
+                    "estimated_total_cost": 0.0,
+                    "cost_per_person": 0.0,
+                    "ai_reasoning": "Placeholder generated because AI JSON parsing failed.",
+                    "compromise_explanation": "Collect additional data and retry AI generation.",
+                    "pros": ["Highlights the failure quickly"],
+                    "cons": ["No automated itinerary details"],
+                }
+            )
+
+        summary_destination = fallback_options[0].get(
+            "intended_destination", "the destination"
+        )
+        return {
+            "options": fallback_options,
+            "voting_guidance": (
+                "Fallback options were generated automatically after a JSON parsing "
+                "error from the AI response. Review cost estimates and customize "
+                "before sharing with the group."
+            ),
+            "consensus_summary": (
+                "AI parsing error prevented advanced analysis. Showing deterministic "
+                f"options centered on {summary_destination} for quick review."
+            ),
+            "error": error_message,
+            "fallback_used": True,
+        }
+
+    def _safe_float(self, value: Any, default: float = 0.0) -> float:
+        """Convert common numeric representations to float without raising."""
+
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        try:
+            normalized = str(value).replace("$", "").replace(",", "").strip()
+            return float(normalized) if normalized else default
+        except (ValueError, TypeError):
+            return default
 
     def generate_group_consensus(
         self, member_preferences: List[Dict[str, Any]]
