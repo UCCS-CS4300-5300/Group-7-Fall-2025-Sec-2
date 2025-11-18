@@ -6641,6 +6641,7 @@ class OpenAIServiceErrorTest(TestCase):
         self.assertIsInstance(result, dict)
         self.assertIn("options", result)
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key-123"})
     @patch("ai_implementation.openai_service.OpenAI")
     def test_generate_options_json_with_trailing_comma(self, mock_openai):
         """Test generate_three_itinerary_options handles JSON with trailing comma"""
