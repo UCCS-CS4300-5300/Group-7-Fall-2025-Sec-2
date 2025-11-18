@@ -1447,9 +1447,11 @@ def advance_to_next_option(request, group_id):
         )
 
     # Check if current option is unanimous
-    yes_votes_for_active = ItineraryVote.objects.filter(
-        group=group, option=current_active
-    ).exclude(comment="ROLL_AGAIN").count()
+    yes_votes_for_active = (
+        ItineraryVote.objects.filter(group=group, option=current_active)
+        .exclude(comment="ROLL_AGAIN")
+        .count()
+    )
     if yes_votes_for_active == total_members:
         # Unanimous - should not advance, option should be accepted
         return JsonResponse(
@@ -2181,7 +2183,9 @@ def generate_voting_options(request, group_id):
                 if not option_letter:
                     option_letter = chr(ord("A") + idx)
 
-                title = _normalize_text(option_data.get("title"), f"Option {option_letter}")
+                title = _normalize_text(
+                    option_data.get("title"), f"Option {option_letter}"
+                )
                 description = _normalize_text(option_data.get("description"), "")
                 ai_reasoning = _normalize_text(option_data.get("ai_reasoning"), "")
                 compromise_copy = _normalize_text(
@@ -2196,7 +2200,9 @@ def generate_voting_options(request, group_id):
                 if selected_hotel_id is not None:
                     selected_hotel_id = _normalize_text(selected_hotel_id)
 
-                raw_activity_ids = _ensure_list(option_data.get("selected_activity_ids"))
+                raw_activity_ids = _ensure_list(
+                    option_data.get("selected_activity_ids")
+                )
                 activity_ids = [
                     _normalize_text(activity_id)
                     for activity_id in raw_activity_ids
@@ -2474,7 +2480,9 @@ def generate_voting_options(request, group_id):
                     total_cost += float(selected_hotel.total_price)
 
                 # If OpenAI provided a cost estimate, use the higher of the two to ensure accuracy
-                ai_estimated_cost = float(_safe_decimal(option_data.get("estimated_total_cost", 0)))
+                ai_estimated_cost = float(
+                    _safe_decimal(option_data.get("estimated_total_cost", 0))
+                )
                 # Use explicit calculation (flight + hotel) as the source of truth
                 final_total_cost = total_cost if total_cost > 0 else ai_estimated_cost
 
