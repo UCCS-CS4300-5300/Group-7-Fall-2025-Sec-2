@@ -16,7 +16,7 @@ from datetime import date, timedelta, datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch, MagicMock
 
-from django.test import TestCase, Client, RequestFactory
+from django.test import TestCase, Client, RequestFactory, override_settings
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.http import JsonResponse
@@ -6591,28 +6591,36 @@ class OpenAIServiceErrorTest(TestCase):
         self.assertGreater(len(result.get("options", [])), 0)
 
     @patch("ai_implementation.openai_service.OpenAI")
-    def test_generate_options_no_api_key(self, mock_openai):
+    @patch("ai_implementation.openai_service.settings")
+    def test_generate_options_no_api_key(self, mock_settings, mock_openai):
         """Test generate_three_itinerary_options without API key"""
         from ai_implementation.openai_service import OpenAIService
         import os
-
-        # Remove API key
-        original_key = os.environ.get("OPENAI_API_KEY")
+        
+        # Save original values
+        original_env_key = os.environ.get("OPENAI_API_KEY")
+        original_open_ai_key = os.environ.get("OPEN_AI_KEY")
+        
+        # Clear environment variables
         if "OPENAI_API_KEY" in os.environ:
             del os.environ["OPENAI_API_KEY"]
+        if "OPEN_AI_KEY" in os.environ:
+            del os.environ["OPEN_AI_KEY"]
         
-        # Also clear from Django settings if it exists
-        from django.conf import settings
-        original_settings_key = getattr(settings, 'OPENAI_API_KEY', None)
-
+        # Mock settings to return None for OPENAI_API_KEY
+        type(mock_settings).OPENAI_API_KEY = None
+        
         try:
             # Should raise ValueError when no API key is available
             with self.assertRaises(ValueError) as context:
                 service = OpenAIService()
             self.assertIn("OpenAI API key not found", str(context.exception))
         finally:
-            if original_key:
-                os.environ["OPENAI_API_KEY"] = original_key
+            # Restore original environment variables
+            if original_env_key is not None:
+                os.environ["OPENAI_API_KEY"] = original_env_key
+            if original_open_ai_key is not None:
+                os.environ["OPEN_AI_KEY"] = original_open_ai_key
 
     @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key-123"})
     @patch("ai_implementation.openai_service.OpenAI")
