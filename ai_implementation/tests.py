@@ -6520,6 +6520,7 @@ class MakcorpsConnectorErrorTest(TestCase):
 class OpenAIServiceErrorTest(TestCase):
     """Tests for OpenAI service error handling"""
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key-123"})
     @patch("ai_implementation.openai_service.OpenAI")
     def test_generate_options_api_error(self, mock_openai):
         """Test generate_three_itinerary_options handles API errors"""
@@ -6540,6 +6541,7 @@ class OpenAIServiceErrorTest(TestCase):
                 selected_dates={},
             )
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key-123"})
     @patch("ai_implementation.openai_service.OpenAI")
     def test_generate_options_invalid_json(self, mock_openai):
         """Test generate_three_itinerary_options handles invalid JSON"""
@@ -6606,6 +6608,7 @@ class OpenAIServiceErrorTest(TestCase):
             if original_key:
                 os.environ["OPENAI_API_KEY"] = original_key
 
+    @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key-123"})
     @patch("ai_implementation.openai_service.OpenAI")
     def test_generate_options_json_with_markdown(self, mock_openai):
         """Test generate_three_itinerary_options handles JSON wrapped in markdown"""
