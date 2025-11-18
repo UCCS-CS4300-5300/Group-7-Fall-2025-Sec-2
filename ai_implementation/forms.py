@@ -5,6 +5,7 @@ Handles user input for travel searches and AI-powered features.
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import TravelSearch, AIGeneratedItinerary
 
@@ -97,6 +98,13 @@ class TravelSearchForm(forms.ModelForm):
             'activity_categories': forms.HiddenInput(),
         }
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make origin explicitly optional (model allows blank, but form should too)
+        self.fields['origin'].required = False
+        # Make rooms optional with default
+        self.fields['rooms'].required = False
+    
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get('start_date')
@@ -109,7 +117,9 @@ class TravelSearchForm(forms.ModelForm):
             if end_date <= start_date:
                 raise ValidationError('End date must be after start date.')
             
-            if start_date < datetime.now().date():
+            # Use timezone-aware date comparison
+            today = timezone.now().date()
+            if start_date < today:
                 raise ValidationError('Start date cannot be in the past.')
             
             # Limit to reasonable trip duration (e.g., 30 days)
@@ -174,7 +184,9 @@ class QuickSearchForm(forms.Form):
             if end_date <= start_date:
                 raise ValidationError('End date must be after start date.')
             
-            if start_date < datetime.now().date():
+            # Use timezone-aware date comparison
+            today = timezone.now().date()
+            if start_date < today:
                 raise ValidationError('Start date cannot be in the past.')
         
         return cleaned_data
