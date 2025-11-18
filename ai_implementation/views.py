@@ -2755,6 +2755,7 @@ def cast_vote(request, group_id, option_id):
     unanimous = False
     advanced = False
     all_voted = votes_cast >= total_members
+    # message is already set above (lines 2709, 2723, or 2732)
 
     print(
         f"[DEBUG cast_vote] Active option: {active_option.id if active_option else None}"

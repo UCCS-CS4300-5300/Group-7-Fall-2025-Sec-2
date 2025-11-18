@@ -32,20 +32,23 @@ serpapi_key = settings.SERP_API_KEY
 hotel_api_key = settings.HOTEL_API_KEY
 
 if openai_key:
-    print(f"✅ OpenAI Key Found: {openai_key[:15]}...")
+    key_preview = openai_key[:15] if len(openai_key) > 15 else openai_key
+    print(f"✅ OpenAI Key Found: {key_preview}...")
 else:
     print("❌ OpenAI Key NOT FOUND in environment!")
     print("   Add to .env: OPEN_AI_KEY=sk-your-key")
 
 if serpapi_key:
-    print(f"✅ SerpAPI Key Found: {serpapi_key[:20]}...")
+    key_preview = serpapi_key[:20] if len(serpapi_key) > 20 else serpapi_key
+    print(f"✅ SerpAPI Key Found: {key_preview}...")
 else:
     print("❌ SerpAPI Key NOT FOUND in environment!")
     print("   Add to .env: SERP_API_KEY=your-serpapi-key")
     print("   Get your key from: https://serpapi.com/")
 
 if hotel_api_key:
-    print(f"✅ Makcorps Hotel API Key Found: {hotel_api_key[:20]}...")
+    key_preview = hotel_api_key[:20] if len(hotel_api_key) > 20 else hotel_api_key
+    print(f"✅ Makcorps Hotel API Key Found: {key_preview}...")
 else:
     print("❌ Makcorps Hotel API Key NOT FOUND in environment!")
     print("   Add to .env: HOTEL_API_KEY=your-makcorps-key")
