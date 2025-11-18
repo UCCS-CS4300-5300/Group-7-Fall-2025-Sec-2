@@ -27,40 +27,26 @@ print()
 print("📋 Step 1: Checking if API keys are loaded...")
 print("-" * 70)
 
-openai_key = settings.OPENAI_API_KEY
-serpapi_key = settings.SERP_API_KEY
-hotel_api_key = settings.HOTEL_API_KEY
+# Check if API keys are configured (without exposing their values)
+openai_key_configured = bool(settings.OPENAI_API_KEY)
+serpapi_key_configured = bool(settings.SERP_API_KEY)
+hotel_api_key_configured = bool(settings.HOTEL_API_KEY)
 
-if openai_key:
-    # Mask the key for security - only show first 4 chars and last 4 chars
-    if len(openai_key) > 8:
-        masked_key = f"{openai_key[:4]}{'*' * (len(openai_key) - 8)}{openai_key[-4:]}"
-    else:
-        masked_key = "*" * len(openai_key)
-    print(f"✅ OpenAI Key Found: {masked_key}")
+if openai_key_configured:
+    print("✅ OpenAI Key Found: Configured")
 else:
     print("❌ OpenAI Key NOT FOUND in environment!")
     print("   Add to .env: OPEN_AI_KEY=sk-your-key")
 
-if serpapi_key:
-    # Mask the key for security - only show first 4 chars and last 4 chars
-    if len(serpapi_key) > 8:
-        masked_key = f"{serpapi_key[:4]}{'*' * (len(serpapi_key) - 8)}{serpapi_key[-4:]}"
-    else:
-        masked_key = "*" * len(serpapi_key)
-    print(f"✅ SerpAPI Key Found: {masked_key}")
+if serpapi_key_configured:
+    print("✅ SerpAPI Key Found: Configured")
 else:
     print("❌ SerpAPI Key NOT FOUND in environment!")
     print("   Add to .env: SERP_API_KEY=your-serpapi-key")
     print("   Get your key from: https://serpapi.com/")
 
-if hotel_api_key:
-    # Mask the key for security - only show first 4 chars and last 4 chars
-    if len(hotel_api_key) > 8:
-        masked_key = f"{hotel_api_key[:4]}{'*' * (len(hotel_api_key) - 8)}{hotel_api_key[-4:]}"
-    else:
-        masked_key = "*" * len(hotel_api_key)
-    print(f"✅ Makcorps Hotel API Key Found: {masked_key}")
+if hotel_api_key_configured:
+    print("✅ Makcorps Hotel API Key Found: Configured")
 else:
     print("❌ Makcorps Hotel API Key NOT FOUND in environment!")
     print("   Add to .env: HOTEL_API_KEY=your-makcorps-key")
@@ -72,7 +58,7 @@ print()
 print("🤖 Step 2: Testing OpenAI API Connection...")
 print("-" * 70)
 
-if openai_key:
+if openai_key_configured:
     try:
         from ai_implementation.openai_service import OpenAIService
         
@@ -115,7 +101,7 @@ print()
 print("🏨 Step 3: Testing Makcorps Hotel API Connection...")
 print("-" * 70)
 
-if hotel_api_key:
+if hotel_api_key_configured:
     try:
         from ai_implementation.makcorps_connector import MakcorpsHotelConnector
         from datetime import datetime, timedelta
@@ -174,7 +160,7 @@ print()
 print("✈️  Step 4: Testing SerpAPI (Google Flights) Connection...")
 print("-" * 70)
 
-if serpapi_key:
+if serpapi_key_configured:
     try:
         from ai_implementation.serpapi_connector import SerpApiFlightsConnector
         from datetime import datetime, timedelta
@@ -232,7 +218,7 @@ print()
 print("🎭 Step 5: Testing SerpAPI Activities (Things to Do) Connection...")
 print("-" * 70)
 
-if serpapi_key:
+if serpapi_key_configured:
     try:
         from ai_implementation.serpapi_connector import SerpApiActivitiesConnector
         
@@ -283,23 +269,23 @@ print("=" * 70)
 
 summary = []
 
-if openai_key:
+if openai_key_configured:
     summary.append("OpenAI: ✅ Configured")
 else:
     summary.append("OpenAI: ❌ NOT configured")
 
-if serpapi_key:
+if serpapi_key_configured:
     summary.append("SerpAPI (Flights): ✅ Configured")
 else:
     summary.append("SerpAPI (Flights): ❌ NOT configured (will use mock data)")
 
-if hotel_api_key:
+if hotel_api_key_configured:
     summary.append("Makcorps (Hotels): ✅ Configured")
 else:
     summary.append("Makcorps (Hotels): ❌ NOT configured (will use mock data)")
 
 # Note: Activities use SerpAPI (same key as flights)
-if serpapi_key:
+if serpapi_key_configured:
     summary.append("SerpAPI (Activities): ✅ Configured (uses same key as flights)")
 else:
     summary.append("SerpAPI (Activities): ❌ NOT configured (will use mock data)")
@@ -311,29 +297,29 @@ print()
 print("💡 NEXT STEPS:")
 print()
 
-if not openai_key:
+if not openai_key_configured:
     print("  ❌ OpenAI key required! Add to .env:")
     print("     OPEN_AI_KEY=sk-your-key")
     print()
 
-if not serpapi_key:
+if not serpapi_key_configured:
     print("  ❌ SerpAPI key required for real flight data! Add to .env:")
     print("     SERP_API_KEY=your-serpapi-key")
     print("     Get your free key from: https://serpapi.com/")
     print("     (100 searches/month free)")
     print()
 
-if not hotel_api_key:
+if not hotel_api_key_configured:
     print("  ❌ Makcorps Hotel API key required for real hotel data! Add to .env:")
     print("     HOTEL_API_KEY=your-makcorps-key")
     print("     Get your free key from: https://api.makcorps.com/free")
     print()
 
-if not serpapi_key:
+if not serpapi_key_configured:
     print("  ⚠️  Note: Activities also use SerpAPI (same key as flights)")
     print()
 
-if openai_key and serpapi_key and hotel_api_key:
+if openai_key_configured and serpapi_key_configured and hotel_api_key_configured:
     print("  ✅ Required APIs configured!")
     print("  ✅ Ready to use 'Find Your Trip' feature!")
     print()
@@ -343,18 +329,18 @@ if openai_key and serpapi_key and hotel_api_key:
     print("  3. Click 'Find A Trip' tab")
     print("  4. Click 'Find Your Trip' button")
     print()
-elif openai_key and serpapi_key:
+elif openai_key_configured and serpapi_key_configured:
     print("  ⚠️  Makcorps Hotel API key missing - hotels will use mock data")
     print("  Get your free Makcorps key from: https://api.makcorps.com/free")
     print()
-elif openai_key and hotel_api_key:
+elif openai_key_configured and hotel_api_key_configured:
     print("  ⚠️  SerpAPI key missing - flights will use mock data")
     print("  Get your free SerpAPI key from: https://serpapi.com/")
     print()
-elif openai_key:
+elif openai_key_configured:
     print("  ⚠️  Missing API keys - flights and hotels will use mock data")
     print()
-elif serpapi_key or hotel_api_key:
+elif serpapi_key_configured or hotel_api_key_configured:
     print("  ⚠️  OpenAI key missing - AI features won't work")
     print()
 else:
