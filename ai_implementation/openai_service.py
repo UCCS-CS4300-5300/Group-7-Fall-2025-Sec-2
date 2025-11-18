@@ -339,7 +339,7 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
                 temperature=0.7,  # Reduced for more consistent results
                 max_tokens=2000,  # Increased for detailed responses
                 response_format={"type": "json_object"},
-                timeout=90,  # Increased timeout to 90 seconds
+                timeout=180,  # Increased timeout to 90 seconds
             )
 
             content = response.choices[0].message.content
