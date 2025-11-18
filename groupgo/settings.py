@@ -160,8 +160,8 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # OpenAI API Configuration
-# Using OPEN_AI_KEY secret key
-OPENAI_API_KEY = os.environ.get('OPEN_AI_KEY', '')
+# Supports both OPENAI_API_KEY (standard) and OPEN_AI_KEY (legacy) for compatibility
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('OPEN_AI_KEY', '')
 OPENAI_MODEL = 'gpt-4o-mini'
 
 # Travel API Configuration
