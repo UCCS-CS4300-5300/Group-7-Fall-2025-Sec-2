@@ -17,6 +17,7 @@ urlpatterns = [
     path('<uuid:group_id>/create-trip/', views.create_group_trip, name='create_group_trip'),
     path('<uuid:group_id>/edit-trip/<int:itinerary_id>/', views.edit_group_trip, name='edit_group_trip'),
     path('<uuid:group_id>/delete-trip/<int:itinerary_id>/', views.delete_group_trip, name='delete_group_trip'),
+    path('<uuid:group_id>/delete-active-trip/<uuid:option_id>/', views.delete_active_trip, name='delete_active_trip'),
     path('<uuid:group_id>/collect-preferences/', views.collect_group_preferences, name='collect_preferences'),
     path('<uuid:group_id>/add-trip-preferences/', views.add_trip_preferences, name='add_trip_preferences'),
     path('<uuid:group_id>/view-trip-preferences/', views.view_group_trip_preferences, name='view_trip_preferences'),

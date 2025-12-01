@@ -3,6 +3,15 @@
 
 {% block title %}{{ group.name }} - GroupGo{% endblock %}
 
+{% block extra_css %}
+<style>
+    .activity-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
     <!-- Group Header -->
@@ -69,9 +78,16 @@
                 <i class="fas fa-users"></i> Members ({{ members.count }})
             </button>
         </li>
+        {% if accepted_trips %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="active-trips-tab" data-bs-toggle="tab" data-bs-target="#active-trips" type="button" role="tab">
+                <i class="fas fa-map-marked-alt"></i> Active Trips ({{ accepted_trips|length }})
+            </button>
+        </li>
+        {% endif %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="itineraries-tab" data-bs-toggle="tab" data-bs-target="#itineraries" type="button" role="tab">
-                <i class="fas fa-route"></i> Trips ({{ group_itineraries.count }})
+                <i class="fas fa-route"></i> Voting ({{ group_itineraries.count }})
             </button>
         </li>
         {% if user_is_member %}
@@ -97,6 +113,161 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="groupTabsContent">
+        <!-- Active Trips Tab -->
+        {% if accepted_trips %}
+        <div class="tab-pane fade" id="active-trips" role="tabpanel">
+            <div class="row">
+                {% for trip_data in accepted_trips %}
+                {% with option=trip_data.option activities=trip_data.activities %}
+                <div class="col-lg-6 col-xl-5 mb-4">
+                    <div class="card h-100 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle"></i> Selected Trip
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">
+                                {% if option.destination %}
+                                    A Trip to {{ option.destination }}
+                                {% else %}
+                                    {{ option.title }}
+                                {% endif %}
+                            </h5>
+                            
+                            <p class="card-text text-muted mb-3">{{ option.description }}</p>
+                            
+                            {% if option.destination %}
+                            <div class="alert alert-info mb-3 text-center">
+                                <strong><i class="fas fa-map-marker-alt"></i> Destination:</strong> {{ option.destination }}
+                            </div>
+                            {% endif %}
+                            
+                            {% if option.search %}
+                            <div class="alert alert-light mb-3 text-center">
+                                <strong><i class="fas fa-calendar"></i> Travel Dates:</strong> 
+                                {{ option.search.start_date|date:"M d, Y" }} - {{ option.search.end_date|date:"M d, Y" }}
+                            </div>
+                            {% endif %}
+                            
+                            <hr>
+                            
+                            {% if option.selected_flight %}
+                            <h6 class="mb-2">✈️ Flight</h6>
+                            <p class="small">
+                                <strong>{{ option.selected_flight.airline }}</strong><br>
+                                ${{ option.selected_flight.price }}
+                                {% if option.selected_flight.currency and option.selected_flight.currency != 'USD' %}{{ option.selected_flight.currency }}{% endif %}<br>
+                                {% if option.selected_flight.duration %}
+                                <i class="far fa-clock"></i> {{ option.selected_flight.duration }}<br>
+                                {% endif %}
+                                {% if option.selected_flight.departure_time %}
+                                <i class="far fa-calendar-alt"></i> Departs: {{ option.selected_flight.departure_time|date:"M d, Y g:i A" }}<br>
+                                {% endif %}
+                                {% if option.selected_flight.arrival_time %}
+                                <i class="far fa-calendar-check"></i> Arrives: {{ option.selected_flight.arrival_time|date:"M d, Y g:i A" }}<br>
+                                {% endif %}
+                                {% if option.search and option.search.origin and option.selected_flight.searched_destination %}
+                                <i class="fas fa-route"></i> {{ option.search.origin }} → {{ option.selected_flight.searched_destination }}<br>
+                                {% endif %}
+                                <i class="fas fa-plane"></i> {{ option.selected_flight.stops }} stop{{ option.selected_flight.stops|pluralize }}
+                            </p>
+                            {% endif %}
+                            
+                            {% if option.selected_hotel %}
+                            <h6 class="mb-2">🏨 Hotel</h6>
+                            {% if option.selected_hotel.image_url %}
+                            <img src="{{ option.selected_hotel.image_url }}" alt="{{ option.selected_hotel.name }}" class="img-fluid rounded mb-2" style="max-height: 150px; width: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'18\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🏨 Hotel%3C/text%3E%3C/svg%3E';">
+                            {% else %}
+                            <div class="bg-light rounded mb-2 d-flex align-items-center justify-content-center" style="max-height: 150px; height: 150px; width: 100%;">
+                                <i class="fas fa-hotel fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
+                            <p class="small">
+                                <strong>{{ option.selected_hotel.name }}</strong><br>
+                                ${{ option.selected_hotel.total_price }} total
+                                {% if option.selected_hotel.rating %} | ⭐ {{ option.selected_hotel.rating }}/5{% endif %}
+                                {% if option.selected_hotel.room_type %}<br><i class="fas fa-bed"></i> {{ option.selected_hotel.room_type }}{% endif %}
+                                {% if option.selected_hotel.breakfast_included %}<br><span class="badge badge-info">Breakfast Included</span>{% endif %}
+                            </p>
+                            {% endif %}
+                            
+                            {% if activities %}
+                            <h6 class="mb-2">🎭 Available Activities ({{ activities|length }})</h6>
+                            <div class="row g-2 mb-2">
+                                {% for activity in activities|slice:":6" %}
+                                <div class="col-12">
+                                    <a href="{% url 'ai_implementation:view_activity' activity.id %}" class="text-decoration-none">
+                                        <div class="card border-light shadow-sm activity-card" style="transition: transform 0.2s; cursor: pointer;">
+                                            {% if activity.image_url %}
+                                            <img src="{{ activity.image_url }}" alt="{{ activity.name }}" class="card-img-top" style="height: 120px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'120\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'120\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'16\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🎭 Activity%3C/text%3E%3C/svg%3E';">
+                                            {% else %}
+                                            <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                                                <i class="fas fa-ticket-alt fa-2x text-muted"></i>
+                                            </div>
+                                            {% endif %}
+                                            <div class="card-body p-2">
+                                                <h6 class="card-title mb-1 small text-dark">{{ activity.name|truncatewords:8 }}</h6>
+                                                {% if activity.rating %}
+                                                <div class="mb-1">
+                                                    <small class="text-warning">
+                                                        <i class="fas fa-star"></i> {{ activity.rating }}
+                                                        {% if activity.review_count %}({{ activity.review_count }} reviews){% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
+                                                {% if activity.price %}
+                                                <div class="mb-1">
+                                                    <small class="text-success"><strong>${{ activity.price }}</strong></small>
+                                                    {% if activity.duration_hours %}<small class="text-muted"> • {{ activity.duration_hours }}h</small>{% endif %}
+                                                </div>
+                                                {% endif %}
+                                                {% if activity.category %}
+                                                <small class="badge bg-info">{{ activity.category }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if activities|length > 6 %}
+                            <div class="mb-2">
+                                <small class="text-muted">+ {{ activities|length|add:"-6" }} more activities available</small>
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                            
+                            <hr>
+                            
+                            <div class="text-center mb-3">
+                                <h4 class="text-primary mb-0">${{ option.estimated_total_cost }}</h4>
+                                <small class="text-muted">${{ option.cost_per_person }} per person</small>
+                            </div>
+                            
+                            {% if user_role == 'admin' %}
+                            <div class="text-center mt-3">
+                                <button class="btn btn-danger btn-sm" onclick="deleteActiveTrip('{{ option.id }}', '{{ option.title|escapejs }}')">
+                                    <i class="fas fa-trash"></i> Delete Active Trip
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+            
+            {% if not accepted_trips %}
+            <div class="text-center py-4">
+                <i class="fas fa-map-marked-alt fa-2x text-muted mb-3"></i>
+                <p class="text-muted">No active trips selected yet.</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
         <!-- Members Tab -->
         <div class="tab-pane fade show active" id="members" role="tabpanel">
             <div class="row">
@@ -138,7 +309,7 @@
             </div>
         </div>
 
-        <!-- Trips Tab (Shows Voting Options or Regular Trips) -->
+        <!-- Voting Tab (Shows Voting Options or Regular Trips) -->
         <div class="tab-pane fade" id="itineraries" role="tabpanel">
             {% if voting_options %}
             <!-- Voting Options Available -->
@@ -214,6 +385,13 @@
                             
                             {% if option.selected_hotel %}
                             <h6 class="mb-2">🏨 Hotel</h6>
+                            {% if option.selected_hotel.image_url %}
+                            <img src="{{ option.selected_hotel.image_url }}" alt="{{ option.selected_hotel.name }}" class="img-fluid rounded mb-2" style="max-height: 150px; width: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'18\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🏨 Hotel%3C/text%3E%3C/svg%3E';">
+                            {% else %}
+                            <div class="bg-light rounded mb-2 d-flex align-items-center justify-content-center" style="max-height: 150px; height: 150px; width: 100%;">
+                                <i class="fas fa-hotel fa-3x text-muted"></i>
+                            </div>
+                            {% endif %}
                             <p class="small">
                                 <strong>{{ option.selected_hotel.name }}</strong><br>
                                 ${{ option.selected_hotel.total_price }} total
@@ -224,12 +402,49 @@
                             {% endif %}
                             
                             {% if activities %}
-                            <h6 class="mb-2">🎭 Activities ({{ activities|length }})</h6>
-                            <ul class="small ps-3">
-                                {% for activity in activities|slice:":3" %}
-                                <li>{{ activity.name }}</li>
+                            <h6 class="mb-2">🎭 Available Activities ({{ activities|length }})</h6>
+                            <div class="row g-2 mb-2">
+                                {% for activity in activities|slice:":6" %}
+                                <div class="col-12">
+                                    <a href="{% url 'ai_implementation:view_activity' activity.id %}" class="text-decoration-none">
+                                        <div class="card border-light shadow-sm activity-card" style="transition: transform 0.2s; cursor: pointer;">
+                                            {% if activity.image_url %}
+                                            <img src="{{ activity.image_url }}" alt="{{ activity.name }}" class="card-img-top" style="height: 120px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'120\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'120\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'16\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🎭 Activity%3C/text%3E%3C/svg%3E';">
+                                            {% else %}
+                                            <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                                                <i class="fas fa-ticket-alt fa-2x text-muted"></i>
+                                            </div>
+                                            {% endif %}
+                                            <div class="card-body p-2">
+                                                <h6 class="card-title mb-1 small text-dark">{{ activity.name|truncatewords:8 }}</h6>
+                                                {% if activity.rating %}
+                                                <div class="mb-1">
+                                                    <small class="text-warning">
+                                                        <i class="fas fa-star"></i> {{ activity.rating }}
+                                                        {% if activity.review_count %}({{ activity.review_count }} reviews){% endif %}
+                                                    </small>
+                                                </div>
+                                                {% endif %}
+                                                {% if activity.price %}
+                                                <div class="mb-1">
+                                                    <small class="text-success"><strong>${{ activity.price }}</strong></small>
+                                                    {% if activity.duration_hours %}<small class="text-muted"> • {{ activity.duration_hours }}h</small>{% endif %}
+                                                </div>
+                                                {% endif %}
+                                                {% if activity.category %}
+                                                <small class="badge bg-info">{{ activity.category }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
                                 {% endfor %}
-                            </ul>
+                            </div>
+                            {% if activities|length > 6 %}
+                            <div class="mb-2">
+                                <small class="text-muted">+ {{ activities|length|add:"-6" }} more activities available</small>
+                            </div>
+                            {% endif %}
                             {% endif %}
                             
                             <hr>
@@ -347,7 +562,7 @@
                         <div class="card-body text-center py-5">
                             <i class="fas fa-robot fa-4x text-primary mb-4"></i>
                             <h4 class="mb-3">Find Your Perfect Group Trip!</h4>
-                            <p class="lead mb-2">Let AI analyze your group's preferences and create 3 custom itinerary options</p>
+                            <p class="lead mb-2">Let AI analyze your group's preferences and create 5-8 custom itinerary options</p>
                             <p class="text-muted mb-4">Using real flight data from SerpAPI and smart recommendations from OpenAI</p>
                             
                             <div class="alert alert-info d-inline-block text-start">
@@ -385,7 +600,7 @@
                                 <div class="col-md-4">
                                     <div class="p-3">
                                         <h6><i class="fas fa-magic text-primary"></i> Step 2</h6>
-                                        <p class="small">AI searches flights & hotels, creates 3 options</p>
+                                        <p class="small">AI searches flights & hotels, creates 5-8 options</p>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -663,7 +878,7 @@
                     
                     <div class="alert alert-warning">
                         <i class="fas fa-clock"></i> <strong>Note:</strong> Finding your trip with AI will take 30-60 seconds. 
-                        We'll search real flights, analyze preferences, and create 3 custom options.
+                        We'll search real flights, analyze preferences, and create 5-8 custom options.
                     </div>
                 </form>
             </div>
@@ -827,7 +1042,7 @@ function confirmAndFindTrip() {
     .then(data => {
         loadingModal.remove();
         if (data.success) {
-            // Success - force page reload and navigate to Trips tab
+            // Success - force page reload and navigate to Voting tab
             // First set the hash, then force reload
             window.location.hash = 'itineraries';
             window.location.reload(true);  // true = force reload from server, not cache
@@ -1172,6 +1387,32 @@ function deleteTrip(itineraryId, tripTitle) {
     }
 }
 
+function deleteActiveTrip(optionId, tripTitle) {
+    if (confirm(`Are you sure you want to delete "${tripTitle}"?\n\nThis will remove this active trip from the group. This action cannot be undone.`)) {
+        fetch(`/groups/{{ group.id }}/delete-active-trip/${optionId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                // Reload to show updated trip list
+                window.location.href = '{% url "travel_groups:group_detail" group.id %}#active-trips';
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete active trip'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the active trip.');
+        });
+    }
+}
+
 // When page loads with hash, activate appropriate tab
 document.addEventListener('DOMContentLoaded', function() {
     const hash = window.location.hash;
@@ -1211,6 +1452,13 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }, 100);
+        }
+    } else if (hash === '#active-trips') {
+        const activeTripsTab = document.getElementById('active-trips-tab');
+        if (activeTripsTab) {
+            console.log('Activating active-trips tab');
+            const tab = new bootstrap.Tab(activeTripsTab);
+            tab.show();
         }
     }
 });

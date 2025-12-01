@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Generate Group Consensus - {{ group.name }} - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <h2>🤖 Generate AI Consensus</h2>
+            <h4 class="text-muted">{{ group.name }}</h4>
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card shadow mt-4">
+                <div class="card-body">
+                    <h5 class="card-title">Generate Group Consensus</h5>
+                    <p>Use AI to analyze all group members' preferences and find the best compromises.</p>
+                    
+                    <div class="alert alert-info">
+                        <strong>Group Status:</strong><br>
+                        Total Members: {{ members_count }}<br>
+                        Members with Preferences: {{ prefs_count }}
+                    </div>
+
+                    {% if prefs_count < 2 %}
+                    <div class="alert alert-warning">
+                        <strong>Notice:</strong> At least 2 members need to submit their preferences before generating a consensus.
+                    </div>
+                    {% else %}
+                    
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <h6 class="mt-4">Consensus Options:</h6>
+                        
+                        <div class="form-check mb-2">
+                            {{ form.include_budget }}
+                            <label class="form-check-label" for="{{ form.include_budget.id_for_label }}">
+                                {{ form.include_budget.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-2">
+                            {{ form.include_activities }}
+                            <label class="form-check-label" for="{{ form.include_activities.id_for_label }}">
+                                {{ form.include_activities.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-2">
+                            {{ form.include_accommodation }}
+                            <label class="form-check-label" for="{{ form.include_accommodation.id_for_label }}">
+                                {{ form.include_accommodation.label }}
+                            </label>
+                        </div>
+                        
+                        <div class="form-check mb-4">
+                            {{ form.prioritize_cost }}
+                            <label class="form-check-label" for="{{ form.prioritize_cost.id_for_label }}">
+                                {{ form.prioritize_cost.label }}
+                            </label>
+                        </div>
+
+                        <div class="alert alert-light">
+                            <p class="mb-0"><small>
+                                <strong>How it works:</strong> Our AI will analyze all submitted preferences, 
+                                identify areas of agreement and conflict, and suggest the best compromises 
+                                that work for everyone in the group.
+                            </small></p>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg btn-block mt-3">
+                            🤖 Generate Consensus
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <div class="mt-3 text-center">
+                        <a href="{% url 'travel_groups:group_detail' group.id %}" class="text-muted">
+                            Back to Group
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

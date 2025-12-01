@@ -10,9 +10,6 @@
         color: white;
         padding: 2rem 0;
     }
-    .itinerary-card {
-        border-left: 4px solid #667eea;
-    }
     .active-trip-card {
         border-left: 4px solid #28a745;
     }
@@ -24,6 +21,10 @@
     .empty-state i {
         font-size: 3rem;
         margin-bottom: 1rem;
+    }
+    .activity-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
     }
 </style>
 {% endblock %}
@@ -50,7 +51,7 @@
 <div class="container py-5">
     <div class="row">
         <!-- Active Trips Section -->
-        <div class="col-lg-6 mb-4">
+        <div class="col-lg-12 mb-4">
             <div class="card h-100">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0"><i class="fas fa-map-marked-alt"></i> Active Trips</h5>
@@ -105,6 +106,13 @@
                                     {% if option.selected_hotel %}
                                     <div class="col-md-6 mb-2">
                                         <h6 class="text-primary"><i class="fas fa-hotel"></i> Hotel</h6>
+                                        {% if option.selected_hotel.image_url %}
+                                        <img src="{{ option.selected_hotel.image_url }}" alt="{{ option.selected_hotel.name }}" class="img-fluid rounded mb-2" style="max-height: 150px; width: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'200\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'200\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'18\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🏨 Hotel%3C/text%3E%3C/svg%3E';">
+                                        {% else %}
+                                        <div class="bg-light rounded mb-2 d-flex align-items-center justify-content-center" style="max-height: 150px; height: 150px; width: 100%;">
+                                            <i class="fas fa-hotel fa-3x text-muted"></i>
+                                        </div>
+                                        {% endif %}
                                         <p class="small mb-1">
                                             <strong>{{ option.selected_hotel.name }}</strong><br>
                                             <span class="text-success">${{ option.selected_hotel.total_price }} total</span>
@@ -116,12 +124,49 @@
                                 
                                 {% if activities %}
                                 <div class="mb-3">
-                                    <h6 class="text-primary"><i class="fas fa-ticket-alt"></i> Activities ({{ activities|length }})</h6>
-                                    <ul class="small ps-3 mb-0">
-                                        {% for activity in activities %}
-                                        <li>{{ activity.name }}</li>
+                                    <h6 class="text-primary mb-3"><i class="fas fa-ticket-alt"></i> Available Activities ({{ activities|length }})</h6>
+                                    <div class="row g-2">
+                                        {% for activity in activities|slice:":6" %}
+                                        <div class="col-12 col-md-6">
+                                            <a href="{% url 'ai_implementation:view_activity' activity.id %}" class="text-decoration-none">
+                                                <div class="card border-light shadow-sm h-100 activity-card" style="transition: transform 0.2s; cursor: pointer;">
+                                                    {% if activity.image_url %}
+                                                    <img src="{{ activity.image_url }}" alt="{{ activity.name }}" class="card-img-top" style="height: 120px; object-fit: cover;" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'120\'%3E%3Crect fill=\'%23ddd\' width=\'400\' height=\'120\'/%3E%3Ctext fill=\'%23999\' font-family=\'sans-serif\' font-size=\'16\' dy=\'10.5\' font-weight=\'bold\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\'%3E🎭 Activity%3C/text%3E%3C/svg%3E';">
+                                                    {% else %}
+                                                    <div class="bg-light d-flex align-items-center justify-content-center" style="height: 120px;">
+                                                        <i class="fas fa-ticket-alt fa-2x text-muted"></i>
+                                                    </div>
+                                                    {% endif %}
+                                                    <div class="card-body p-2">
+                                                        <h6 class="card-title mb-1 small text-dark">{{ activity.name|truncatewords:8 }}</h6>
+                                                        {% if activity.rating %}
+                                                        <div class="mb-1">
+                                                            <small class="text-warning">
+                                                                <i class="fas fa-star"></i> {{ activity.rating }}
+                                                                {% if activity.review_count %}({{ activity.review_count }} reviews){% endif %}
+                                                            </small>
+                                                        </div>
+                                                        {% endif %}
+                                                        {% if activity.price %}
+                                                        <div class="mb-1">
+                                                            <small class="text-success"><strong>${{ activity.price }}</strong></small>
+                                                            {% if activity.duration_hours %}<small class="text-muted"> • {{ activity.duration_hours }}h</small>{% endif %}
+                                                        </div>
+                                                        {% endif %}
+                                                        {% if activity.category %}
+                                                        <small class="badge bg-info">{{ activity.category }}</small>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
                                         {% endfor %}
-                                    </ul>
+                                    </div>
+                                    {% if activities|length > 6 %}
+                                    <div class="mt-2">
+                                        <small class="text-muted">+ {{ activities|length|add:"-6" }} more activities available</small>
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 {% endif %}
                                 
@@ -134,6 +179,11 @@
                                     <a href="{% url 'travel_groups:group_detail' option.group.id %}" class="btn btn-primary btn-sm">
                                         <i class="fas fa-eye"></i> View Group Details
                                     </a>
+                                    {% if trip_data.is_admin %}
+                                    <button class="btn btn-danger btn-sm ms-2" onclick="deleteActiveTrip('{{ option.id }}', '{{ option.title|escapejs }}', '{{ option.group.id }}')">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -176,42 +226,156 @@
             </div>
         </div>
 
-        <!-- Saved Itineraries Section -->
-        <div class="col-lg-6 mb-4">
+        <!-- Trip Weather Forecast Section -->
+        {% if accepted_group_trips %}
+        <div class="col-lg-12 mb-4">
             <div class="card h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-bookmark"></i> Saved Itineraries</h5>
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-cloud-sun"></i> Trip Weather Forecast</h5>
                 </div>
                 <div class="card-body">
-                    {% if saved_itineraries %}
-                        {% for itinerary in saved_itineraries %}
-                            <div class="card itinerary-card mb-3">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1">
-                                            <h6 class="card-title">{{ itinerary.title }}</h6>
-                                            <p class="card-text text-muted mb-2">{{ itinerary.destination }}</p>
-                                            <small class="text-muted">
-                                                <i class="fas fa-calendar"></i> {{ itinerary.start_date }} - {{ itinerary.end_date }}
-                                            </small>
+                    {% for trip_data in accepted_group_trips %}
+                        {% with option=trip_data.option weather=trip_data.weather %}
+                        {% if weather %}
+                        <div class="card mb-3 border-info">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-map-marker-alt"></i> 
+                                    {% if option.destination %}
+                                        {{ option.destination }}
+                                    {% else %}
+                                        {{ option.title }}
+                                    {% endif %}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <!-- Current Weather -->
+                                {% if weather.current %}
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary"><i class="fas fa-thermometer-half"></i> Current Weather</h6>
+                                        <div class="d-flex align-items-center">
+                                            <div class="me-3">
+                                                {% if weather.current.weather_code %}
+                                                    {% if weather.current.weather_code == 0 %}
+                                                        <i class="fas fa-sun fa-3x text-warning"></i>
+                                                    {% elif weather.current.weather_code <= 3 %}
+                                                        <i class="fas fa-cloud fa-3x text-secondary"></i>
+                                                    {% elif weather.current.weather_code <= 48 %}
+                                                        <i class="fas fa-smog fa-3x text-secondary"></i>
+                                                    {% elif weather.current.weather_code <= 67 %}
+                                                        <i class="fas fa-cloud-rain fa-3x text-primary"></i>
+                                                    {% elif weather.current.weather_code <= 77 %}
+                                                        <i class="fas fa-snowflake fa-3x text-info"></i>
+                                                    {% elif weather.current.weather_code <= 86 %}
+                                                        <i class="fas fa-cloud-snow fa-3x text-info"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-bolt fa-3x text-warning"></i>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <i class="fas fa-cloud fa-3x text-secondary"></i>
+                                                {% endif %}
+                                            </div>
+                                            <div>
+                                                <h3 class="mb-0">
+                                                    {{ weather.current.temperature_2m|floatformat:0 }}{{ weather.current_units.temperature_2m }}
+                                                </h3>
+                                                <small class="text-muted">
+                                                    {% if weather.current.weather_code %}
+                                                        {% if weather.current.weather_code == 0 %}
+                                                            Clear sky
+                                                        {% elif weather.current.weather_code <= 3 %}
+                                                            Partly cloudy
+                                                        {% elif weather.current.weather_code <= 48 %}
+                                                            Fog
+                                                        {% elif weather.current.weather_code <= 67 %}
+                                                            Rain
+                                                        {% elif weather.current.weather_code <= 77 %}
+                                                            Snow
+                                                        {% elif weather.current.weather_code <= 86 %}
+                                                            Snow showers
+                                                        {% else %}
+                                                            Thunderstorm
+                                                        {% endif %}
+                                                    {% else %}
+                                                        N/A
+                                                    {% endif %}
+                                                </small>
+                                                <div class="small text-muted">
+                                                    Feels like {{ weather.current.apparent_temperature|floatformat:0 }}{{ weather.current_units.apparent_temperature }}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <button class="btn btn-danger btn-sm" onclick="deleteItinerary({{ itinerary.id }}, '{{ itinerary.title|escapejs }}')" title="Delete itinerary">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        <div class="mt-2">
+                                            <div class="row text-center">
+                                                <div class="col-4">
+                                                    <small class="text-muted d-block">Humidity</small>
+                                                    <strong>{{ weather.current.relative_humidity_2m|floatformat:0 }}{{ weather.current_units.relative_humidity_2m }}</strong>
+                                                </div>
+                                                <div class="col-4">
+                                                    <small class="text-muted d-block">Wind</small>
+                                                    <strong>{{ weather.current.wind_speed_10m|floatformat:0 }} {{ weather.current_units.wind_speed_10m }}</strong>
+                                                </div>
+                                                <div class="col-4">
+                                                    <small class="text-muted d-block">Clouds</small>
+                                                    <strong>{{ weather.current.cloud_cover|floatformat:0 }}{{ weather.current_units.cloud_cover }}</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Forecast for Trip Dates -->
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary"><i class="fas fa-calendar-alt"></i> Forecast for Trip Dates</h6>
+                                        {% if weather.daily_formatted %}
+                                            <div class="forecast-scroll" style="max-height: 300px; overflow-y: auto;">
+                                                {% for day in weather.daily_formatted %}
+                                                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                                                        <div>
+                                                            <strong>{{ day.date|date:"M d" }}</strong>
+                                                            {% if forloop.first %}
+                                                                <span class="badge bg-primary ms-2">Start</span>
+                                                            {% endif %}
+                                                            {% if forloop.last %}
+                                                                <span class="badge bg-success ms-2">End</span>
+                                                            {% endif %}
+                                                        </div>
+                                                        <div class="text-end">
+                                                            {% if day.temp_max and day.temp_min %}
+                                                                <div>
+                                                                    <span class="text-danger">{{ day.temp_max|floatformat:0 }}{{ weather.daily_units.temperature_2m_max }}</span>
+                                                                    <span class="text-muted"> / </span>
+                                                                    <span class="text-primary">{{ day.temp_min|floatformat:0 }}{{ weather.daily_units.temperature_2m_min }}</span>
+                                                                </div>
+                                                            {% endif %}
+                                                            {% if day.precipitation_probability %}
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-tint"></i> 
+                                                                    {{ day.precipitation_probability|floatformat:0 }}{{ weather.daily_units.precipitation_probability_max }}
+                                                                </small>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">Forecast data not available</p>
+                                        {% endif %}
                                     </div>
                                 </div>
+                                {% else %}
+                                <p class="text-muted">Current weather data not available</p>
+                                {% endif %}
                             </div>
-                        {% endfor %}
-                    {% else %}
-                        <div class="empty-state">
-                            <i class="fas fa-bookmark"></i>
-                            <h5>No Saved Itineraries</h5>
-                            <p>Save your favorite trip plans for later!</p>
                         </div>
-                    {% endif %}
+                        {% endif %}
+                        {% endwith %}
+                    {% endfor %}
                 </div>
             </div>
         </div>
+        {% endif %}
+
     </div>
 
     <!-- Quick Actions -->
@@ -291,6 +455,31 @@
 
 {% block extra_js %}
 <script>
+function deleteActiveTrip(optionId, tripTitle, groupId) {
+    if (confirm(`Are you sure you want to delete "${tripTitle}"?\n\nThis will remove this active trip from the group. This action cannot be undone.`)) {
+        fetch(`/groups/${groupId}/delete-active-trip/${optionId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Failed to delete active trip'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while deleting the active trip.');
+        });
+    }
+}
+
 function deleteItinerary(itineraryId, title) {
     if (confirm(`Are you sure you want to delete "${title}"?\n\nThis action cannot be undone.`)) {
         fetch(`/api/delete-itinerary/${itineraryId}/`, {

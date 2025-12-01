@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}AI Travel Search - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- Hero Section -->
+    <div class="jumbotron text-center bg-light p-5 rounded">
+        <h1 class="display-4">🤖 AI-Powered Travel Search</h1>
+        <p class="lead">Let our AI help you find the perfect travel options for your group</p>
+        <p>Search flights, hotels, and activities - all consolidated with smart recommendations</p>
+    </div>
+
+    <!-- Quick Search -->
+    <div class="row mt-5">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">Quick Search</h3>
+                    <form method="POST" action="{% url 'ai_implementation:advanced_search' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="destination">Where do you want to go?</label>
+                            {{ quick_form.destination }}
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="start_date">Start Date</label>
+                                    {{ quick_form.start_date }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="end_date">End Date</label>
+                                    {{ quick_form.end_date }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label for="adults">Adults</label>
+                                    {{ quick_form.adults }}
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg btn-block mt-3">
+                            🔍 Search with AI
+                        </button>
+                    </form>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'ai_implementation:advanced_search' %}" class="text-muted">
+                            Need more options? Try Advanced Search
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <div class="row mt-5 mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <h2 class="mb-3">✈️</h2>
+                    <h5 class="card-title">Smart Flight Search</h5>
+                    <p class="card-text">AI analyzes hundreds of flight options to find the best matches for your preferences and budget.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <h2 class="mb-3">🏨</h2>
+                    <h5 class="card-title">Hotel Recommendations</h5>
+                    <p class="card-text">Get personalized hotel suggestions based on your group's accommodation preferences.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <h2 class="mb-3">🎭</h2>
+                    <h5 class="card-title">Activity Planning</h5>
+                    <p class="card-text">Discover activities and tours that match your group's interests and schedule.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Searches -->
+    {% if recent_searches %}
+    <div class="row mt-5">
+        <div class="col-md-12">
+            <h4>Recent Searches</h4>
+            <div class="list-group">
+                {% for search in recent_searches %}
+                <a href="{% url 'ai_implementation:search_results' search.id %}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ search.destination }}</h5>
+                        <small>{{ search.created_at|date:"M d, Y" }}</small>
+                    </div>
+                    <p class="mb-1">{{ search.start_date }} to {{ search.end_date }} • {{ search.adults }} adult(s)</p>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- My Itineraries Link -->
+    <div class="row mt-4 mb-5">
+        <div class="col-md-12 text-center">
+            <a href="{% url 'ai_implementation:my_itineraries' %}" class="btn btn-outline-primary">
+                📋 View My Saved Itineraries
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

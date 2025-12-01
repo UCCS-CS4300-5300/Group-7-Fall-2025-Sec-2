@@ -29,6 +29,9 @@ urlpatterns = [
     path('itineraries/', views.my_itineraries, name='my_itineraries'),
     path('itinerary/<uuid:itinerary_id>/', views.view_itinerary, name='view_itinerary'),
     
+    # Activity detail
+    path('activity/<uuid:activity_id>/', views.view_activity, name='view_activity'),
+    
     # Airport autocomplete
     path('airports/autocomplete/', views.airport_autocomplete, name='airport_autocomplete'),
     

@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Advanced Search - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            <h2 class="mb-4">🔍 Advanced Travel Search</h2>
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="card shadow">
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        
+                        <!-- Basic Information -->
+                        <h5 class="mb-3">📍 Destination & Dates</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Destination</label>
+                                    {{ form.destination }}
+                                    {% if form.destination.errors %}
+                                        <div class="text-danger">{{ form.destination.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Origin (for flights)</label>
+                                    {{ form.origin }}
+                                    {% if form.origin.errors %}
+                                        <div class="text-danger">{{ form.origin.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Start Date</label>
+                                    {{ form.start_date }}
+                                    {% if form.start_date.errors %}
+                                        <div class="text-danger">{{ form.start_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>End Date</label>
+                                    {{ form.end_date }}
+                                    {% if form.end_date.errors %}
+                                        <div class="text-danger">{{ form.end_date.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Travelers & Rooms -->
+                        <h5 class="mb-3">👥 Travelers & Accommodation</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Number of Adults</label>
+                                    {{ form.adults }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Number of Rooms</label>
+                                    {{ form.rooms }}
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-group">
+                                    <label>Accommodation Type</label>
+                                    {{ form.accommodation_type }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Budget -->
+                        <h5 class="mb-3">💰 Budget</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Minimum Budget ($)</label>
+                                    {{ form.budget_min }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Maximum Budget ($)</label>
+                                    {{ form.budget_max }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Activity Preferences -->
+                        <h5 class="mb-3">🎯 Activity Preferences</h5>
+                        <div class="form-group">
+                            {{ form.activity_preferences }}
+                        </div>
+
+                        <hr>
+
+                        <!-- Group Selection (if applicable) -->
+                        {% if user_groups %}
+                        <h5 class="mb-3">👥 Search for a Group (Optional)</h5>
+                        <div class="form-group">
+                            <label>Select Group</label>
+                            <select name="group_id" class="form-control">
+                                <option value="">Personal Search</option>
+                                {% for membership in user_groups %}
+                                    <option value="{{ membership.group.id }}">{{ membership.group.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        {% endif %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {{ form.non_field_errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="form-group mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg btn-block">
+                                🚀 Search with AI
+                            </button>
+                        </div>
+
+                        <div class="text-center">
+                            <a href="{% url 'ai_implementation:search_home' %}" class="text-muted">Back to Simple Search</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+
+

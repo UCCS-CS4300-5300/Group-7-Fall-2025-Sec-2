@@ -2,7 +2,8 @@ from django.test import TestCase, Client
 from django.contrib.auth.models import User
 from django.urls import reverse
 from django.core.exceptions import ValidationError
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
+from unittest.mock import patch, MagicMock
 from .models import UserProfile, Itinerary
 from .forms import SignUpForm, ItineraryForm
 import json
@@ -388,6 +389,23 @@ class SignupViewTest(TestCase):
         # If exception occurs, should show error message
         # Both paths are valid, so we just check it doesn't crash
         self.assertIn(response.status_code, [200, 302])
+    
+    def test_signup_with_exception_raised(self):
+        """Test signup view handles exceptions properly"""
+        from unittest.mock import patch
+        with patch('accounts.views.UserProfile.objects.create', side_effect=Exception("Database error")):
+            response = self.client.post(reverse('accounts:signup'), {
+                'username': 'testuser2',
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': 'test2@example.com',
+                'phone_number': '+1234567890',
+                'password1': 'SecurePass123!',
+                'password2': 'SecurePass123!'
+            })
+            # Should render form with error message
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'Error creating account')
 
 
 class DashboardViewTest(TestCase):
@@ -449,7 +467,9 @@ class DashboardViewTest(TestCase):
         )
         response = self.client.get(reverse('accounts:dashboard'))
         self.assertEqual(len(response.context['active_trips']), 1)
-        self.assertEqual(len(response.context['saved_itineraries']), 1)
+        # Check that inactive trips are filtered out from active_trips
+        inactive_itineraries = Itinerary.objects.filter(user=self.user, is_active=False)
+        self.assertEqual(inactive_itineraries.count(), 1)
     
     def test_dashboard_shows_accepted_group_trips(self):
         """Test that dashboard displays accepted group trips"""
@@ -557,6 +577,221 @@ class DashboardViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('accepted_group_trips', response.context)
         self.assertEqual(len(response.context['accepted_group_trips']), 0)
+    
+    def test_dashboard_weather_data_error_handling(self):
+        """Test dashboard handles weather API errors gracefully"""
+        from unittest.mock import patch, MagicMock
+        from travel_groups.models import TravelGroup, GroupMember
+        from ai_implementation.models import GroupItineraryOption, GroupConsensus, TravelSearch, FlightResult, HotelResult
+        import json
+        
+        self.client.login(username='testuser', password='testpass123')
+        
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=group, user=self.user, role='admin')
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=self.user,
+            consensus_preferences=json.dumps({'destination': 'Paris'})
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        accepted_option = GroupItineraryOption.objects.create(
+            group=group,
+            consensus=consensus,
+            search=search,
+            option_letter='A',
+            status='accepted',
+            is_winner=True,
+            title='Paris Adventure',
+            description='A great trip to Paris',
+            destination='Paris',
+            selected_flight=flight,
+            selected_hotel=hotel,
+            estimated_total_cost=1200.00,
+            cost_per_person=600.00
+        )
+        
+        # Mock weather connector to raise an exception
+        with patch('ai_implementation.api_connectors.WeatherAPIConnector') as mock_weather:
+            mock_instance = MagicMock()
+            mock_instance.get_weather_for_trip.side_effect = Exception("Weather API error")
+            mock_weather.return_value = mock_instance
+            
+            response = self.client.get(reverse('accounts:dashboard'))
+            self.assertEqual(response.status_code, 200)
+            # Dashboard should still render even if weather fails
+            self.assertIn('accepted_group_trips', response.context)
+    
+    def test_dashboard_weather_data_none(self):
+        """Test dashboard handles None weather data"""
+        from travel_groups.models import TravelGroup, GroupMember
+        from ai_implementation.models import GroupItineraryOption, GroupConsensus, TravelSearch, FlightResult, HotelResult
+        from unittest.mock import patch, MagicMock
+        import json
+        from datetime import datetime
+        
+        self.client.login(username='testuser', password='testpass123')
+        
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=group, user=self.user, role='admin')
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=self.user,
+            consensus_preferences=json.dumps({'destination': 'Paris'})
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        accepted_option = GroupItineraryOption.objects.create(
+            group=group,
+            consensus=consensus,
+            search=search,
+            option_letter='A',
+            status='accepted',
+            is_winner=True,
+            title='Paris Adventure',
+            destination='Paris',
+            selected_flight=flight,
+            selected_hotel=hotel,
+            estimated_total_cost=1200.00,
+            cost_per_person=600.00
+        )
+        
+        # Mock weather connector to return None
+        with patch('ai_implementation.api_connectors.WeatherAPIConnector') as mock_weather:
+            mock_instance = MagicMock()
+            mock_instance.get_weather_for_trip.return_value = None
+            mock_weather.return_value = mock_instance
+            
+            response = self.client.get(reverse('accounts:dashboard'))
+            self.assertEqual(response.status_code, 200)
+    
+    def test_dashboard_weather_no_daily_forecast(self):
+        """Test dashboard handles weather data without daily forecast"""
+        from travel_groups.models import TravelGroup, GroupMember
+        from ai_implementation.models import GroupItineraryOption, GroupConsensus, TravelSearch, FlightResult, HotelResult
+        from unittest.mock import patch, MagicMock
+        import json
+        from datetime import datetime
+        
+        self.client.login(username='testuser', password='testpass123')
+        
+        group = TravelGroup.objects.create(
+            name='Test Group',
+            created_by=self.user,
+            password='test123'
+        )
+        GroupMember.objects.create(group=group, user=self.user, role='admin')
+        
+        search = TravelSearch.objects.create(
+            user=self.user,
+            group=group,
+            destination='Paris',
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=7),
+            adults=2
+        )
+        consensus = GroupConsensus.objects.create(
+            group=group,
+            generated_by=self.user,
+            consensus_preferences=json.dumps({'destination': 'Paris'})
+        )
+        
+        flight = FlightResult.objects.create(
+            search=search,
+            external_id='flight1',
+            airline='Test Airline',
+            price=500.00,
+            departure_time=datetime.now(),
+            arrival_time=datetime.now()
+        )
+        hotel = HotelResult.objects.create(
+            search=search,
+            external_id='hotel1',
+            name='Test Hotel',
+            price_per_night=100.00,
+            total_price=700.00
+        )
+        
+        accepted_option = GroupItineraryOption.objects.create(
+            group=group,
+            consensus=consensus,
+            search=search,
+            option_letter='A',
+            status='accepted',
+            is_winner=True,
+            title='Paris Adventure',
+            destination='Paris',
+            selected_flight=flight,
+            selected_hotel=hotel,
+            estimated_total_cost=1200.00,
+            cost_per_person=600.00
+        )
+        
+        # Mock weather connector to return data without daily
+        with patch('ai_implementation.api_connectors.WeatherAPIConnector') as mock_weather:
+            mock_instance = MagicMock()
+            mock_instance.get_weather_for_trip.return_value = {'current': {}}
+            mock_weather.return_value = mock_instance
+            
+            response = self.client.get(reverse('accounts:dashboard'))
+            self.assertEqual(response.status_code, 200)
 
 
 class LogoutViewTest(TestCase):
@@ -695,4 +930,79 @@ class GetItinerariesViewTest(TestCase):
         data = json.loads(response.content)
         self.assertEqual(len(data['itineraries']), 1)
         self.assertEqual(data['itineraries'][0]['title'], 'My Trip')
+
+
+class DeleteItineraryViewTest(TestCase):
+    """Test cases for delete itinerary view"""
+    
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass123'
+        )
+        self.start_date = date.today()
+        self.end_date = self.start_date + timedelta(days=7)
+        self.itinerary = Itinerary.objects.create(
+            user=self.user,
+            title='Test Trip',
+            destination='Test Dest',
+            start_date=self.start_date,
+            end_date=self.end_date
+        )
+    
+    def test_delete_itinerary_requires_login(self):
+        """Test that deleting itinerary requires authentication"""
+        response = self.client.delete(reverse('accounts:delete_itinerary', args=[self.itinerary.id]))
+        self.assertEqual(response.status_code, 302)
+    
+    def test_delete_itinerary_success(self):
+        """Test successful itinerary deletion"""
+        self.client.login(username='testuser', password='testpass123')
+        itinerary_id = self.itinerary.id
+        itinerary_title = self.itinerary.title
+        response = self.client.delete(reverse('accounts:delete_itinerary', args=[itinerary_id]))
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        self.assertTrue(data['success'])
+        self.assertIn('deleted successfully', data['message'])
+        self.assertFalse(Itinerary.objects.filter(id=itinerary_id).exists())
+    
+    def test_delete_itinerary_not_found(self):
+        """Test deleting non-existent itinerary"""
+        self.client.login(username='testuser', password='testpass123')
+        response = self.client.delete(reverse('accounts:delete_itinerary', args=[99999]))
+        self.assertEqual(response.status_code, 404)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('not found', data['error'].lower())
+    
+    def test_delete_itinerary_unauthorized(self):
+        """Test deleting another user's itinerary"""
+        other_user = User.objects.create_user(username='other', password='pass123')
+        other_itinerary = Itinerary.objects.create(
+            user=other_user,
+            title='Other Trip',
+            destination='Other Dest',
+            start_date=self.start_date,
+            end_date=self.end_date
+        )
+        self.client.login(username='testuser', password='testpass123')
+        response = self.client.delete(reverse('accounts:delete_itinerary', args=[other_itinerary.id]))
+        self.assertEqual(response.status_code, 404)
+        data = json.loads(response.content)
+        self.assertFalse(data['success'])
+        self.assertIn('not found', data['error'].lower())
+    
+    def test_delete_itinerary_exception_handling(self):
+        """Test delete itinerary handles exceptions"""
+        from unittest.mock import patch
+        self.client.login(username='testuser', password='testpass123')
+        
+        with patch.object(Itinerary.objects, 'get', side_effect=Exception("Database error")):
+            response = self.client.delete(reverse('accounts:delete_itinerary', args=[self.itinerary.id]))
+            self.assertEqual(response.status_code, 500)
+            data = json.loads(response.content)
+            self.assertFalse(data['success'])
+            self.assertIn('error', data)
 

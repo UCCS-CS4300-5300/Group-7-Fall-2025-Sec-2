@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Search Results - {{ search.destination }} - GroupGo{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>🌍 Travel Results: {{ search.destination }}</h2>
+            <p class="text-muted">{{ search.start_date }} to {{ search.end_date }} • {{ search.adults }} adult(s)</p>
+        </div>
+    </div>
+
+    <!-- AI Summary -->
+    {% if summary %}
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h5>🤖 AI Summary</h5>
+                <p>{{ summary }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Warnings -->
+    {% if warnings %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <h6>⚠️ Important Notes:</h6>
+                <ul>
+                    {% for warning in warnings %}
+                    <li>{{ warning }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Budget Analysis -->
+    {% if budget_analysis %}
+    <div class="row mt-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">💰 Budget Analysis</h5>
+                </div>
+                <div class="card-body">
+                    {% if budget_analysis.estimated_total %}
+                    <p><strong>Estimated Total:</strong> {{ budget_analysis.estimated_total }}</p>
+                    {% endif %}
+                    {% if budget_analysis.breakdown %}
+                    <p><strong>Breakdown:</strong> {{ budget_analysis.breakdown }}</p>
+                    {% endif %}
+                    {% if budget_analysis.savings_tips %}
+                    <p><strong>Savings Tips:</strong> {{ budget_analysis.savings_tips }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabs for different result types -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <ul class="nav nav-tabs" id="resultsTabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="flights-tab" data-toggle="tab" href="#flights" role="tab">
+                        ✈️ Flights ({{ flights|length }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="hotels-tab" data-toggle="tab" href="#hotels" role="tab">
+                        🏨 Hotels ({{ hotels|length }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="activities-tab" data-toggle="tab" href="#activities" role="tab">
+                        🎭 Activities ({{ activities|length }})
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="itinerary-tab" data-toggle="tab" href="#itinerary" role="tab">
+                        📋 Suggested Itinerary
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content mt-3" id="resultsTabContent">
+                <!-- Flights Tab -->
+                <div class="tab-pane fade show active" id="flights" role="tabpanel">
+                    {% if flights %}
+                    <div class="row">
+                        {% for flight in flights %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card {% if flight.ai_score %}border-primary{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <h5 class="card-title">{{ flight.airline }}</h5>
+                                        <span class="badge badge-primary">${{ flight.price }}</span>
+                                    </div>
+                                    {% if flight.ai_score %}
+                                    <div class="mb-2">
+                                        <span class="badge badge-success">AI Score: {{ flight.ai_score }}/100</span>
+                                    </div>
+                                    {% endif %}
+                                    <p class="card-text">
+                                        <strong>Departure:</strong> {{ flight.departure_time }}<br>
+                                        <strong>Arrival:</strong> {{ flight.arrival_time }}<br>
+                                        <strong>Duration:</strong> {{ flight.duration }}<br>
+                                        <strong>Stops:</strong> {{ flight.stops }}<br>
+                                        <strong>Class:</strong> {{ flight.booking_class }}
+                                    </p>
+                                    {% if flight.ai_reason %}
+                                    <div class="alert alert-light mt-2">
+                                        <small><strong>AI Recommendation:</strong> {{ flight.ai_reason }}</small>
+                                    </div>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-primary select-flight" data-flight-id="{{ flight.id }}">
+                                        Select Flight
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No flight results available.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Hotels Tab -->
+                <div class="tab-pane fade" id="hotels" role="tabpanel">
+                    {% if hotels %}
+                    <div class="row">
+                        {% for hotel in hotels %}
+                        <div class="col-md-6 mb-3">
+                            <div class="card {% if hotel.ai_score %}border-primary{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <h5 class="card-title">{{ hotel.name }}</h5>
+                                        <span class="badge badge-primary">${{ hotel.total_price }}</span>
+                                    </div>
+                                    {% if hotel.ai_score %}
+                                    <div class="mb-2">
+                                        <span class="badge badge-success">AI Score: {{ hotel.ai_score }}/100</span>
+                                    </div>
+                                    {% endif %}
+                                    <p class="card-text">
+                                        {% if hotel.rating %}
+                                        <strong>Rating:</strong> ⭐ {{ hotel.rating }}/5 ({{ hotel.review_count }} reviews)<br>
+                                        {% endif %}
+                                        <strong>Room:</strong> {{ hotel.room_type }}<br>
+                                        <strong>Per Night:</strong> ${{ hotel.price_per_night }}<br>
+                                        {% if hotel.amenities %}
+                                        <strong>Amenities:</strong> {{ hotel.amenities|truncatewords:5 }}<br>
+                                        {% endif %}
+                                        {% if hotel.breakfast_included %}
+                                        <span class="badge badge-info">Breakfast Included</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if hotel.ai_reason %}
+                                    <div class="alert alert-light mt-2">
+                                        <small><strong>AI Recommendation:</strong> {{ hotel.ai_reason }}</small>
+                                    </div>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-primary select-hotel" data-hotel-id="{{ hotel.id }}">
+                                        Select Hotel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No hotel results available.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Activities Tab -->
+                <div class="tab-pane fade" id="activities" role="tabpanel">
+                    {% if activities %}
+                    <div class="row">
+                        {% for activity in activities %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 {% if activity.ai_score %}border-primary{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="card-title">{{ activity.name }}</h6>
+                                        <span class="badge badge-primary">${{ activity.price }}</span>
+                                    </div>
+                                    {% if activity.ai_score %}
+                                    <div class="mb-2">
+                                        <span class="badge badge-success">AI Score: {{ activity.ai_score }}/100</span>
+                                    </div>
+                                    {% endif %}
+                                    <p class="card-text small">
+                                        {% if activity.rating %}
+                                        <strong>Rating:</strong> ⭐ {{ activity.rating }}/5<br>
+                                        {% endif %}
+                                        <strong>Duration:</strong> {{ activity.duration_hours }} hours<br>
+                                        {% if activity.category %}
+                                        <span class="badge badge-secondary">{{ activity.category }}</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if activity.ai_reason %}
+                                    <div class="alert alert-light mt-2">
+                                        <small><strong>AI:</strong> {{ activity.ai_reason|truncatewords:15 }}</small>
+                                    </div>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-primary select-activity" data-activity-id="{{ activity.id }}">
+                                        Add to Itinerary
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No activity results available.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Suggested Itinerary Tab -->
+                <div class="tab-pane fade" id="itinerary" role="tabpanel">
+                    {% if itinerary_suggestions %}
+                    <div class="card">
+                        <div class="card-body">
+                            <h5>🗓️ AI-Suggested Itinerary</h5>
+                            <ul>
+                                {% for suggestion in itinerary_suggestions %}
+                                <li>{{ suggestion }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No itinerary suggestions available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Itinerary Button -->
+    <div class="row mt-4 mb-5">
+        <div class="col-md-12 text-center">
+            <button class="btn btn-success btn-lg" data-toggle="modal" data-target="#saveItineraryModal">
+                💾 Save Selected Items as Itinerary
+            </button>
+            <a href="{% url 'ai_implementation:search_home' %}" class="btn btn-outline-secondary btn-lg">
+                🔙 New Search
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Save Itinerary Modal -->
+<div class="modal fade" id="saveItineraryModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Save Itinerary</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="saveItineraryForm">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>Itinerary Title</label>
+                        <input type="text" name="title" class="form-control" placeholder="e.g., Summer Vacation 2025" required>
+                    </div>
+                    <input type="hidden" name="selected_flight" id="selectedFlight">
+                    <input type="hidden" name="selected_hotel" id="selectedHotel">
+                    <div id="selectedActivities"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveItinerary()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedFlight = null;
+let selectedHotel = null;
+let selectedActivities = [];
+
+// Select flight
+document.querySelectorAll('.select-flight').forEach(btn => {
+    btn.addEventListener('click', function() {
+        selectedFlight = this.dataset.flightId;
+        document.querySelectorAll('.select-flight').forEach(b => b.classList.remove('btn-primary'));
+        document.querySelectorAll('.select-flight').forEach(b => b.classList.add('btn-outline-primary'));
+        this.classList.remove('btn-outline-primary');
+        this.classList.add('btn-primary');
+    });
+});
+
+// Select hotel
+document.querySelectorAll('.select-hotel').forEach(btn => {
+    btn.addEventListener('click', function() {
+        selectedHotel = this.dataset.hotelId;
+        document.querySelectorAll('.select-hotel').forEach(b => b.classList.remove('btn-primary'));
+        document.querySelectorAll('.select-hotel').forEach(b => b.classList.add('btn-outline-primary'));
+        this.classList.remove('btn-outline-primary');
+        this.classList.add('btn-primary');
+    });
+});
+
+// Select activities
+document.querySelectorAll('.select-activity').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const activityId = this.dataset.activityId;
+        if (selectedActivities.includes(activityId)) {
+            selectedActivities = selectedActivities.filter(id => id !== activityId);
+            this.classList.remove('btn-primary');
+            this.classList.add('btn-outline-primary');
+            this.textContent = 'Add to Itinerary';
+        } else {
+            selectedActivities.push(activityId);
+            this.classList.remove('btn-outline-primary');
+            this.classList.add('btn-primary');
+            this.textContent = 'Added ✓';
+        }
+    });
+});
+
+function saveItinerary() {
+    document.getElementById('selectedFlight').value = selectedFlight || '';
+    document.getElementById('selectedHotel').value = selectedHotel || '';
+    
+    // Add activity inputs
+    const activitiesDiv = document.getElementById('selectedActivities');
+    activitiesDiv.innerHTML = '';
+    selectedActivities.forEach(actId => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'selected_activities';
+        input.value = actId;
+        activitiesDiv.appendChild(input);
+    });
+    
+    // Submit form
+    const formData = new FormData(document.getElementById('saveItineraryForm'));
+    fetch('{% url "ai_implementation:save_itinerary" search.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Itinerary saved successfully!');
+            $('#saveItineraryModal').modal('hide');
+            window.location.href = '{% url "ai_implementation:my_itineraries" %}';
+        } else {
+            alert('Error saving itinerary');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred');
+    });
+}
+</script>
+{% endblock %}
+
+
+
+

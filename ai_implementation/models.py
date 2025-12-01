@@ -203,6 +203,14 @@ class HotelResult(models.Model):
         help_text="Destination this result was searched for",
     )
 
+    # Image URL
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to hotel image/photo from API",
+    )
+
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     is_mock = models.BooleanField(default=False, help_text="Whether this is mock data")
@@ -267,6 +275,22 @@ class ActivityResult(models.Model):
         blank=True,
         null=True,
         help_text="Destination this result was searched for",
+    )
+
+    # External link
+    link = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="External link to activity details or booking page",
+    )
+
+    # Image URL
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="URL to activity image/photo from API",
     )
 
     # Metadata

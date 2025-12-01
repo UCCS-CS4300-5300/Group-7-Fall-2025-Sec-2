@@ -71,7 +71,8 @@ class SerpApiFlightsConnector:
         """
 
         if not self.api_key:
-            print("Using mock flight data (SerpApi API key not configured)")
+            print("[WARNING] SerpApi API key not configured - using mock flight data")
+            print("[WARNING] To get real flight data, set SERP_API_KEY environment variable")
             return self._get_mock_flight_data(
                 origin, destination, departure_date, return_date, adults, max_results
             )
@@ -110,11 +111,14 @@ class SerpApiFlightsConnector:
 
             # Check for API errors in response
             if response.status_code != 200:
+                error_body = response.text[:500] if hasattr(response, 'text') else "N/A"
                 print(f"  [ERROR] SerpApi returned status code {response.status_code}")
+                print(f"  [ERROR] Response body: {error_body}")
 
                 if response.status_code in {401, 403}:
+                    print(f"  [ERROR] Authentication failed - check SERP_API_KEY is valid")
                     return self._use_mock_flight_data_with_reason(
-                        "Unauthorized SerpApi response",
+                        "Unauthorized SerpApi response (401/403)",
                         origin,
                         destination,
                         departure_date,
@@ -124,7 +128,7 @@ class SerpApiFlightsConnector:
                     )
 
                 raise SerpApiConnectorError(
-                    f"SerpApi returned status {response.status_code}"
+                    f"SerpApi returned status {response.status_code}: {error_body}"
                 )
 
             data = response.json()
@@ -136,8 +140,14 @@ class SerpApiFlightsConnector:
             if "error" in data:
                 error_msg = data.get("error", "Unknown error")
                 print(f"  [ERROR] SerpApi API error: {error_msg}")
+                
+                # Log additional error details if available
+                if isinstance(data.get("error"), dict):
+                    error_details = data.get("error", {})
+                    print(f"  [ERROR] Error details: {json.dumps(error_details, indent=2)}")
 
                 if self._is_authentication_error_message(error_msg):
+                    print(f"  [ERROR] Authentication error detected - check SERP_API_KEY")
                     return self._use_mock_flight_data_with_reason(
                         "SerpApi authentication error",
                         origin,
@@ -916,7 +926,8 @@ class SerpApiActivitiesConnector:
         """
 
         if not self.api_key:
-            print("Using mock activity data (SerpApi API key not configured)")
+            print("[WARNING] SerpApi API key not configured - using mock activity data")
+            print("[WARNING] To get real activity data, set SERP_API_KEY environment variable")
             return self._get_mock_activity_data(destination, categories or [])
 
         try:
@@ -947,6 +958,25 @@ class SerpApiActivitiesConnector:
                 return self._get_mock_activity_data(destination, categories or [])
 
             data = response.json()
+
+            # DEBUG: Log response structure to understand what we're getting
+            # Always log this for now to help debug the image issue
+            print(f"[DEBUG] SerpAPI response keys: {list(data.keys())}")
+            if "organic_results" in data and len(data["organic_results"]) > 0:
+                first_result = data["organic_results"][0]
+                print(f"[DEBUG] First organic_result keys: {list(first_result.keys())}")
+                # Check specifically for image-related fields
+                image_fields = [k for k in first_result.keys() if any(term in k.lower() for term in ['image', 'photo', 'thumbnail', 'img', 'pic'])]
+                if image_fields:
+                    print(f"[DEBUG] Found image-related fields: {image_fields}")
+                    for field in image_fields:
+                        print(f"[DEBUG]   {field}: {first_result.get(field)}")
+                else:
+                    print(f"[DEBUG] No image-related fields found in first result")
+            if "places_results" in data:
+                print(f"[DEBUG] places_results type: {type(data['places_results'])}")
+                if isinstance(data["places_results"], dict):
+                    print(f"[DEBUG] places_results keys: {list(data['places_results'].keys())}")
 
             # Check for errors
             if "error" in data:
@@ -1015,8 +1045,19 @@ class SerpApiActivitiesConnector:
                     results.extend(data["local_results"])
 
             # Parse each result
-            for result in results[:max_results]:
+            for idx, result in enumerate(results[:max_results]):
                 try:
+                    # DEBUG: Log first result structure
+                    if idx == 0:
+                        print(f"[DEBUG] Processing first result - keys: {list(result.keys())}")
+                        # Check for any image-related keys
+                        image_keys = [k for k in result.keys() if any(term in k.lower() for term in ['image', 'photo', 'thumbnail', 'img', 'pic'])]
+                        if image_keys:
+                            print(f"[DEBUG] First result has image keys: {image_keys}")
+                            for key in image_keys:
+                                val = result.get(key)
+                                print(f"[DEBUG]   {key}: {type(val).__name__} = {str(val)[:150]}")
+                    
                     # Extract activity information
                     name = (
                         result.get("title")
@@ -1068,6 +1109,97 @@ class SerpApiActivitiesConnector:
                     address = result.get("address") or result.get("place", {}).get(
                         "address", ""
                     )
+
+                    # Extract image URL
+                    image_url = None
+                    
+                    # DEBUG: Print result structure to see what fields are available (only in DEBUG mode)
+                    import os
+                    if os.environ.get('DEBUG', '').lower() == 'true' or os.environ.get('DJANGO_DEBUG', '').lower() == 'true':
+                        print(f"[DEBUG] Activity result keys: {list(result.keys())}")
+                        if "thumbnail" in result:
+                            print(f"[DEBUG] thumbnail value type: {type(result.get('thumbnail'))}, value: {result.get('thumbnail')}")
+                        if "place" in result:
+                            place_data = result.get("place", {})
+                            if isinstance(place_data, dict):
+                                print(f"[DEBUG] place keys: {list(place_data.keys())}")
+                    
+                    # Try multiple possible image fields from SerpAPI
+                    # Check thumbnail - could be string URL or dict
+                    if "thumbnail" in result:
+                        thumbnail_val = result.get("thumbnail")
+                        if isinstance(thumbnail_val, str) and thumbnail_val.startswith(("http://", "https://")):
+                            image_url = thumbnail_val
+                            print(f"[DEBUG] Set image_url from thumbnail: {image_url[:80]}...")
+                        elif isinstance(thumbnail_val, dict):
+                            # Nested thumbnail structure
+                            if "thumbnail" in thumbnail_val:
+                                image_url = thumbnail_val.get("thumbnail")
+                            elif "url" in thumbnail_val:
+                                image_url = thumbnail_val.get("url")
+                            elif "src" in thumbnail_val:
+                                image_url = thumbnail_val.get("src")
+                    
+                    # Try direct image field
+                    if not image_url and "image" in result:
+                        image_val = result.get("image")
+                        if isinstance(image_val, str) and image_val.startswith(("http://", "https://")):
+                            image_url = image_val
+                        elif isinstance(image_val, dict) and "url" in image_val:
+                            image_url = image_val.get("url")
+                    
+                    # Try photo field
+                    if not image_url and "photo" in result:
+                        photo_val = result.get("photo")
+                        if isinstance(photo_val, str) and photo_val.startswith(("http://", "https://")):
+                            image_url = photo_val
+                        elif isinstance(photo_val, dict) and "url" in photo_val:
+                            image_url = photo_val.get("url")
+                    
+                    # Try place object
+                    if not image_url and "place" in result:
+                        place = result.get("place", {})
+                        if isinstance(place, dict):
+                            if "thumbnail" in place:
+                                thumb = place.get("thumbnail")
+                                if isinstance(thumb, str) and thumb.startswith(("http://", "https://")):
+                                    image_url = thumb
+                            if not image_url and "image" in place:
+                                img = place.get("image")
+                                if isinstance(img, str) and img.startswith(("http://", "https://")):
+                                    image_url = img
+                            if not image_url and "photos_link" in place:
+                                # photos_link is a link to another API call, log it for debugging
+                                if os.environ.get('DEBUG', '').lower() == 'true':
+                                    print(f"[DEBUG] Found photos_link in place: {place.get('photos_link')} (not a direct image URL)")
+                    
+                    # Try thumbnail_src which is common in Google search results
+                    if not image_url and "thumbnail_src" in result:
+                        thumb_src = result.get("thumbnail_src")
+                        if isinstance(thumb_src, str) and thumb_src.startswith(("http://", "https://")):
+                            image_url = thumb_src
+                    
+                    # Try photos_link (though this is usually a link to another API call, not a direct image)
+                    if not image_url and "photos_link" in result:
+                        photos_link = result.get("photos_link")
+                        if os.environ.get('DEBUG', '').lower() == 'true':
+                            print(f"[DEBUG] Found photos_link: {photos_link} (not a direct image URL)")
+                    
+                    # If no image found, try to get one from Google Images API
+                    # Note: This makes an additional API call per activity, which uses more credits
+                    # Consider limiting this to top N activities or making it optional
+                    if not image_url:
+                        try:
+                            image_url = self._get_image_from_google_images(name, destination)
+                            if image_url:
+                                if os.environ.get('DEBUG', '').lower() == 'true':
+                                    print(f"[DEBUG] Found image via Google Images API for '{name}'")
+                        except Exception as e:
+                            if os.environ.get('DEBUG', '').lower() == 'true':
+                                print(f"[DEBUG] Could not fetch image from Google Images: {str(e)}")
+                    
+                    # Always log final image_url to help debug
+                    print(f"[DEBUG] Final image_url for '{name[:50]}': {image_url or '(None)'}")
 
                     # Determine category
                     category = "general"
@@ -1129,8 +1261,12 @@ class SerpApiActivitiesConnector:
                         "max_group_size": None,
                         "languages": ["English"],
                         "link": link,
+                        "image_url": image_url,
                         "is_mock": False,
                     }
+                    
+                    # Debug: Log what we're about to return
+                    print(f"[DEBUG] Activity '{name[:50]}' - image_url in dict: {activity.get('image_url') or '(None)'}")
 
                     activities.append(activity)
 
@@ -1143,6 +1279,52 @@ class SerpApiActivitiesConnector:
         except Exception as e:
             print(f"  [ERROR] Error parsing SerpAPI activities response: {str(e)}")
             return []
+    
+    def _get_image_from_google_images(self, activity_name: str, destination: str) -> Optional[str]:
+        """
+        Try to get an image URL from Google Images API for an activity.
+        This is a fallback when regular Google search doesn't return images.
+        """
+        if not self.api_key:
+            return None
+        
+        try:
+            # Search Google Images for the activity
+            search_query = f"{activity_name} {destination}"
+            params = {
+                "engine": "google_images",
+                "api_key": self.api_key,
+                "q": search_query,
+                "hl": "en",
+                "gl": "us",
+                "num": 1,  # Just get the first image
+            }
+            
+            response = requests.get(
+                self.base_url, params=params, headers=self.headers, timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Google Images API returns images in "images_results" array
+                if "images_results" in data and len(data["images_results"]) > 0:
+                    first_image = data["images_results"][0]
+                    # Try different possible image URL fields
+                    image_url = (
+                        first_image.get("original")
+                        or first_image.get("link")
+                        or first_image.get("thumbnail")
+                        or first_image.get("image")
+                    )
+                    if image_url and isinstance(image_url, str) and image_url.startswith(("http://", "https://")):
+                        return image_url
+            
+            return None
+        except Exception as e:
+            # Silently fail - this is just a fallback
+            if os.environ.get('DEBUG', '').lower() == 'true':
+                print(f"[DEBUG] Error fetching image from Google Images: {str(e)}")
+            return None
 
     def _get_mock_activity_data(
         self, destination: str, categories: List[str]
