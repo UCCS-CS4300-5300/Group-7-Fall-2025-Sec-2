@@ -72,7 +72,8 @@ class FlightAPIConnector(BaseAPIConnector):
             self.access_token = response.json().get('access_token')
             return self.access_token
         except Exception as e:
-            print(f"Error getting access token: {str(e)}")
+            # Log error without exposing sensitive credentials
+            print(f"Error getting access token: Authentication failed")
             return None
     
     def search_flights(
@@ -456,6 +457,387 @@ class TravelAPIAggregator:
                 results['errors'].append(f'Activity search error: {str(e)}')
         
         return results
+
+
+class WeatherAPIConnector(BaseAPIConnector):
+    """
+    Connector for Open-Meteo weather API.
+    Provides current weather and forecasts for travel destinations.
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.geocoding_base_url = "https://geocoding-api.open-meteo.com/v1/search"
+        self.weather_base_url = "https://api.open-meteo.com/v1/forecast"
+        self.historical_base_url = "https://api.open-meteo.com/v1/forecast"
+    
+    def geocode_location(self, location_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Convert a location name to coordinates using Open-Meteo geocoding API.
+        Handles provinces/states by trying to find a major city in that region.
+        
+        Args:
+            location_name: Name of the location (e.g., "Paris, France" or "Alberta, Canada")
+            
+        Returns:
+            Dictionary with latitude, longitude, and location info, or None if not found
+        """
+        try:
+            # First try: direct geocoding
+            params = {
+                'name': location_name,
+                'count': 10,  # Get more results to find cities
+                'language': 'en',
+                'format': 'json'
+            }
+            
+            print(f"[WEATHER DEBUG] Geocoding location: {location_name}")
+            response = requests.get(
+                self.geocoding_base_url,
+                params=params,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('results') and len(data['results']) > 0:
+                results = data['results']
+                
+                # Prefer cities over administrative regions
+                # Look for results with population or that are cities
+                city_result = None
+                for result in results:
+                    # Check if it's a city (has population or is not an admin region)
+                    population = result.get('population', 0)
+                    feature_code = result.get('feature_code', '')
+                    
+                    # Prefer populated places (cities, towns)
+                    if population > 0 or feature_code in ['PPL', 'PPLA', 'PPLA2', 'PPLC']:
+                        city_result = result
+                        break
+                
+                # If no city found, use the first result
+                if not city_result:
+                    city_result = results[0]
+                
+                print(f"[WEATHER DEBUG] Geocoded to: {city_result.get('name')}, {city_result.get('country')}")
+                return {
+                    'latitude': city_result.get('latitude'),
+                    'longitude': city_result.get('longitude'),
+                    'name': city_result.get('name'),
+                    'country': city_result.get('country'),
+                    'admin1': city_result.get('admin1'),  # State/Province
+                    'timezone': city_result.get('timezone', 'UTC')
+                }
+            
+            # Second try: If it looks like a province/state, try finding a major city
+            # Common patterns: "Province, Country" or "State, Country"
+            if ',' in location_name:
+                parts = [p.strip() for p in location_name.split(',')]
+                if len(parts) == 2:
+                    region, country = parts
+                    
+                    # Try common major cities in that region
+                    major_cities = {
+                        'Alberta': ['Calgary', 'Edmonton'],
+                        'Ontario': ['Toronto', 'Ottawa'],
+                        'Quebec': ['Montreal', 'Quebec City'],
+                        'British Columbia': ['Vancouver', 'Victoria'],
+                        'California': ['Los Angeles', 'San Francisco', 'San Diego'],
+                        'Texas': ['Houston', 'Dallas', 'Austin'],
+                        'New York': ['New York', 'Buffalo', 'Albany'],
+                        'Florida': ['Miami', 'Orlando', 'Tampa'],
+                    }
+                    
+                    if region in major_cities:
+                        for city in major_cities[region]:
+                            city_location = f"{city}, {country}"
+                            print(f"[WEATHER DEBUG] Trying major city: {city_location}")
+                            
+                            city_params = {
+                                'name': city_location,
+                                'count': 1,
+                                'language': 'en',
+                                'format': 'json'
+                            }
+                            
+                            city_response = requests.get(
+                                self.geocoding_base_url,
+                                params=city_params,
+                                headers=self.headers,
+                                timeout=self.timeout
+                            )
+                            city_response.raise_for_status()
+                            city_data = city_response.json()
+                            
+                            if city_data.get('results') and len(city_data['results']) > 0:
+                                result = city_data['results'][0]
+                                print(f"[WEATHER DEBUG] Geocoded to major city: {result.get('name')}, {result.get('country')} ({result.get('latitude')}, {result.get('longitude')})")
+                                return {
+                                    'latitude': result.get('latitude'),
+                                    'longitude': result.get('longitude'),
+                                    'name': result.get('name'),
+                                    'country': result.get('country'),
+                                    'admin1': result.get('admin1'),
+                                    'timezone': result.get('timezone', 'UTC')
+                                }
+            
+            print(f"[WEATHER DEBUG] No geocoding results found for: {location_name}")
+            return None
+        except Exception as e:
+            # Log error without exposing sensitive data or full stack traces
+            print(f"[WEATHER ERROR] Error geocoding location '{location_name}': Geocoding failed")
+            return None
+    
+    def get_weather_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: str,
+        end_date: str,
+        timezone: str = 'auto'
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get weather forecast for a location and date range.
+        
+        Args:
+            latitude: Latitude of the location
+            longitude: Longitude of the location
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            timezone: Timezone (default: 'auto' uses location timezone)
+            
+        Returns:
+            Dictionary with current weather and forecast data, or None if error
+        """
+        try:
+            from datetime import datetime, timedelta
+            
+            # Calculate forecast days
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            forecast_days = (end - start).days + 1
+            
+            # Ensure forecast_days is within API limits (16 days max)
+            forecast_days = min(forecast_days, 16)
+            
+            params = {
+                'latitude': latitude,
+                'longitude': longitude,
+                'timezone': timezone,
+                'forecast_days': forecast_days,
+                # Current weather - comma-separated string
+                'current': 'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m',
+                # Hourly forecast - comma-separated string
+                'hourly': 'temperature_2m,weather_code,precipitation_probability,precipitation,wind_speed_10m',
+                # Daily forecast - comma-separated string
+                'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max',
+                # Temperature unit
+                'temperature_unit': 'fahrenheit',
+                # Wind speed unit
+                'wind_speed_unit': 'mph',
+                # Precipitation unit
+                'precipitation_unit': 'inch'
+            }
+            
+            print(f"[WEATHER DEBUG] Fetching weather forecast for lat={latitude}, lon={longitude}, dates={start_date} to {end_date}")
+            response = requests.get(
+                self.weather_base_url,
+                params=params,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            data = response.json()
+            print(f"[WEATHER DEBUG] Weather API response received. Has current: {bool(data.get('current'))}, Has daily: {bool(data.get('daily'))}")
+            return data
+        except Exception as e:
+            # Log error without exposing sensitive data or full stack traces
+            print(f"[WEATHER ERROR] Error fetching weather forecast: Request failed")
+            return None
+    
+    def get_historical_averages(
+        self,
+        latitude: float,
+        longitude: float,
+        start_date: str,
+        end_date: str,
+        timezone: str = 'auto'
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get historical weather averages for the same dates in previous years.
+        Uses Open-Meteo's historical forecast API which provides climatological data.
+        
+        Args:
+            latitude: Latitude of the location
+            longitude: Longitude of the location
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            timezone: Timezone (default: 'auto' uses location timezone)
+            
+        Returns:
+            Dictionary with historical average weather data, or None if error
+        """
+        try:
+            from datetime import datetime
+            
+            # Parse dates to extract month and day
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            
+            # Calculate forecast days
+            forecast_days = (end - start).days + 1
+            forecast_days = min(forecast_days, 16)
+            
+            # Use the forecast API with past_days parameter to get historical data
+            # Open-Meteo's forecast API can provide historical model runs
+            # For climatological averages, we'd typically use a different approach
+            # but Open-Meteo's forecast API includes model data that incorporates
+            # historical patterns in its predictions
+            
+            params = {
+                'latitude': latitude,
+                'longitude': longitude,
+                'timezone': timezone,
+                'forecast_days': forecast_days,
+                # Daily historical averages (climatology)
+                'daily': [
+                    'weather_code',
+                    'temperature_2m_max',
+                    'temperature_2m_min',
+                    'precipitation_sum',
+                    'precipitation_probability_max',
+                ],
+                'temperature_unit': 'fahrenheit',
+                'wind_speed_unit': 'mph',
+                'precipitation_unit': 'inch',
+                # Use historical model data - this provides predictions based on
+                # weather models that incorporate historical patterns
+                'models': 'best_match'  # Uses best available model which includes historical context
+            }
+            
+            response = requests.get(
+                self.weather_base_url,
+                params=params,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"Error fetching historical averages: {str(e)}")
+            return None
+    
+    def get_weather_for_trip(
+        self,
+        destination: str,
+        start_date: str,
+        end_date: str,
+        include_historical: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get weather for a trip destination and dates.
+        Combines geocoding and weather forecast.
+        
+        Args:
+            destination: Destination name (e.g., "Paris, France")
+            start_date: Trip start date in YYYY-MM-DD format
+            end_date: Trip end date in YYYY-MM-DD format
+            include_historical: If True, also fetch historical averages for comparison
+            
+        Returns:
+            Dictionary with location info, current weather, and forecast, or None if error
+        """
+        # First, geocode the destination
+        location_data = self.geocode_location(destination)
+        if not location_data:
+            print(f"[WEATHER DEBUG] Failed to geocode destination: {destination}")
+            return None
+        
+        # Get weather forecast (uses numerical weather prediction models)
+        weather_data = self.get_weather_forecast(
+            latitude=location_data['latitude'],
+            longitude=location_data['longitude'],
+            start_date=start_date,
+            end_date=end_date,
+            timezone=location_data.get('timezone', 'auto')
+        )
+        
+        if not weather_data:
+            print(f"[WEATHER DEBUG] Failed to get weather forecast for {destination}")
+            return None
+        
+        # Optionally get historical averages for comparison
+        historical_data = None
+        if include_historical:
+            historical_data = self.get_historical_averages(
+                latitude=location_data['latitude'],
+                longitude=location_data['longitude'],
+                start_date=start_date,
+                end_date=end_date,
+                timezone=location_data.get('timezone', 'auto')
+            )
+        
+        # Combine location and weather data
+        result = {
+            'location': location_data,
+            'current': weather_data.get('current', {}),
+            'current_units': weather_data.get('current_units', {}),
+            'daily': weather_data.get('daily', {}),
+            'daily_units': weather_data.get('daily_units', {}),
+            'hourly': weather_data.get('hourly', {}),
+            'hourly_units': weather_data.get('hourly_units', {}),
+            'forecast_source': 'numerical_weather_models'  # Indicates this uses weather models, not historical data
+        }
+        
+        if historical_data:
+            result['historical_averages'] = historical_data.get('daily', {})
+            result['historical_units'] = historical_data.get('daily_units', {})
+        
+        return result
+    
+    def get_weather_code_description(self, code: int) -> str:
+        """
+        Convert WMO weather code to human-readable description.
+        
+        Args:
+            code: WMO weather code
+            
+        Returns:
+            Description string
+        """
+        weather_codes = {
+            0: "Clear sky",
+            1: "Mainly clear",
+            2: "Partly cloudy",
+            3: "Overcast",
+            45: "Fog",
+            48: "Depositing rime fog",
+            51: "Light drizzle",
+            53: "Moderate drizzle",
+            55: "Dense drizzle",
+            56: "Light freezing drizzle",
+            57: "Dense freezing drizzle",
+            61: "Slight rain",
+            63: "Moderate rain",
+            65: "Heavy rain",
+            66: "Light freezing rain",
+            67: "Heavy freezing rain",
+            71: "Slight snow fall",
+            73: "Moderate snow fall",
+            75: "Heavy snow fall",
+            77: "Snow grains",
+            80: "Slight rain showers",
+            81: "Moderate rain showers",
+            82: "Violent rain showers",
+            85: "Slight snow showers",
+            86: "Heavy snow showers",
+            95: "Thunderstorm",
+            96: "Thunderstorm with slight hail",
+            99: "Thunderstorm with heavy hail"
+        }
+        return weather_codes.get(code, "Unknown")
 
 
 

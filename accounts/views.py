@@ -77,7 +77,6 @@ def dashboard_view(request):
             phone_number=''  # Empty phone number for users created outside signup
         )
     
-    saved_itineraries = Itinerary.objects.filter(user=request.user, is_active=False)
     active_trips = Itinerary.objects.filter(user=request.user, is_active=True)
     
     # Get user's groups for trip planning
@@ -116,34 +115,103 @@ def dashboard_view(request):
     
     # Prepare trip data with activities for each accepted trip
     from ai_implementation.models import ActivityResult
+    from ai_implementation.api_connectors import WeatherAPIConnector
     import json as json_module
+    from datetime import datetime
+    
+    # Create a mapping of group IDs to user's role in that group
+    group_admin_status = {}
+    for group_member in user_groups:
+        group_admin_status[group_member.group_id] = group_member.role == 'admin'
+    
+    # Initialize weather connector
+    weather_connector = WeatherAPIConnector()
     
     accepted_trips_data = []
     for trip_option in accepted_group_trips:
-        # Get activities for this trip
+        # Get all activities for this trip's destination
         activities = []
-        if trip_option.search and trip_option.selected_activities:
+        if trip_option.search:
+            # Get all activities from the search that match the destination
+            activity_query = ActivityResult.objects.filter(search=trip_option.search)
+            
+            # Filter by destination if the option has one
+            if trip_option.destination:
+                activity_query = activity_query.filter(
+                    searched_destination=trip_option.destination
+                )
+            
+            # Order by AI score and rating, limit to top 20 for display
+            activities = list(activity_query.order_by('-ai_score', '-rating')[:20])
+        
+        # Check if user is admin of this trip's group
+        is_admin = group_admin_status.get(trip_option.group_id, False)
+        
+        # Get weather data for this trip
+        weather_data = None
+        if trip_option.destination and trip_option.search:
             try:
-                activity_ids = json_module.loads(trip_option.selected_activities)
-                if activity_ids:
-                    activities = list(ActivityResult.objects.filter(
-                        search=trip_option.search,
-                        external_id__in=activity_ids
-                    )[:5])  # Limit to 5 activities for display
-            except:
-                pass
+                start_date = trip_option.search.start_date.strftime('%Y-%m-%d')
+                end_date = trip_option.search.end_date.strftime('%Y-%m-%d')
+                print(f"[WEATHER DEBUG] Fetching weather for destination: {trip_option.destination}, dates: {start_date} to {end_date}")
+                weather_data = weather_connector.get_weather_for_trip(
+                    destination=trip_option.destination,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
+                if weather_data:
+                    print(f"[WEATHER DEBUG] Weather data retrieved successfully for {trip_option.destination}")
+                    print(f"[WEATHER DEBUG] Has current: {bool(weather_data.get('current'))}, Has daily: {bool(weather_data.get('daily'))}")
+                else:
+                    print(f"[WEATHER DEBUG] Weather data is None for {trip_option.destination}")
+                
+                # Format daily forecast data for easier template rendering
+                if weather_data and weather_data.get('daily'):
+                    daily = weather_data['daily']
+                    daily_units = weather_data.get('daily_units', {})
+                    formatted_daily = []
+                    
+                    if daily.get('time'):
+                        print(f"[WEATHER DEBUG] Formatting {len(daily['time'])} days of forecast data")
+                        for idx, date_str in enumerate(daily['time']):
+                            day_data = {
+                                'date': date_str,
+                                'weather_code': daily.get('weather_code', [])[idx] if daily.get('weather_code') and idx < len(daily.get('weather_code', [])) else None,
+                                'temp_max': daily.get('temperature_2m_max', [])[idx] if daily.get('temperature_2m_max') and idx < len(daily.get('temperature_2m_max', [])) else None,
+                                'temp_min': daily.get('temperature_2m_min', [])[idx] if daily.get('temperature_2m_min') and idx < len(daily.get('temperature_2m_min', [])) else None,
+                                'precipitation': daily.get('precipitation_sum', [])[idx] if daily.get('precipitation_sum') and idx < len(daily.get('precipitation_sum', [])) else None,
+                                'precipitation_probability': daily.get('precipitation_probability_max', [])[idx] if daily.get('precipitation_probability_max') and idx < len(daily.get('precipitation_probability_max', [])) else None,
+                                'wind_speed': daily.get('wind_speed_10m_max', [])[idx] if daily.get('wind_speed_10m_max') and idx < len(daily.get('wind_speed_10m_max', [])) else None,
+                                'wind_gusts': daily.get('wind_gusts_10m_max', [])[idx] if daily.get('wind_gusts_10m_max') and idx < len(daily.get('wind_gusts_10m_max', [])) else None,
+                            }
+                            formatted_daily.append(day_data)
+                    
+                    weather_data['daily_formatted'] = formatted_daily
+                    weather_data['daily_units'] = daily_units
+                    print(f"[WEATHER DEBUG] Formatted {len(formatted_daily)} days of forecast")
+                elif weather_data:
+                    print(f"[WEATHER DEBUG] Weather data exists but no daily forecast available")
+            except Exception as e:
+                import traceback
+                print(f"[WEATHER ERROR] Error fetching weather for trip {trip_option.id}: {str(e)}")
+                print(f"[WEATHER ERROR] Traceback: {traceback.format_exc()}")
+                weather_data = None
+        else:
+            print(f"[WEATHER DEBUG] Skipping weather - destination: {trip_option.destination}, search: {trip_option.search}")
         
         accepted_trips_data.append({
             'option': trip_option,
             'activities': activities,
+            'is_admin': is_admin,
+            'weather': weather_data,
         })
     
     context = {
         'user_profile': user_profile,
-        'saved_itineraries': saved_itineraries,
         'active_trips': active_trips,
         'user_groups': user_groups,
-        'accepted_group_trips': accepted_trips_data,  # This is the list with 'option' and 'activities' keys
+        'accepted_group_trips': accepted_trips_data,  # This is the list with 'option', 'activities', and 'is_admin' keys
     }
     
     print(f"[DEBUG] Context - accepted_group_trips count: {len(accepted_trips_data)}")

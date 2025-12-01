@@ -26,14 +26,16 @@ A Django-based user account management system for the GroupGo travel application
 
 2. **Create a virtual environment (recommended):**
    ```bash
-   python -m venv venv
+   python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
+   **IMPORTANT:** Always activate the virtual environment before running Django commands. You should see `(venv)` in your terminal prompt when it's activated.
 
 3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
+   **Note:** If you get "ModuleNotFoundError" errors, make sure your virtual environment is activated!
 
 4. **Run database migrations:**
    ```bash
@@ -48,8 +50,11 @@ A Django-based user account management system for the GroupGo travel application
 
 6. **Start the development server:**
    ```bash
+   # Make sure venv is activated first!
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    python manage.py runserver
    ```
+   **Tip:** If you forget to activate the venv, Django will use your system Python and you'll get import errors. Always check that `(venv)` appears in your terminal prompt.
 
 7. **Access the application:**
    - Homepage: https://groupgo.decisiveonion.com/
@@ -155,6 +160,6 @@ groupgo/
 
 ## AI Documentation
 
-- Cursor AI was used and assisted in the planning, implementation and correction of code for the following features: Email verification, Itinerary sharing, Group trip planning and helped plan and correct the code for Duffel API integration.
+- Cursor AI was used and assisted in the planning, implementation and correction of code for the following features: Email verification, Itinerary sharing, Group trip planning and helped plan and correct the code for SerpAPI integration. Cursor was also used to help implement the usage of Open-Meteo API to provide current weather and forcasted weather based on historcal data for a group's planned trip.
 - Curosor has helped correct and adjust the logic for the trip voting functionality and the debugging of presenting selected itineraries on each users' dashboard.
 

@@ -103,112 +103,145 @@ def group_detail(request, group_id):
     # Get preference count for "Find Your Trip" button
     prefs_count = TripPreference.objects.filter(group=group, is_completed=True).count()
     
+    # Get accepted/selected trips (active trips that were unanimously selected)
+    # Check this FIRST - if there are accepted trips, voting should be closed
+    accepted_trips = GroupItineraryOption.objects.filter(
+        group=group,
+        status='accepted',
+        is_winner=True
+    ).select_related(
+        'selected_flight', 
+        'selected_hotel',
+        'search'
+    ).order_by('-created_at')
+    
     # Check for active voting options
     voting_options = None
     user_vote = None
     votes_cast = 0
     voting_complete = False
     
-    try:
-        # Get latest consensus with options
-        consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
-        
-        if consensus:
-            # Get the active voting option (only one shown at a time)
-            active_option = GroupItineraryOption.objects.filter(
-                group=group,
-                consensus=consensus,
-                status='active'
-            ).select_related('selected_flight', 'selected_hotel').first()
+    # Only show voting options if there are NO accepted trips
+    # Once a trip is selected, voting should end
+    if not accepted_trips.exists():
+        try:
+            # Get latest consensus with options
+            consensus = GroupConsensus.objects.filter(group=group, is_active=True).order_by('-created_at').first()
             
-            # Also get pending options count for display
-            pending_count = GroupItineraryOption.objects.filter(
-                group=group,
-                consensus=consensus,
-                status='pending'
-            ).count()
-            
-            rejected_count = GroupItineraryOption.objects.filter(
-                group=group,
-                consensus=consensus,
-                status='rejected'
-            ).count()
-            
-            if active_option:
-                # Get activities for the active option and update vote count
-                voting_options = []
-                option = active_option
+            if consensus:
+                # Get the active voting option (only one shown at a time)
+                active_option = GroupItineraryOption.objects.filter(
+                    group=group,
+                    consensus=consensus,
+                    status='active'
+                ).select_related('selected_flight', 'selected_hotel').first()
                 
-                # Recalculate vote count from actual votes to ensure accuracy
-                actual_vote_count = ItineraryVote.objects.filter(option=option).count()
-                if option.vote_count != actual_vote_count:
-                    option.vote_count = actual_vote_count
-                    option.save(update_fields=['vote_count'])
+                # Also get pending options count for display
+                pending_count = GroupItineraryOption.objects.filter(
+                    group=group,
+                    consensus=consensus,
+                    status='pending'
+                ).count()
                 
-                activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
+                rejected_count = GroupItineraryOption.objects.filter(
+                    group=group,
+                    consensus=consensus,
+                    status='rejected'
+                ).count()
                 
-                # Get activities matching this option's destination
-                if option.search and activity_ids:
-                    all_activities = ActivityResult.objects.filter(
-                        search=option.search,
-                        external_id__in=activity_ids
-                    )
+                if active_option:
+                    # Get activities for the active option and update vote count
+                    voting_options = []
+                    option = active_option
                     
-                    # Filter activities to match option's destination
-                    activities = []
-                    for activity in all_activities:
-                        try:
-                            activity_raw = json.loads(activity.raw_data)
-                            activity_destination = activity_raw.get('searched_destination', '')
+                    # Recalculate vote count from actual votes to ensure accuracy
+                    actual_vote_count = ItineraryVote.objects.filter(option=option).count()
+                    if option.vote_count != actual_vote_count:
+                        option.vote_count = actual_vote_count
+                        option.save(update_fields=['vote_count'])
+                    
+                    activity_ids = json.loads(option.selected_activities) if option.selected_activities else []
+                    
+                    # Get activities matching this option's destination
+                    if option.search and activity_ids:
+                        all_activities = ActivityResult.objects.filter(
+                            search=option.search,
+                            external_id__in=activity_ids
+                        )
+                        
+                        # Filter activities to match option's destination
+                        activities = []
+                        for activity in all_activities:
+                            activity_destination = activity.searched_destination or ""
                             
-                            # If option has a destination, filter by it
+                            # If option has a destination, filter by it strictly
                             if option.destination:
                                 if activity_destination == option.destination:
                                     activities.append(activity)
                             else:
                                 # No destination filtering - include all activities
                                 activities.append(activity)
-                        except:
-                            # If can't parse raw_data, include activity
-                            activities.append(activity)
+                        
+                        # Do NOT fall back to showing all activities - only show matching ones
+                    else:
+                        activities = []
                     
-                    # If no activities after filtering, fall back to showing all
-                    if not activities and all_activities:
-                        activities = list(all_activities)
-                else:
-                    activities = []
-                
-                voting_options.append({
-                    'option': option,
-                    'activities': activities
-                })
-                
-                # Check if user has voted
-                if user_is_member:
-                    user_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
-                
-                # Get voting stats
-                votes_cast = ItineraryVote.objects.filter(group=group).count()
-                total_members = members.count()
-                voting_complete = votes_cast >= total_members
-                
-                # Check if current active option has unanimous "yes" vote (exclude ROLL_AGAIN votes)
-                yes_votes_for_active = ItineraryVote.objects.filter(
-                    group=group, 
-                    option=active_option
-                ).exclude(comment="ROLL_AGAIN").count()
-                is_unanimous = (yes_votes_for_active == total_members) and (votes_cast == total_members)
-                
-                # Store additional context
-                voting_context = {
-                    'pending_count': pending_count,
-                    'rejected_count': rejected_count,
-                    'is_unanimous': is_unanimous,
-                    'votes_for_active': yes_votes_for_active,
-                }
-    except Exception as e:
-        print(f"Error fetching voting options: {str(e)}")
-        voting_options = None
+                    voting_options.append({
+                        'option': option,
+                        'activities': activities
+                    })
+                    
+                    # Check if user has voted
+                    if user_is_member:
+                        user_vote = ItineraryVote.objects.filter(group=group, user=request.user).first()
+                    
+                    # Get voting stats
+                    votes_cast = ItineraryVote.objects.filter(group=group).count()
+                    total_members = members.count()
+                    voting_complete = votes_cast >= total_members
+                    
+                    # Check if current active option has unanimous "yes" vote (exclude ROLL_AGAIN votes)
+                    yes_votes_for_active = ItineraryVote.objects.filter(
+                        group=group, 
+                        option=active_option
+                    ).exclude(comment="ROLL_AGAIN").count()
+                    is_unanimous = (yes_votes_for_active == total_members) and (votes_cast == total_members)
+                    
+                    # Store additional context
+                    voting_context = {
+                        'pending_count': pending_count,
+                        'rejected_count': rejected_count,
+                        'is_unanimous': is_unanimous,
+                        'votes_for_active': yes_votes_for_active,
+                    }
+        except Exception as e:
+            print(f"Error fetching voting options: {str(e)}")
+            voting_options = None
+    
+    # Prepare accepted trips data for display
+    accepted_trips_data = []
+    
+    # Prepare trip data with activities for each accepted trip
+    for trip_option in accepted_trips:
+        # Get all activities for this trip's destination
+        activities = []
+        if trip_option.search:
+            # Get all activities from the search that match the destination
+            activity_query = ActivityResult.objects.filter(search=trip_option.search)
+            
+            # Filter by destination if the option has one
+            if trip_option.destination:
+                activity_query = activity_query.filter(
+                    searched_destination=trip_option.destination
+                )
+            
+            # Order by AI score and rating, limit to top 20 for display
+            activities = list(activity_query.order_by('-ai_score', '-rating')[:20])
+        
+        accepted_trips_data.append({
+            'option': trip_option,
+            'activities': activities,
+        })
     
     context = {
         'group': group,
@@ -225,6 +258,7 @@ def group_detail(request, group_id):
         'votes_cast': votes_cast,
         'voting_complete': voting_complete,
         'today': date.today(),  # For date picker minimum date
+        'accepted_trips': accepted_trips_data,  # Active trips that were selected (list of dicts with 'option' and 'activities')
     }
     
     # Add voting context if available
@@ -644,8 +678,76 @@ def edit_group_trip(request, group_id, itinerary_id):
     except Itinerary.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        # Log the full error for debugging, but don't expose details to users
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error editing group trip: {str(e)}', exc_info=True)
+        return JsonResponse({'success': False, 'error': 'An error occurred while editing the trip. Please try again.'})
 
+
+@login_required
+@require_http_methods(["POST"])
+def delete_active_trip(request, group_id, option_id):
+    """Delete an active trip (GroupItineraryOption) - admin only"""
+    from ai_implementation.models import GroupItineraryOption
+    
+    group = get_object_or_404(TravelGroup, id=group_id)
+    
+    # Check if user is a member
+    try:
+        membership = GroupMember.objects.get(group=group, user=request.user)
+    except GroupMember.DoesNotExist:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'You are not a member of this group.'})
+        messages.error(request, 'You are not a member of this group.')
+        return redirect('travel_groups:group_list')
+    
+    # Check if user is admin
+    if membership.role != 'admin':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Only group admins can delete active trips.'})
+        messages.error(request, 'Only group admins can delete active trips.')
+        return redirect('travel_groups:group_detail', group_id=group.id)
+    
+    # Get the active trip option
+    try:
+        option = GroupItineraryOption.objects.get(
+            id=option_id,
+            group=group,
+            status='accepted',
+            is_winner=True
+        )
+        
+        trip_title = option.title
+        option_id_str = str(option.id)
+        
+        # Delete the option
+        option.delete()
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'message': f'Active trip "{trip_title}" has been deleted successfully.'
+            })
+        
+        messages.success(request, f'Active trip "{trip_title}" has been deleted successfully.')
+        return redirect('travel_groups:group_detail', group_id=group.id)
+        
+    except GroupItineraryOption.DoesNotExist:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Active trip not found.'})
+        messages.error(request, 'Active trip not found.')
+        return redirect('travel_groups:group_detail', group_id=group.id)
+    except Exception as e:
+        # Log the full error for debugging, but don't expose details to users
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error deleting active trip: {str(e)}', exc_info=True)
+        
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'An error occurred while deleting the active trip.'})
+        messages.error(request, 'An error occurred while deleting the active trip. Please try again.')
+        return redirect('travel_groups:group_detail', group_id=group.id)
 
 @login_required
 @require_http_methods(["POST", "GET"])

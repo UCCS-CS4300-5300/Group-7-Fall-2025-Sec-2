@@ -189,9 +189,10 @@ Include only the top 5 recommendations for each category.
         hotel_results: List[Dict[str, Any]],
         activity_results: List[Dict[str, Any]],
         selected_dates: Dict[str, Any] = None,
+        unique_destinations: List[str] = None,
     ) -> Dict[str, Any]:
         """
-        Generate 3 different itinerary options for group voting.
+        Generate 5-8 different itinerary options for group voting.
         Each option balances member preferences differently.
 
         Args:
@@ -202,7 +203,7 @@ Include only the top 5 recommendations for each category.
             selected_dates: Optional dict with start_date, end_date, duration_days
 
         Returns:
-            Dictionary containing 3 different itinerary options with reasoning
+            Dictionary containing 5-8 different itinerary options with reasoning
         """
 
         # Calculate budget statistics from all members
@@ -236,10 +237,28 @@ Include only the top 5 recommendations for each category.
             median_budget = 3000
             max_budget = 5000
 
+        # Extract unique destinations if not provided
+        if unique_destinations is None:
+            unique_destinations = list(set([
+                pref.get("destination", "").strip()
+                for pref in member_preferences
+                if pref.get("destination", "").strip()
+            ]))
+        
         # Build date info string
         date_info = ""
         if selected_dates:
             date_info = f"Dates: {selected_dates.get('start_date')} to {selected_dates.get('end_date')} ({selected_dates.get('duration_days')}d). Match these dates."
+        
+        # Build destination requirement string
+        destination_requirement = ""
+        if unique_destinations and len(unique_destinations) > 1:
+            min_options_per_dest = 3
+            total_min_options = len(unique_destinations) * min_options_per_dest
+            destination_requirement = f"\n\n🚨 CRITICAL DESTINATION DISTRIBUTION REQUIREMENT 🚨\n- You have {len(unique_destinations)} DIFFERENT destinations: {', '.join(unique_destinations)}\n- You MUST create at least {min_options_per_dest} options for EACH destination\n- DO NOT create all options for the same destination - you MUST distribute across ALL destinations\n- Example: If destinations are [Paris, Tokyo], create at least 3 options for Paris AND at least 3 options for Tokyo\n- Each destination's options should vary in budget (budget, balanced, premium)\n- Use the 'searched_destination' field in flight/hotel data to match destinations correctly\n- Minimum total: {total_min_options} options (at least {min_options_per_dest} per destination), maximum: 8 total"
+        elif unique_destinations and len(unique_destinations) == 1:
+            # Single destination - just ensure variety
+            destination_requirement = f"\n- Create 5-8 diverse options for {unique_destinations[0]} with different budget tiers"
 
         # OPTIMIZATION: Summarize member preferences concisely
         member_summary = []
@@ -297,8 +316,10 @@ DATA:
 
 REQUIREMENTS:
 - Balance ALL {len(member_preferences)} members' preferences
+{destination_requirement}
 - Create 5-8 DIVERSE options with different destinations, budgets, and styles
-- Use DIFFERENT destinations per option when possible (check "searched_destination" field)
+- CRITICAL: If there are multiple unique destinations, you MUST create options for EACH destination - do not put all options in one destination
+- Use DIFFERENT destinations per option when multiple destinations exist (check "searched_destination" field in flight/hotel data)
 - Vary budgets: some at ${min_budget:.2f}, some at ${median_budget:.2f}, some at ${max_budget:.2f}
 - Include options that prioritize different members' preferences
 - Explain which member's destination each option prioritizes
@@ -307,7 +328,7 @@ JSON OUTPUT:
 {{"options":[{{"option_letter":"A","title":"...","description":"1-2 sentences","intended_destination":"exact destination name from searched_destination field","selected_flight_id":"exact id","selected_hotel_id":"exact id","selected_activity_ids":["exact ids"],"estimated_total_cost":0.00,"cost_per_person":0.00,"ai_reasoning":"Why this works for ALL members","compromise_explanation":"How this addresses EACH member by name","pros":["...","...","..."],"cons":["...","..."]}},{{"option_letter":"B",...}},{{"option_letter":"C",...}},{{"option_letter":"D",...}},{{"option_letter":"E",...}},{{"option_letter":"F",...}},{{"option_letter":"G",...}},{{"option_letter":"H",...}}],
 "voting_guidance":"...","consensus_summary":"..."}}
 
-CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provided data. Mention ALL {len(member_preferences)} members in reasoning. Vary budgets and destinations."""
+CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provided data. Mention ALL {len(member_preferences)} members in reasoning. Vary budgets and destinations. {destination_requirement}"""
 
         # Log budget analysis for debugging
         print(f"\n💰 BUDGET ANALYSIS:")
@@ -322,10 +343,15 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
             )
 
         try:
+            system_message = "Travel AI: Create 5-8 diverse itinerary options balancing all group preferences. "
+            if unique_destinations and len(unique_destinations) > 1:
+                system_message += f"CRITICAL: You have {len(unique_destinations)} different destinations ({', '.join(unique_destinations)}). You MUST create options for EACH destination - do not put all options in one destination. "
+            system_message += "Return valid JSON matching exact structure."
+            
             messages = [
                 {
                     "role": "system",
-                    "content": "Travel AI: Create 3 itinerary options balancing all group preferences. Return valid JSON matching exact structure.",
+                    "content": system_message,
                 },
                 {"role": "user", "content": prompt},
             ]
@@ -513,7 +539,7 @@ CRITICAL: Generate 5-8 options (use letters A-H). Use ONLY exact IDs from provid
             len(member_preferences),
             1,
         )
-        max_options = min(3, max_options)
+        max_options = min(8, max_options)  # Allow up to 8 options (A-H)
 
         fallback_options: List[Dict[str, Any]] = []
         for idx in range(max_options):

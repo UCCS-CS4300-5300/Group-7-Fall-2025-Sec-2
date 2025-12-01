@@ -1,0 +1,219 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+jobs:
+  verify-pr-merge:
+    name: Verify code came from merged PR
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.find-pr.outputs.pr_number }}
+      should_deploy: ${{ steps.find-pr.outputs.should_deploy }}
+    steps:
+      - name: Find merged PR for this commit
+        uses: actions/github-script@v7
+        id: find-pr
+        with:
+          script: |
+            // Get recently merged PRs
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: 'main',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 10
+            });
+
+            // Find PR that matches this commit
+            const commitSha = context.sha;
+            const pr = pulls.find(p => {
+              if (!p.merged_at) return false;
+              
+              // Check merge commit SHA (for merge commits)
+              if (p.merge_commit_sha === commitSha) return true;
+              
+              // Check head SHA for squash/rebase merges (within last hour)
+              const mergedTime = new Date(p.merged_at).getTime();
+              const oneHourAgo = Date.now() - 3600000;
+              if (p.head.sha === commitSha && mergedTime > oneHourAgo) return true;
+              
+              return false;
+            });
+
+            // If no PR found, check commit message for merge pattern
+            const commitMessage = context.payload.head_commit?.message || '';
+            const isMergeCommit = commitMessage.match(/#\d+|Merge pull request/);
+
+            if (!pr && !isMergeCommit) {
+              core.setFailed('❌ Deployment only allowed from merged pull requests');
+              return;
+            }
+
+            // Extract PR number
+            const prNumber = pr?.number || commitMessage.match(/#(\d+)/)?.[1];
+
+            if (prNumber) {
+              console.log(`✅ Found merged PR #${prNumber}`);
+              core.setOutput('pr_number', prNumber);
+              core.setOutput('should_deploy', 'true');
+            }
+
+  wait-for-workflows:
+    name: Wait for required workflows to complete
+    needs: verify-pr-merge
+    if: needs.verify-pr-merge.outputs.should_deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Test Coverage
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const waitForWorkflow = async (workflowId, timeout = 3600000) => {
+              const startTime = Date.now();
+              const checkInterval = 10000; // 10 seconds
+              
+              while (Date.now() - startTime < timeout) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflowId,
+                  branch: 'main',
+                  per_page: 1
+                });
+                
+                const run = data.workflow_runs[0];
+                
+                // Check if this run is for our commit
+                if (run?.head_sha === context.sha) {
+                  if (run.status === 'completed') {
+                    if (run.conclusion === 'success') {
+                      console.log(`✅ ${workflowId} completed successfully`);
+                      return true;
+                    }
+                    core.setFailed(`❌ ${workflowId} ${run.conclusion}`);
+                    return;
+                  }
+                  console.log(`⏳ ${workflowId} status: ${run.status}`);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+              }
+              
+              core.setFailed(`⏱️ Timeout waiting for ${workflowId}`);
+            };
+
+            await waitForWorkflow('test-coverage.yml');
+
+      - name: Wait for Linting
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const waitForWorkflow = async (workflowId, timeout = 3600000) => {
+              const startTime = Date.now();
+              const checkInterval = 10000; // 10 seconds
+              
+              while (Date.now() - startTime < timeout) {
+                const { data } = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflowId,
+                  branch: 'main',
+                  per_page: 1
+                });
+                
+                const run = data.workflow_runs[0];
+                
+                // Check if this run is for our commit
+                if (run?.head_sha === context.sha) {
+                  if (run.status === 'completed') {
+                    if (run.conclusion === 'success') {
+                      console.log(`✅ ${workflowId} completed successfully`);
+                      return true;
+                    }
+                    core.setFailed(`❌ ${workflowId} ${run.conclusion}`);
+                    return;
+                  }
+                  console.log(`⏳ ${workflowId} status: ${run.status}`);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, checkInterval));
+              }
+              
+              core.setFailed(`⏱️ Timeout waiting for ${workflowId}`);
+            };
+
+            await waitForWorkflow('flake8-linting.yml');
+
+      - name: Verify AI Code Review passed
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ needs.verify-pr-merge.outputs.pr_number }}
+        with:
+          script: |
+            const prNumber = process.env.PR_NUMBER;
+            let workflows;
+
+            // Get workflow runs for the PR (if we have PR number) or search recent runs
+            if (prNumber) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: parseInt(prNumber)
+              });
+              
+              console.log(`Checking AI Code Review for PR #${prNumber}`);
+              
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'ai-code-review.yml',
+                head_sha: pr.head.sha,
+                per_page: 10
+              });
+              
+              workflows = data;
+            } else {
+              // Fallback: search recent workflow runs
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'ai-code-review.yml',
+                per_page: 20
+              });
+              
+              workflows = data;
+            }
+
+            // Find completed workflow run
+            const completedRun = workflows.workflow_runs.find(r => r.status === 'completed');
+
+            if (!completedRun) {
+              core.setFailed('❌ AI Code Review workflow did not complete');
+              return;
+            }
+
+            if (completedRun.conclusion !== 'success') {
+              core.setFailed(`❌ AI Code Review failed: ${completedRun.conclusion}`);
+              return;
+            }
+
+            console.log(`✅ AI Code Review workflow passed`);
+
+  deploy:
+    name: Deploy to Render
+    needs: wait-for-workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

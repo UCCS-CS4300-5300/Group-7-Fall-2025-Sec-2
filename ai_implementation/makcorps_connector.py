@@ -245,6 +245,33 @@ class MakcorpsHotelConnector:
                         or hotel_data.get("num_reviews", 0)
                     )
 
+                    # Extract image URL (if available from Makcorps)
+                    image_url = None
+                    
+                    # Try multiple possible image fields
+                    for field in ["image_url", "image", "photo", "thumbnail", "imageUrl", "image_url"]:
+                        if field in hotel_data:
+                            img_val = hotel_data.get(field)
+                            if isinstance(img_val, str) and img_val.startswith(("http://", "https://")):
+                                image_url = img_val
+                                break
+                            elif isinstance(img_val, dict):
+                                # Try nested URL fields
+                                for url_field in ["url", "src", "link", "thumbnail"]:
+                                    if url_field in img_val:
+                                        url_val = img_val.get(url_field)
+                                        if isinstance(url_val, str) and url_val.startswith(("http://", "https://")):
+                                            image_url = url_val
+                                            break
+                                if image_url:
+                                    break
+                    
+                    # Debug logging if enabled
+                    import os
+                    if os.environ.get('DEBUG', '').lower() == 'true' and not image_url:
+                        print(f"[DEBUG] Hotel '{name}' - Available keys: {list(hotel_data.keys())}")
+                        print(f"[DEBUG] Hotel '{name}' - No image URL found")
+
                     # Create standardized hotel dictionary
                     hotel = {
                         "id": str(hotel_id),
@@ -269,6 +296,7 @@ class MakcorpsHotelConnector:
                         "check_in": check_in,
                         "check_out": check_out,
                         "nights": nights,
+                        "image_url": image_url,
                         "is_mock": False,
                     }
 
@@ -341,6 +369,21 @@ class MakcorpsHotelConnector:
             num_amenities = random.randint(4, 7)
             amenities = random.sample(amenities_pool, num_amenities)
 
+            # Generate a placeholder hotel image URL using Unsplash
+            # Using different hotel images based on hotel type for variety
+            hotel_image_ids = [
+                "rDEOVtE7vOs",  # Modern hotel exterior
+                "BfrQnKBulYQ",  # Luxury hotel lobby
+                "kKvQJ6rK6S4",  # Hotel room
+                "YrtFlrLo2DQ",  # Resort pool
+                "Z8Y7jJqJ6J4",  # Hotel exterior
+                "nXOB-wh4Oyc",  # Hotel suite
+                "rDEOVtE7vOs",  # Modern hotel
+                "BfrQnKBulYQ",  # Luxury hotel
+            ]
+            image_id = hotel_image_ids[i % len(hotel_image_ids)]
+            image_url = f"https://images.unsplash.com/photo-{image_id}?w=800&h=600&fit=crop"
+            
             hotels.append(
                 {
                     "id": f"MOCK-MAKCORPS-HT-{i+1}",
@@ -373,6 +416,7 @@ class MakcorpsHotelConnector:
                     "check_in": check_in,
                     "check_out": check_out,
                     "nights": nights,
+                    "image_url": image_url,  # Add placeholder hotel image
                     "is_mock": True,
                 }
             )
