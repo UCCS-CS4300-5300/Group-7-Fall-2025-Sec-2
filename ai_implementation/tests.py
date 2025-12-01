@@ -16406,8 +16406,9 @@ class TestAcceptedTripPreventsNewGeneration(TestCase):
             search=self.search,
             external_id="flight1",
             airline="Test Air",
-            departure_time="10:00",
-            arrival_time="14:00",
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=4),
+            duration="4h",
             price=500,
             searched_destination="Paris, France",
         )
