@@ -517,7 +517,12 @@ def add_itinerary_to_group(request, group_id):
         return JsonResponse({"success": False, "message": "Itinerary not found."})
     except Exception:
         # Don't expose exception details to users
-        return JsonResponse({"success": False, "message": "An error occurred while adding the itinerary. Please try again."})
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "An error occurred while adding the itinerary. Please try again.",
+            }
+        )
 
 
 @login_required
@@ -568,7 +573,12 @@ def create_group_trip(request, group_id):
         except Exception:
             # Log error without exposing details
             print("❌ Error creating trip: Operation failed")
-            return JsonResponse({"success": False, "errors": "An error occurred while creating the trip. Please try again."})
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": "An error occurred while creating the trip. Please try again.",
+                }
+            )
     else:
         return JsonResponse({"success": False, "errors": form.errors})
 
@@ -797,7 +807,6 @@ def delete_active_trip(request, group_id, option_id):
         )
 
         trip_title = option.title
-        option_id_str = str(option.id)
 
         # Delete the option
         option.delete()

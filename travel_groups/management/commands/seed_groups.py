@@ -40,15 +40,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         groups_per_user = options["groups_per_user"]
         clear = options["clear"]
-        
+
         # Get password from options, environment variable, or use default
         # WARNING: This is for development/testing only!
         default_password = (
-            options["password"] 
-            or os.environ.get("SEED_GROUP_PASSWORD") 
+            options["password"]
+            or os.environ.get("SEED_GROUP_PASSWORD")
             or "changeme123"
         )
-        
+
         # Security warning
         self.stdout.write(
             self.style.ERROR(
@@ -229,9 +229,7 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            self.style.ERROR(
-                f"⚠️  Default password for all groups: {default_password}"
-            )
+            self.style.ERROR(f"⚠️  Default password for all groups: {default_password}")
         )
         self.stdout.write(
             self.style.ERROR(

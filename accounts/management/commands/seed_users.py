@@ -37,15 +37,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         count = options["count"]
         clear = options["clear"]
-        
+
         # Get password from options, environment variable, or use default
         # WARNING: This is for development/testing only!
         default_password = (
-            options["password"] 
-            or os.environ.get("SEED_USER_PASSWORD") 
-            or "changeme123"
+            options["password"] or os.environ.get("SEED_USER_PASSWORD") or "changeme123"
         )
-        
+
         # Security warning
         self.stdout.write(
             self.style.ERROR(
@@ -196,9 +194,7 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            self.style.ERROR(
-                f"⚠️  Default password for all users: {default_password}"
-            )
+            self.style.ERROR(f"⚠️  Default password for all users: {default_password}")
         )
         self.stdout.write(
             self.style.ERROR(
