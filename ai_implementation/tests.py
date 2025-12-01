@@ -1382,7 +1382,9 @@ class APIConnectorExtendedTest(TestCase):
             self.assertIn("price", flight)
             self.assertTrue(flight.get("is_mock", False))
 
-    def test_aggregator_with_preferences(self):
+    @patch("ai_implementation.serpapi_connector.requests.get")
+    @patch("ai_implementation.makcorps_connector.requests.get")
+    def test_aggregator_with_preferences(self, mock_makcorps_get, mock_serpapi_get):
         """Test aggregator with detailed preferences"""
         # Note: DuffelAggregator removed - using SerpAPI and Makcorps instead
         from ai_implementation.serpapi_connector import (
@@ -1390,6 +1392,51 @@ class APIConnectorExtendedTest(TestCase):
             SerpApiActivitiesConnector,
         )
         from ai_implementation.makcorps_connector import MakcorpsHotelConnector
+
+        # Mock SerpAPI responses
+        mock_serpapi_response = Mock()
+        mock_serpapi_response.status_code = 200
+        mock_serpapi_response.json.return_value = {
+            "best_flights": [
+                {
+                    "flights": [
+                        {
+                            "departure_airport": {"id": "JFK"},
+                            "arrival_airport": {"id": "FCO"},
+                            "airline": "Test Airlines",
+                            "departure_time": "2026-06-01 10:00",
+                            "arrival_time": "2026-06-01 22:00",
+                            "duration": 480,
+                            "price": 800,
+                        }
+                    ]
+                }
+            ],
+            "local_results": [
+                {
+                    "title": "Test Activity",
+                    "description": "Test description",
+                    "price": "$50",
+                }
+            ],
+        }
+        mock_serpapi_get.return_value = mock_serpapi_response
+
+        # Mock Makcorps response
+        mock_makcorps_response = Mock()
+        mock_makcorps_response.status_code = 200
+        mock_makcorps_response.json.return_value = {
+            "data": [
+                {
+                    "hotel_id": "test123",
+                    "name": "Test Hotel",
+                    "address": "Test Address",
+                    "rating": 4.5,
+                    "price": 150,
+                }
+            ]
+        }
+        mock_makcorps_get.return_value = mock_makcorps_response
 
         flights_connector = SerpApiFlightsConnector()
         activities_connector = SerpApiActivitiesConnector()
@@ -5640,7 +5687,21 @@ class RollAgainTest(TestCase):
         )
 
     def test_roll_again_creates_vote(self):
-        """Test that roll_again creates a vote with ROLL_AGAIN comment"""
+        """Test that roll_again immediately rejects option and deletes votes"""
+        # Create a pending option so roll_again can advance
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter="B",
+            title="Pending Option",
+            description="Test",
+            search=self.option.search,
+            status="pending",
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning="Test",
+        )
+
         self.client.login(username="testuser", password="pass123")
         url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
@@ -5651,10 +5712,17 @@ class RollAgainTest(TestCase):
         data = json.loads(response.content)
         self.assertTrue(data.get("success", False))
 
-        # Check vote was created
+        # Check option was immediately rejected
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.status, "rejected")
+
+        # Check votes were deleted after rejection
         vote = ItineraryVote.objects.filter(user=self.user, option=self.option).first()
-        self.assertIsNotNone(vote)
-        self.assertEqual(vote.comment, "ROLL_AGAIN")
+        self.assertIsNone(vote)
+
+        # Check that pending option was activated
+        pending_option.refresh_from_db()
+        self.assertEqual(pending_option.status, "active")
 
     def test_roll_again_unanimous_after_all_vote(self):
         """Test roll_again when all members vote and it becomes unanimous"""
@@ -5746,14 +5814,12 @@ class RollAgainTest(TestCase):
             is_completed=True,
         )
 
-        # Both users vote roll again (no pending options)
+        # First user votes roll again (immediately rejects, no pending options)
         self.client.login(username="testuser", password="pass123")
         roll_url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
         )
-        self.client.post(roll_url)
 
-        self.client.login(username="user2", password="pass123")
         with patch(
             "ai_implementation.views._generate_single_new_option"
         ) as mock_generate:
@@ -5778,7 +5844,21 @@ class RollAgainTest(TestCase):
             self.assertTrue(data.get("advanced", False))
 
     def test_roll_again_not_all_voted_yet(self):
-        """Test roll_again when not all members have voted"""
+        """Test roll_again immediately rejects without waiting for all members"""
+        # Create a pending option so roll_again can advance
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.option.consensus,
+            option_letter="B",
+            title="Pending Option",
+            description="Test",
+            search=self.option.search,
+            status="pending",
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning="Test",
+        )
+
         self.client.login(username="testuser", password="pass123")
         roll_url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
@@ -5788,11 +5868,12 @@ class RollAgainTest(TestCase):
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.content)
         self.assertTrue(data.get("success", False))
-        self.assertTrue(data.get("waiting", False))
+        # Should advance immediately, not wait
+        self.assertTrue(data.get("advanced", False))
 
-        # Option should still be active
+        # Option should be rejected immediately
         self.option.refresh_from_db()
-        self.assertEqual(self.option.status, "active")
+        self.assertEqual(self.option.status, "rejected")
 
     def test_roll_again_unanimous_edge_case(self):
         """Test roll_again edge case where it becomes unanimous (shouldn't happen)"""
@@ -13207,16 +13288,34 @@ class RollAgainVoteHandlingTest(TestCase):
             option=option, user=self.user, group=self.group, comment="Yes"
         )
 
+        # Create a pending option so roll_again can advance
+        pending_option = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter="B",
+            title="Pending Option",
+            description="Test",
+            search=search,
+            status="pending",
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning="Test",
+        )
+
         url = reverse("ai_implementation:roll_again", args=[self.group.id, option.id])
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
 
-        # Vote should be updated to ROLL_AGAIN
-        vote = ItineraryVote.objects.get(option=option, user=self.user)
-        self.assertEqual(vote.comment, "ROLL_AGAIN")
+        # Option should be rejected
+        option.refresh_from_db()
+        self.assertEqual(option.status, "rejected")
+
+        # Vote should be deleted after rejection
+        vote = ItineraryVote.objects.filter(option=option, user=self.user).first()
+        self.assertIsNone(vote)
 
     def test_roll_again_handles_other_vote(self):
-        """Test roll_again handles user having vote for different option"""
+        """Test roll_again deletes all votes after immediate rejection"""
         from ai_implementation.models import (
             GroupConsensus,
             GroupItineraryOption,
@@ -13264,6 +13363,20 @@ class RollAgainVoteHandlingTest(TestCase):
             status="active",
         )
 
+        # Create a third option as pending so there's something to advance to
+        option3 = GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=consensus,
+            option_letter="C",
+            title="Option C",
+            description="Test",
+            search=search,
+            estimated_total_cost=2000.00,
+            cost_per_person=1000.00,
+            ai_reasoning="Test",
+            status="pending",
+        )
+
         # User has vote for option1
         ItineraryVote.objects.create(
             option=option1, user=self.user, group=self.group, comment="Yes"
@@ -13274,10 +13387,18 @@ class RollAgainVoteHandlingTest(TestCase):
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
 
-        # Vote should be updated to point to option2
-        vote = ItineraryVote.objects.get(user=self.user, group=self.group)
-        self.assertEqual(vote.option, option2)
-        self.assertEqual(vote.comment, "ROLL_AGAIN")
+        # Option2 should be rejected
+        option2.refresh_from_db()
+        self.assertEqual(option2.status, "rejected")
+
+        # Since roll_again updates the vote for option1 to point to option2 before deleting,
+        # all votes for option2 (including the migrated one) should be deleted
+        vote = ItineraryVote.objects.filter(user=self.user, option=option2).first()
+        self.assertIsNone(vote)
+
+        # The vote for option1 was migrated to option2, then deleted with option2's rejection
+        vote1 = ItineraryVote.objects.filter(option=option1, user=self.user).first()
+        self.assertIsNone(vote1)
 
 
 class CastVoteUnanimousCheckTest(TestCase):
