@@ -1379,6 +1379,11 @@ function letsGo(optionId, optionLetter) {
         return;
     }
     
+    // Ask for confirmation before voting
+    if (!confirm(`Vote "Let's Go" for Option ${optionLetter}?`)) {
+        return;
+    }
+    
     const originalHTML = button.innerHTML;
     
     // Show loading state
@@ -1405,13 +1410,11 @@ function letsGo(optionId, optionLetter) {
             // Show toast notification
             showToast('Vote cast successfully! ' + (data.message || ''), 'success');
             
-            // Update vote count display if available
-            updateVoteCount(data.votes_cast, data.total_members, optionId);
-            
-            // Reload after short delay to show success state
+            // Always reload after vote to show updated state (same as Roll Again)
+            console.log('Let\'s Go vote successful, reloading to show updated options...');
             setTimeout(() => {
-                window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
-            }, 1500);
+                window.location.reload();
+            }, 500);
         } else {
             // Log error to console instead of showing alert
             console.error('Voting error:', data.error || 'Unknown error');
