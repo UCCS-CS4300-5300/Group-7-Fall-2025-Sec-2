@@ -28,8 +28,16 @@ print("-" * 80)
 serpapi_key = os.environ.get('SERP_API_KEY', '')
 openai_key = os.environ.get('OPENAI_API_KEY', '') or os.environ.get('OPEN_AI_KEY', '')
 
-print(f"SERP_API_KEY: {'✅ SET' if serpapi_key else '❌ NOT SET'} ({'***' + serpapi_key[-4:] if serpapi_key else 'N/A'})")
-print(f"OPENAI_API_KEY: {'✅ SET' if openai_key else '❌ NOT SET'} ({'***' + openai_key[-4:] if openai_key else 'N/A'})")
+# Mask API keys - never log actual values
+def mask_key(key):
+    if not key:
+        return 'N/A'
+    if len(key) > 4:
+        return '***' + key[-4:]
+    return '***'
+
+print(f"SERP_API_KEY: {'✅ SET' if serpapi_key else '❌ NOT SET'} ({mask_key(serpapi_key)})")
+print(f"OPENAI_API_KEY: {'✅ SET' if openai_key else '❌ NOT SET'} ({mask_key(openai_key)})")
 print()
 
 # Check Django settings
@@ -57,7 +65,8 @@ try:
         print("❌ ERROR: SerpAPI key not found in connector!")
         print("   This means the connector will use mock data")
     else:
-        print(f"✅ SerpAPI key found: ***{serpapi_flights.api_key[-4:]}")
+        # Mask API key - never log actual values
+        print(f"✅ SerpAPI key found: {mask_key(serpapi_flights.api_key)}")
         
         # Test a real API call
         test_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
@@ -117,7 +126,8 @@ try:
     if not serpapi_activities.api_key:
         print("❌ ERROR: SerpAPI key not found in connector!")
     else:
-        print(f"✅ SerpAPI key found: ***{serpapi_activities.api_key[-4:]}")
+        # Mask API key - never log actual values
+        print(f"✅ SerpAPI key found: {mask_key(serpapi_activities.api_key)}")
         
         print("Testing activity search: New York")
         

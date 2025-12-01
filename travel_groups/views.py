@@ -678,7 +678,11 @@ def edit_group_trip(request, group_id, itinerary_id):
     except Itinerary.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Trip not found.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        # Log the full error for debugging, but don't expose details to users
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error editing group trip: {str(e)}', exc_info=True)
+        return JsonResponse({'success': False, 'error': 'An error occurred while editing the trip. Please try again.'})
 
 
 @login_required
@@ -735,9 +739,14 @@ def delete_active_trip(request, group_id, option_id):
         messages.error(request, 'Active trip not found.')
         return redirect('travel_groups:group_detail', group_id=group.id)
     except Exception as e:
+        # Log the full error for debugging, but don't expose details to users
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f'Error deleting active trip: {str(e)}', exc_info=True)
+        
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'success': False, 'error': str(e)})
-        messages.error(request, f'Error deleting active trip: {str(e)}')
+            return JsonResponse({'success': False, 'error': 'An error occurred while deleting the active trip.'})
+        messages.error(request, 'An error occurred while deleting the active trip. Please try again.')
         return redirect('travel_groups:group_detail', group_id=group.id)
 
 @login_required

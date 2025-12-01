@@ -72,7 +72,8 @@ class FlightAPIConnector(BaseAPIConnector):
             self.access_token = response.json().get('access_token')
             return self.access_token
         except Exception as e:
-            print(f"Error getting access token: {str(e)}")
+            # Log error without exposing sensitive credentials
+            print(f"Error getting access token: Authentication failed")
             return None
     
     def search_flights(
@@ -585,9 +586,8 @@ class WeatherAPIConnector(BaseAPIConnector):
             print(f"[WEATHER DEBUG] No geocoding results found for: {location_name}")
             return None
         except Exception as e:
-            print(f"[WEATHER ERROR] Error geocoding location '{location_name}': {str(e)}")
-            import traceback
-            print(f"[WEATHER ERROR] Traceback: {traceback.format_exc()}")
+            # Log error without exposing sensitive data or full stack traces
+            print(f"[WEATHER ERROR] Error geocoding location '{location_name}': Geocoding failed")
             return None
     
     def get_weather_forecast(
@@ -653,9 +653,8 @@ class WeatherAPIConnector(BaseAPIConnector):
             print(f"[WEATHER DEBUG] Weather API response received. Has current: {bool(data.get('current'))}, Has daily: {bool(data.get('daily'))}")
             return data
         except Exception as e:
-            print(f"[WEATHER ERROR] Error fetching weather forecast: {str(e)}")
-            import traceback
-            print(f"[WEATHER ERROR] Traceback: {traceback.format_exc()}")
+            # Log error without exposing sensitive data or full stack traces
+            print(f"[WEATHER ERROR] Error fetching weather forecast: Request failed")
             return None
     
     def get_historical_averages(
