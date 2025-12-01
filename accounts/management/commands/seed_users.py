@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
 from accounts.models import UserProfile
 from django.db import transaction
+import os
 
 
 class Command(BaseCommand):
@@ -26,10 +27,37 @@ class Command(BaseCommand):
         parser.add_argument(
             "--clear", action="store_true", help="Clear existing users before seeding"
         )
+        parser.add_argument(
+            "--password",
+            type=str,
+            default=None,
+            help="Default password for seed users (default: from SEED_USER_PASSWORD env var or 'changeme123')",
+        )
 
     def handle(self, *args, **options):
         count = options["count"]
         clear = options["clear"]
+        
+        # Get password from options, environment variable, or use default
+        # WARNING: This is for development/testing only!
+        default_password = (
+            options["password"] 
+            or os.environ.get("SEED_USER_PASSWORD") 
+            or "changeme123"
+        )
+        
+        # Security warning
+        self.stdout.write(
+            self.style.ERROR(
+                "⚠️  WARNING: This command creates users with a default password!"
+            )
+        )
+        self.stdout.write(
+            self.style.ERROR(
+                "    This is for DEVELOPMENT/TESTING ONLY - DO NOT use in production!"
+            )
+        )
+        self.stdout.write(self.style.ERROR("-" * 80))
 
         if clear:
             self.stdout.write(self.style.WARNING("Clearing existing users..."))
@@ -144,7 +172,7 @@ class Command(BaseCommand):
                 user = User.objects.create_user(
                     username=username,
                     email=email,
-                    password="password123",  # Default password for all seed users
+                    password=default_password,
                     first_name=user_data["first_name"],
                     last_name=user_data["last_name"],
                 )
@@ -168,5 +196,12 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            self.style.WARNING("Default password for all users: password123")
+            self.style.ERROR(
+                f"⚠️  Default password for all users: {default_password}"
+            )
+        )
+        self.stdout.write(
+            self.style.ERROR(
+                "    SECURITY: Change passwords immediately or set SEED_USER_PASSWORD env var!"
+            )
         )

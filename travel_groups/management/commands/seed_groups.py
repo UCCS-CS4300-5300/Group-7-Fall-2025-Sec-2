@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from travel_groups.models import TravelGroup, GroupMember
 from django.db import transaction
 import random
+import os
 
 
 class Command(BaseCommand):
@@ -29,10 +30,37 @@ class Command(BaseCommand):
             action="store_true",
             help="Clear existing travel groups before seeding",
         )
+        parser.add_argument(
+            "--password",
+            type=str,
+            default=None,
+            help="Default password for seed groups (default: from SEED_GROUP_PASSWORD env var or 'changeme123')",
+        )
 
     def handle(self, *args, **options):
         groups_per_user = options["groups_per_user"]
         clear = options["clear"]
+        
+        # Get password from options, environment variable, or use default
+        # WARNING: This is for development/testing only!
+        default_password = (
+            options["password"] 
+            or os.environ.get("SEED_GROUP_PASSWORD") 
+            or "changeme123"
+        )
+        
+        # Security warning
+        self.stdout.write(
+            self.style.ERROR(
+                "⚠️  WARNING: This command creates groups with a default password!"
+            )
+        )
+        self.stdout.write(
+            self.style.ERROR(
+                "    This is for DEVELOPMENT/TESTING ONLY - DO NOT use in production!"
+            )
+        )
+        self.stdout.write(self.style.ERROR("-" * 80))
 
         # Get all users excluding superusers
         users = User.objects.filter(is_superuser=False)
@@ -154,7 +182,7 @@ class Command(BaseCommand):
                     group = TravelGroup.objects.create(
                         name=group_name,
                         description=template["description"],
-                        password="password123",
+                        password=default_password,
                         created_by=user,
                         max_members=template["max_members"],
                         is_active=True,
@@ -201,7 +229,12 @@ class Command(BaseCommand):
             )
         )
         self.stdout.write(
-            self.style.WARNING(
-                "Note: All groups have been assigned the password: password123"
+            self.style.ERROR(
+                f"⚠️  Default password for all groups: {default_password}"
+            )
+        )
+        self.stdout.write(
+            self.style.ERROR(
+                "    SECURITY: Change passwords immediately or set SEED_GROUP_PASSWORD env var!"
             )
         )
