@@ -242,8 +242,9 @@ def group_detail(request, group_id):
                         "is_unanimous": is_unanimous,
                         "votes_for_active": yes_votes_for_active,
                     }
-        except Exception as e:
-            print(f"Error fetching voting options: {str(e)}")
+        except Exception:
+            # Don't expose exception details
+            print("Error fetching voting options: Request failed")
             voting_options = None
 
     # Prepare accepted trips data for display
@@ -514,8 +515,9 @@ def add_itinerary_to_group(request, group_id):
 
     except Itinerary.DoesNotExist:
         return JsonResponse({"success": False, "message": "Itinerary not found."})
-    except Exception as e:
-        return JsonResponse({"success": False, "message": f"Error: {str(e)}"})
+    except Exception:
+        # Don't expose exception details to users
+        return JsonResponse({"success": False, "message": "An error occurred while adding the itinerary. Please try again."})
 
 
 @login_required
@@ -563,9 +565,10 @@ def create_group_trip(request, group_id):
                     "message": f'Trip "{itinerary.title}" created successfully!',
                 }
             )
-        except Exception as e:
-            print(f"❌ Error creating trip: {str(e)}")
-            return JsonResponse({"success": False, "errors": str(e)})
+        except Exception:
+            # Log error without exposing details
+            print("❌ Error creating trip: Operation failed")
+            return JsonResponse({"success": False, "errors": "An error occurred while creating the trip. Please try again."})
     else:
         return JsonResponse({"success": False, "errors": form.errors})
 
@@ -742,12 +745,12 @@ def edit_group_trip(request, group_id, itinerary_id):
 
     except Itinerary.DoesNotExist:
         return JsonResponse({"success": False, "error": "Trip not found."})
-    except Exception as e:
+    except Exception:
         # Log the full error for debugging, but don't expose details to users
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.error(f"Error editing group trip: {str(e)}", exc_info=True)
+        logger.error("Error editing group trip", exc_info=True)
         return JsonResponse(
             {
                 "success": False,
@@ -817,12 +820,12 @@ def delete_active_trip(request, group_id, option_id):
             return JsonResponse({"success": False, "error": "Active trip not found."})
         messages.error(request, "Active trip not found.")
         return redirect("travel_groups:group_detail", group_id=group.id)
-    except Exception as e:
+    except Exception:
         # Log the full error for debugging, but don't expose details to users
         import logging
 
         logger = logging.getLogger(__name__)
-        logger.error(f"Error deleting active trip: {str(e)}", exc_info=True)
+        logger.error("Error deleting active trip", exc_info=True)
 
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return JsonResponse(
