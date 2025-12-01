@@ -9,7 +9,12 @@ Usage:
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from travel_groups.models import TravelGroup, GroupMember, TravelPreference, TripPreference
+from travel_groups.models import (
+    TravelGroup,
+    GroupMember,
+    TravelPreference,
+    TripPreference,
+)
 from django.db import transaction
 from django.db.models.signals import post_save
 from datetime import datetime, timedelta
@@ -52,7 +57,9 @@ class Command(BaseCommand):
                 TravelPreference.objects.all().delete()
             self.stdout.write(self.style.SUCCESS("Cleared existing preferences"))
 
-        self.stdout.write(f"Creating preferences for {group_members.count()} group memberships...")
+        self.stdout.write(
+            f"Creating preferences for {group_members.count()} group memberships..."
+        )
 
         # Sample preference data
         destinations = [
@@ -138,28 +145,33 @@ class Command(BaseCommand):
 
         # Temporarily disconnect post_save signal to prevent email notifications during seeding
         from notifications.signals import notify_trip_preference_changes
+
         post_save.disconnect(notify_trip_preference_changes, sender=TripPreference)
-        
+
         try:
             with transaction.atomic():
                 # Group members by group to create coordinated preferences
                 groups = TravelGroup.objects.all()
-                
+
                 for group in groups:
                     members = group.members.all()
-                    
+
                     # Select a common destination for the group (most likely)
                     group_destination = random.choice(destinations)
-                    
+
                     # Select a common date range for the group
                     start_offset = random.randint(30, 180)  # 1-6 months from now
                     trip_duration = random.randint(3, 14)  # 3-14 days
-                    group_start_date = datetime.now().date() + timedelta(days=start_offset)
+                    group_start_date = datetime.now().date() + timedelta(
+                        days=start_offset
+                    )
                     group_end_date = group_start_date + timedelta(days=trip_duration)
-                    
+
                     for member in members:
                         # Create TripPreference (newer model)
-                        if TripPreference.objects.filter(group=group, user=member.user).exists():
+                        if TripPreference.objects.filter(
+                            group=group, user=member.user
+                        ).exists():
                             self.stdout.write(
                                 self.style.WARNING(
                                     f'Trip preference for {member.user.username} in "{group.name}" already exists, skipping...'
@@ -168,8 +180,12 @@ class Command(BaseCommand):
                             skipped_count += 1
                         else:
                             # Some members prefer the group destination, others have different ideas
-                            destination = group_destination if random.random() < 0.7 else random.choice(destinations)
-                            
+                            destination = (
+                                group_destination
+                                if random.random() < 0.7
+                                else random.choice(destinations)
+                            )
+
                             # Some variation in dates but generally aligned
                             if random.random() < 0.8:
                                 start_date = group_start_date
@@ -177,9 +193,13 @@ class Command(BaseCommand):
                             else:
                                 # Different dates
                                 start_offset_variation = random.randint(-7, 7)
-                                start_date = group_start_date + timedelta(days=start_offset_variation)
-                                end_date = start_date + timedelta(days=trip_duration + random.randint(-2, 2))
-                            
+                                start_date = group_start_date + timedelta(
+                                    days=start_offset_variation
+                                )
+                                end_date = start_date + timedelta(
+                                    days=trip_duration + random.randint(-2, 2)
+                                )
+
                             trip_pref = TripPreference.objects.create(
                                 group=group,
                                 user=member.user,
@@ -192,25 +212,33 @@ class Command(BaseCommand):
                                 accommodation_preference=random.choice(accommodations),
                                 activity_preferences=random.choice(activities),
                                 dietary_restrictions=random.choice(dietary_options),
-                                accessibility_needs=random.choice(accessibility_options),
-                                additional_notes=random.choice(additional_notes) if random.random() < 0.7 else "",
-                                is_completed=random.choice([True, True, True, False]),  # 75% completed
+                                accessibility_needs=random.choice(
+                                    accessibility_options
+                                ),
+                                additional_notes=(
+                                    random.choice(additional_notes)
+                                    if random.random() < 0.7
+                                    else ""
+                                ),
+                                is_completed=random.choice(
+                                    [True, True, True, False]
+                                ),  # 75% completed
                             )
-                            
+
                             # Update the member's has_travel_preferences flag
                             member.has_travel_preferences = True
                             member.save()
-                            
+
                             created_trip_prefs += 1
                             self.stdout.write(
                                 self.style.SUCCESS(
                                     f'Created trip preference for {member.user.username} in "{group.name}"'
                                 )
                             )
-                        
+
                         # Optionally create TravelPreference (older model)
                         if include_travel_prefs:
-                            if hasattr(member, 'travel_preferences'):
+                            if hasattr(member, "travel_preferences"):
                                 self.stdout.write(
                                     self.style.WARNING(
                                         f'Travel preference for {member.user.username} in "{group.name}" already exists, skipping...'
@@ -220,11 +248,19 @@ class Command(BaseCommand):
                                 travel_pref = TravelPreference.objects.create(
                                     member=member,
                                     budget_range=random.choice(budgets),
-                                    accommodation_preference=random.choice(accommodations),
+                                    accommodation_preference=random.choice(
+                                        accommodations
+                                    ),
                                     activity_preferences=random.choice(activities),
                                     dietary_restrictions=random.choice(dietary_options),
-                                    accessibility_needs=random.choice(accessibility_options),
-                                    notes=random.choice(additional_notes) if random.random() < 0.7 else "",
+                                    accessibility_needs=random.choice(
+                                        accessibility_options
+                                    ),
+                                    notes=(
+                                        random.choice(additional_notes)
+                                        if random.random() < 0.7
+                                        else ""
+                                    ),
                                 )
                                 created_travel_prefs += 1
         finally:
@@ -235,12 +271,12 @@ class Command(BaseCommand):
             f"\nSeeding complete!",
             f"Created {created_trip_prefs} trip preferences",
         ]
-        
+
         if include_travel_prefs:
             summary_lines.append(f"Created {created_travel_prefs} travel preferences")
-        
+
         if skipped_count > 0:
             summary_lines.append(f"Skipped {skipped_count} existing preferences")
-        
+
         for line in summary_lines:
             self.stdout.write(self.style.SUCCESS(line))
