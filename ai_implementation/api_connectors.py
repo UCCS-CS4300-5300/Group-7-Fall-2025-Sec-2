@@ -44,8 +44,9 @@ class BaseAPIConnector:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"API request error: {str(e)}")
+        except requests.exceptions.RequestException:
+            # Log error without exposing sensitive details
+            print("API request failed - check network connectivity and credentials")
             return None
 
 
@@ -84,9 +85,9 @@ class FlightAPIConnector(BaseAPIConnector):
             response.raise_for_status()
             self.access_token = response.json().get("access_token")
             return self.access_token
-        except Exception as e:
+        except Exception:
             # Log error without exposing sensitive credentials
-            print(f"Error getting access token: Authentication failed")
+            print("Error getting access token: Authentication failed")
             return None
 
     def search_flights(
@@ -155,8 +156,9 @@ class FlightAPIConnector(BaseAPIConnector):
                 flights.append(flight)
 
             return flights
-        except Exception as e:
-            print(f"Error searching flights: {str(e)}")
+        except Exception:
+            # Log error without exposing sensitive details
+            print("Flight search failed - using mock data")
             return self._get_mock_flight_data(
                 origin, destination, departure_date, return_date, adults
             )
@@ -184,8 +186,9 @@ class FlightAPIConnector(BaseAPIConnector):
                 "booking_class": first_segment.get("cabin", "Economy"),
                 "seats_available": offer.get("numberOfBookableSeats", "N/A"),
             }
-        except Exception as e:
-            print(f"Error parsing flight offer: {str(e)}")
+        except Exception:
+            # Log error without exposing sensitive details
+            print("Failed to parse flight offer data")
             return {"error": "Failed to parse flight data"}
 
     def _get_mock_flight_data(
@@ -494,8 +497,9 @@ class TravelAPIAggregator:
                     return_date=end_date,
                     adults=adults,
                 )
-            except Exception as e:
-                results["errors"].append(f"Flight search error: {str(e)}")
+            except Exception:
+                # Don't expose sensitive exception details
+                results["errors"].append("Flight search error: Request failed")
 
         # Search hotels
         if start_date and end_date:
@@ -507,8 +511,9 @@ class TravelAPIAggregator:
                     adults=adults,
                     rooms=rooms,
                 )
-            except Exception as e:
-                results["errors"].append(f"Hotel search error: {str(e)}")
+            except Exception:
+                # Don't expose sensitive exception details
+                results["errors"].append("Hotel search error: Request failed")
 
         # Search activities
         if start_date and end_date:
@@ -523,8 +528,9 @@ class TravelAPIAggregator:
                     end_date=end_date,
                     categories=categories,
                 )
-            except Exception as e:
-                results["errors"].append(f"Activity search error: {str(e)}")
+            except Exception:
+                # Don't expose sensitive exception details
+                results["errors"].append("Activity search error: Request failed")
 
         return results
 
@@ -654,7 +660,7 @@ class WeatherAPIConnector(BaseAPIConnector):
                             ):
                                 result = city_data["results"][0]
                                 print(
-                                    f"[WEATHER DEBUG] Geocoded to major city: {result.get('name')}, {result.get('country')} ({result.get('latitude')}, {result.get('longitude')})"
+                                    f"[WEATHER DEBUG] Geocoded to major city: {result.get('name')}, {result.get('country')}"
                                 )
                                 return {
                                     "latitude": result.get("latitude"),
@@ -667,7 +673,7 @@ class WeatherAPIConnector(BaseAPIConnector):
 
             print(f"[WEATHER DEBUG] No geocoding results found for: {location_name}")
             return None
-        except Exception as e:
+        except Exception:
             # Log error without exposing sensitive data or full stack traces
             print(
                 f"[WEATHER ERROR] Error geocoding location '{location_name}': Geocoding failed"
@@ -726,7 +732,7 @@ class WeatherAPIConnector(BaseAPIConnector):
             }
 
             print(
-                f"[WEATHER DEBUG] Fetching weather forecast for lat={latitude}, lon={longitude}, dates={start_date} to {end_date}"
+                f"[WEATHER DEBUG] Fetching weather forecast for dates={start_date} to {end_date}"
             )
             response = requests.get(
                 self.weather_base_url,
@@ -740,9 +746,9 @@ class WeatherAPIConnector(BaseAPIConnector):
                 f"[WEATHER DEBUG] Weather API response received. Has current: {bool(data.get('current'))}, Has daily: {bool(data.get('daily'))}"
             )
             return data
-        except Exception as e:
+        except Exception:
             # Log error without exposing sensitive data or full stack traces
-            print(f"[WEATHER ERROR] Error fetching weather forecast: Request failed")
+            print("[WEATHER ERROR] Error fetching weather forecast: Request failed")
             return None
 
     def get_historical_averages(
@@ -813,8 +819,9 @@ class WeatherAPIConnector(BaseAPIConnector):
             )
             response.raise_for_status()
             return response.json()
-        except Exception as e:
-            print(f"Error fetching historical averages: {str(e)}")
+        except Exception:
+            # Log error without exposing sensitive details
+            print("Failed to fetch historical weather averages")
             return None
 
     def get_weather_for_trip(
