@@ -182,13 +182,13 @@ ACTIVITY_API_KEY = os.environ.get("ACTIVITY_API_KEY", "")
 SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
 
 # Email Configuration
-# For development, use console backend. In production, configure SMTP settings.
+# For development, use minimal console backend. In production, configure SMTP settings.
 # For tests, use locmem backend to avoid connecting to email server
 if TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 else:
     EMAIL_BACKEND = os.environ.get(
-        "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+        "EMAIL_BACKEND", "groupgo.email_backend.MinimalConsoleEmailBackend"
     )
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
