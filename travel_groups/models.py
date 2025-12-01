@@ -36,7 +36,8 @@ class TravelGroup(models.Model):
     
     def get_unique_identifier(self):
         """Return a shorter, user-friendly identifier for the group"""
-        return str(self.id)[:8].upper()
+        # Remove hyphens from UUID string to get continuous alphanumeric identifier
+        return str(self.id).replace('-', '')[:8].upper()
 
 class GroupMember(models.Model):
     """Model representing a member of a travel group"""
