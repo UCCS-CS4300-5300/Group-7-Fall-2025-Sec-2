@@ -233,13 +233,13 @@ def group_detail(request, group_id):
 
                     voting_options.append({"option": option, "activities": activities})
 
-                    # Check if user has voted
+                    # Check if user has voted on the ACTIVE option specifically
                     if user_is_member:
                         user_vote = ItineraryVote.objects.filter(
-                            group=group, user=request.user
+                            group=group, user=request.user, option=active_option
                         ).first()
 
-                    # Get voting stats
+                    # Get voting stats for the active option
                     votes_cast = ItineraryVote.objects.filter(group=group).count()
                     total_members = members.count()
                     voting_complete = votes_cast >= total_members

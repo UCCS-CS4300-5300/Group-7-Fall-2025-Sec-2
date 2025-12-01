@@ -202,7 +202,7 @@
         {% endif %}
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="itineraries-tab" data-bs-toggle="tab" data-bs-target="#itineraries" type="button" role="tab">
-                <i class="fas fa-route"></i> Voting ({{ group_itineraries.count }})
+                <i class="fas fa-route"></i> Voting {% if voting_options %}({{ voting_options|length }}){% else %}({{ group_itineraries.count }}){% endif %}
             </button>
         </li>
         {% if user_is_member %}
@@ -452,7 +452,7 @@
                         <div class="card-header {% if option.option_letter == 'A' %}bg-info{% elif option.option_letter == 'B' %}bg-primary{% else %}bg-info{% endif %} text-white text-center">
                             <h5 class="mb-0">
                                 {% if option.destination %}
-                                    A Trip to {{ option.destination }}
+                                    Option {{ option.option_letter }} - A Trip to {{ option.destination }}
                                 {% else %}
                                     Option {{ option.option_letter }}
                                 {% endif %}
@@ -1449,11 +1449,8 @@ window.rollAgain = function(optionId, optionLetter) {
     // Get the button that was clicked
     const button = event.target.closest('button');
     
-    // Check if button is already disabled (vote already cast)
-    if (button.disabled) {
-        showToast('You have already cast your vote and cannot change it.', 'info');
-        return;
-    }
+    // No need to check if button is disabled - Roll Again immediately discards the option
+    // and advances to the next one, so there's no "already voted" state to worry about
     
     const originalHTML = button.innerHTML;
     
@@ -1482,23 +1479,12 @@ window.rollAgain = function(optionId, optionLetter) {
     .then(data => {
         console.log('Response data:', data);
         if (data.success) {
-            // Show toast notification
-            showToast('Vote recorded! ' + (data.message || ''), 'info');
-            
-            // If we advanced to a new option, reload immediately to show it
-            if (data.advanced) {
-                console.log('Advanced to new option, reloading immediately...');
-                window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
-            } else {
-                // Still waiting for other votes - show success state briefly then reload
-                button.innerHTML = '<i class="fas fa-redo"></i> Vote Cast!';
-                button.classList.add('pulse-warning');
-                updateVoteCount(data.votes_cast, data.total_members, optionId);
-                
-                setTimeout(() => {
-                    window.location.href = '{% url "travel_groups:group_detail" group.id %}#itineraries';
-                }, 1500);
-            }
+            // Always reload after roll again vote to show new option
+            console.log('Roll again successful, reloading to show updated options...');
+            // Small delay to ensure DB transaction completes
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
         } else {
             // Log error to console instead of showing alert
             console.error('Roll again error:', data.error || 'Unknown error');

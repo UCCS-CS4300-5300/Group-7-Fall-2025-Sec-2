@@ -1382,143 +1382,103 @@ def roll_again(request, group_id, option_id):
                 comment="ROLL_AGAIN",  # Special marker for "no" vote
             )
 
-    # Check how many members have voted on THIS OPTION (all votes, yes or no)
-    total_members = GroupMember.objects.filter(group=group).count()
-    votes_cast = ItineraryVote.objects.filter(
-        group=group, option=current_option
-    ).count()
+    # Since someone voted Roll Again, immediately reject and advance to next option
+    # Voting must be unanimous for acceptance
+    current_option.status = "rejected"
+    current_option.save()
 
-    # Check if all members have voted on this option
-    if votes_cast >= total_members:
-        # Check if this option has unanimous "yes" votes (votes without ROLL_AGAIN comment)
-        yes_votes = (
-            ItineraryVote.objects.filter(group=group, option=current_option)
-            .exclude(comment="ROLL_AGAIN")
-            .count()
+    # Clear all votes for the rejected option (so members can vote on next option)
+    ItineraryVote.objects.filter(group=group, option=current_option).delete()
+
+    # Get next pending option (already generated and stored)
+    # Filter by same consensus as current option to ensure we get the right options
+    consensus = current_option.consensus
+    pending_options = list(
+        GroupItineraryOption.objects.filter(
+            group=group, consensus=consensus, status="pending"
+        ).order_by("display_order", "option_letter")
+    )
+
+    if pending_options:
+        # Activate the first pending option
+        next_option = pending_options[0]
+        next_option.status = "active"
+
+        # Set display order (increment from highest existing)
+        max_order = (
+            GroupItineraryOption.objects.filter(group=group).aggregate(
+                max_order=models.Max("display_order")
+            )["max_order"]
+            or 0
         )
+        next_option.display_order = max_order + 1
+        next_option.save()
 
-        if yes_votes == total_members:
-            # Unanimous yes - should not happen if someone clicked Roll Again, but handle it
-            current_option.status = "accepted"
-            current_option.is_winner = True
-            current_option.save()
-            return JsonResponse(
-                {
-                    "success": False,
-                    "error": "This option has unanimous approval and should be accepted",
-                }
-            )
-        else:
-            # Not unanimous - reject and load next pending option
-            current_option.status = "rejected"
-            current_option.save()
-
-            # Clear all votes for the rejected option (so members can vote on next option)
-            ItineraryVote.objects.filter(group=group, option=current_option).delete()
-
-            # Get next pending option (already generated and stored)
-            # Filter by same consensus as current option to ensure we get the right options
-            consensus = current_option.consensus
-            pending_options = list(
-                GroupItineraryOption.objects.filter(
-                    group=group, consensus=consensus, status="pending"
-                ).order_by("display_order", "option_letter")
-            )
-
-            if pending_options:
-                # Activate the first pending option
-                next_option = pending_options[0]
-                next_option.status = "active"
-
-                # Set display order (increment from highest existing)
-                max_order = (
-                    GroupItineraryOption.objects.filter(group=group).aggregate(
-                        max_order=models.Max("display_order")
-                    )["max_order"]
-                    or 0
-                )
-                next_option.display_order = max_order + 1
-                next_option.save()
-
-                return JsonResponse(
-                    {
-                        "success": True,
-                        "message": f"Rolled again! Now showing Option {next_option.option_letter}",
-                        "next_option_id": str(next_option.id),
-                        "next_option_letter": next_option.option_letter,
-                        "remaining_pending": len(pending_options) - 1,
-                        "advanced": True,
-                    }
-                )
-            else:
-                # No more pending options - try to generate a new one
-                search = current_option.search
-                consensus = current_option.consensus
-
-                # Validate that we have the necessary data to generate a new option
-                if not search or not consensus:
-                    return JsonResponse(
-                        {
-                            "success": False,
-                            "error": "Cannot generate new option: missing search or consensus data. Please generate new trip options.",
-                        }
-                    )
-
-                # Get member preferences for generating new option
-                trip_preferences = TripPreference.objects.filter(
-                    group=group, is_completed=True
-                )
-                member_prefs = []
-                for pref in trip_preferences:
-                    member_prefs.append(
-                        {
-                            "user": pref.user.username,
-                            "destination": pref.destination,
-                            "start_date": pref.start_date.strftime("%Y-%m-%d"),
-                            "end_date": pref.end_date.strftime("%Y-%m-%d"),
-                            "budget": str(pref.budget),
-                            "travel_method": pref.travel_method,
-                            "rental_car": pref.rental_car,
-                            "accommodation_preference": pref.accommodation_preference
-                            or "",
-                            "activity_preferences": pref.activity_preferences or "",
-                            "dietary_restrictions": pref.dietary_restrictions or "",
-                            "accessibility_needs": pref.accessibility_needs or "",
-                            "notes": pref.additional_notes or "",
-                        }
-                    )
-
-                # Generate a new option
-                next_option = _generate_single_new_option(
-                    group, consensus, search, member_prefs
-                )
-
-                if not next_option:
-                    return JsonResponse(
-                        {
-                            "success": False,
-                            "error": "No more options available. Please generate new trip options.",
-                        }
-                    )
-
-                return JsonResponse(
-                    {
-                        "success": True,
-                        "message": f"Rolled again! Generated new Option {next_option.option_letter}",
-                        "next_option_id": str(next_option.id),
-                        "next_option_letter": next_option.option_letter,
-                        "advanced": True,
-                    }
-                )
-    else:
-        # Not everyone has voted yet - just record the "no" vote
         return JsonResponse(
             {
                 "success": True,
-                "message": "Your 'Roll Again' vote has been recorded. Waiting for other members to vote...",
-                "waiting": True,
-                "votes_cast": votes_cast,
-                "total_members": total_members,
+                "message": f"Option rejected! Now showing Option {next_option.option_letter}",
+                "next_option_id": str(next_option.id),
+                "next_option_letter": next_option.option_letter,
+                "remaining_pending": len(pending_options) - 1,
+                "advanced": True,
+            }
+        )
+    else:
+        # No more pending options - try to generate a new one
+        search = current_option.search
+        consensus = current_option.consensus
+
+        # Validate that we have the necessary data to generate a new option
+        if not search or not consensus:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Cannot generate new option: missing search or consensus data. Please generate new trip options.",
+                }
+            )
+
+        # Get member preferences for generating new option
+        trip_preferences = TripPreference.objects.filter(group=group, is_completed=True)
+        member_prefs = []
+        for pref in trip_preferences:
+            member_prefs.append(
+                {
+                    "user": pref.user.username,
+                    "destination": pref.destination,
+                    "start_date": pref.start_date.strftime("%Y-%m-%d"),
+                    "end_date": pref.end_date.strftime("%Y-%m-%d"),
+                    "budget": str(pref.budget),
+                    "travel_method": pref.travel_method,
+                    "rental_car": pref.rental_car,
+                    "accommodation_preference": pref.accommodation_preference or "",
+                    "activity_preferences": pref.activity_preferences or "",
+                    "dietary_restrictions": pref.dietary_restrictions or "",
+                    "accessibility_needs": pref.accessibility_needs or "",
+                    "notes": pref.additional_notes or "",
+                }
+            )
+
+        # Generate a new option
+        next_option = _generate_single_new_option(
+            group, consensus, search, member_prefs
+        )
+
+        if not next_option:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "No more options available. Please generate new trip options.",
+                }
+            )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": f"Option rejected! Generated new Option {next_option.option_letter}",
+                "next_option_id": str(next_option.id),
+                "next_option_letter": next_option.option_letter,
+                "advanced": True,
             }
         )
 
@@ -3165,7 +3125,7 @@ def cast_vote(request, group_id, option_id):
     )
 
     # Only check for advancement if we're voting on the active option
-    if active_option and option.id == active_option.id and all_voted:
+    if active_option and option.id == active_option.id:
         # Refresh active_option from database to get latest state
         active_option.refresh_from_db()
 
@@ -3178,6 +3138,13 @@ def cast_vote(request, group_id, option_id):
                 }
             )
 
+        # Check if any vote is a "Roll Again" vote - if so, immediately advance
+        roll_again_votes = (
+            ItineraryVote.objects.filter(group=group, option=active_option)
+            .filter(comment="ROLL_AGAIN")
+            .count()
+        )
+
         # Check if all votes are "yes" votes (not ROLL_AGAIN) for the active option
         yes_votes_for_active = (
             ItineraryVote.objects.filter(group=group, option=active_option)
@@ -3186,10 +3153,11 @@ def cast_vote(request, group_id, option_id):
         )
 
         print(
-            f"[DEBUG cast_vote] Yes votes (excluding ROLL_AGAIN): {yes_votes_for_active}, Total members: {total_members}"
+            f"[DEBUG cast_vote] Yes votes: {yes_votes_for_active}, Roll Again votes: {roll_again_votes}, Votes cast: {votes_cast}, Total members: {total_members}"
         )
 
-        if yes_votes_for_active == total_members:
+        # Check for unanimous YES votes (all members voted and all votes are yes)
+        if all_voted and yes_votes_for_active == total_members:
             # Unanimous yes vote! Mark as accepted
             print(
                 f"[DEBUG cast_vote] UNANIMOUS VOTE DETECTED! Marking option as accepted..."
@@ -3229,9 +3197,10 @@ def cast_vote(request, group_id, option_id):
                     "advanced": False,
                 }
             )
-        else:
+        elif roll_again_votes > 0:
+            # At least one person voted Roll Again - immediately reject and advance
             print(
-                f"[DEBUG cast_vote] Not unanimous - {yes_votes_for_active} yes votes out of {total_members} members"
+                f"[DEBUG cast_vote] Roll Again detected - immediately advancing to next option"
             )
             # Not unanimous - someone voted "no" (ROLL_AGAIN)
             # Reject and load next pending option automatically
