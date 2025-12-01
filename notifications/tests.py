@@ -5,7 +5,7 @@ from django.utils import timezone
 from datetime import date, timedelta
 from travel_groups.models import TravelGroup, GroupMember, TripPreference, GroupItinerary
 from accounts.models import Itinerary
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 class NotificationTests(TestCase):
