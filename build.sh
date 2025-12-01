@@ -11,6 +11,6 @@ python manage.py collectstatic --no-input
 python manage.py migrate
 
 # Seed initial data
-python manage.py seed_users
-python manage.py seed_groups
-python manage.py seed_prefs
+python manage.py seed_users --clear 
+python manage.py seed_groups --clear
+python manage.py seed_prefs --clear
