@@ -6598,20 +6598,20 @@ class OpenAIServiceErrorTest(TestCase):
         """Test generate_three_itinerary_options without API key"""
         from ai_implementation.openai_service import OpenAIService
         import os
-        
+
         # Save original values
         original_env_key = os.environ.get("OPENAI_API_KEY")
         original_open_ai_key = os.environ.get("OPEN_AI_KEY")
-        
+
         # Clear environment variables
         if "OPENAI_API_KEY" in os.environ:
             del os.environ["OPENAI_API_KEY"]
         if "OPEN_AI_KEY" in os.environ:
             del os.environ["OPEN_AI_KEY"]
-        
+
         # Mock settings to return None for OPENAI_API_KEY
         type(mock_settings).OPENAI_API_KEY = None
-        
+
         try:
             # Should raise ValueError when no API key is available
             with self.assertRaises(ValueError) as context:
@@ -10443,9 +10443,14 @@ class CastVoteEdgeCasesTest(TestCase):
         self.client = Client()
         # Use unique usernames to avoid UNIQUE constraint errors in parallel test execution
         import uuid
+
         unique_suffix = str(uuid.uuid4())[:8]
-        self.user = User.objects.create_user(f"testuser_cvec_{unique_suffix}", "test@test.com", "pass123")
-        self.user2 = User.objects.create_user(f"user2_cvec_{unique_suffix}", "user2@test.com", "pass123")
+        self.user = User.objects.create_user(
+            f"testuser_cvec_{unique_suffix}", "test@test.com", "pass123"
+        )
+        self.user2 = User.objects.create_user(
+            f"user2_cvec_{unique_suffix}", "user2@test.com", "pass123"
+        )
         self.group = TravelGroup.objects.create(
             name="Test Group", created_by=self.user, password="test123"
         )
