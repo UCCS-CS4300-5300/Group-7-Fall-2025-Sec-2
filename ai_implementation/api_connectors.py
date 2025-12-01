@@ -520,7 +520,7 @@ class WeatherAPIConnector(BaseAPIConnector):
                 if not city_result:
                     city_result = results[0]
                 
-                print(f"[WEATHER DEBUG] Geocoded to: {city_result.get('name')}, {city_result.get('country')} ({city_result.get('latitude')}, {city_result.get('longitude')})")
+                print(f"[WEATHER DEBUG] Geocoded to: {city_result.get('name')}, {city_result.get('country')}")
                 return {
                     'latitude': city_result.get('latitude'),
                     'longitude': city_result.get('longitude'),
