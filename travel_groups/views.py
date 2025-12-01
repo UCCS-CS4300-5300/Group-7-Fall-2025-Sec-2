@@ -113,7 +113,7 @@ def group_detail(request, group_id):
         "itinerary", "added_by"
     )
 
-    # Get user's travel preferences if they're a member
+    # Get user's travel preferences if they're a member (old model - deprecated)
     travel_preferences = None
     if user_is_member:
         try:
@@ -121,8 +121,27 @@ def group_detail(request, group_id):
         except TravelPreference.DoesNotExist:
             pass
 
+    # Get user's trip preferences (new model - current)
+    user_trip_preference = None
+    if user_is_member:
+        try:
+            user_trip_preference = TripPreference.objects.get(
+                group=group, user=request.user
+            )
+        except TripPreference.DoesNotExist:
+            pass
+
     # Get preference count for "Find Your Trip" button
     prefs_count = TripPreference.objects.filter(group=group, is_completed=True).count()
+
+    # Calculate trip preference statistics for the Trip Preferences tab
+    total_members_count = members.count()
+    trip_prefs_count = TripPreference.objects.filter(group=group).count()
+    trip_prefs_completion_rate = (
+        round((trip_prefs_count / total_members_count) * 100)
+        if total_members_count > 0
+        else 0
+    )
 
     # Get accepted/selected trips (active trips that were unanimously selected)
     # Check this FIRST - if there are accepted trips, voting should be closed
@@ -214,13 +233,13 @@ def group_detail(request, group_id):
 
                     voting_options.append({"option": option, "activities": activities})
 
-                    # Check if user has voted
+                    # Check if user has voted on the ACTIVE option specifically
                     if user_is_member:
                         user_vote = ItineraryVote.objects.filter(
-                            group=group, user=request.user
+                            group=group, user=request.user, option=active_option
                         ).first()
 
-                    # Get voting stats
+                    # Get voting stats for the active option
                     votes_cast = ItineraryVote.objects.filter(group=group).count()
                     total_members = members.count()
                     voting_complete = votes_cast >= total_members
@@ -281,9 +300,12 @@ def group_detail(request, group_id):
         "user_is_member": user_is_member,
         "user_role": user_role,
         "travel_preferences": travel_preferences,
+        "user_trip_preference": user_trip_preference,  # New trip preference model
         "group_code": group.get_unique_identifier(),
         "user": request.user,  # Explicitly pass user for permission checks
         "prefs_count": prefs_count,  # For "Find Your Trip" button
+        "trip_prefs_count": trip_prefs_count,  # Number of members with trip preferences
+        "trip_prefs_completion_rate": trip_prefs_completion_rate,  # Percentage completion
         "voting_options": voting_options,  # For Trips tab voting display (only active option)
         "user_vote": user_vote,
         "votes_cast": votes_cast,
@@ -692,13 +714,36 @@ def view_group_trip_preferences(request, group_id):
     # Get all trip preferences for this group
     trip_preferences = TripPreference.objects.filter(group=group).select_related("user")
 
-    # Get group members
+    # Get group members with their preferences
     members = GroupMember.objects.filter(group=group).select_related("user")
+
+    # Create a dictionary mapping users to their preferences for easier template access
+    preferences_by_user = {tp.user.id: tp for tp in trip_preferences}
+
+    # Add preference to each member for easier template access
+    members_with_prefs = []
+    for member in members:
+        member.trip_preference = preferences_by_user.get(member.user.id)
+        members_with_prefs.append(member)
+
+    # Calculate counts for summary statistics
+    total_members = members.count()
+    members_with_preferences = trip_preferences.count()
+    members_without_preferences = total_members - members_with_preferences
+    completion_percentage = (
+        round((members_with_preferences / total_members) * 100)
+        if total_members > 0
+        else 0
+    )
 
     context = {
         "group": group,
         "trip_preferences": trip_preferences,
-        "members": members,
+        "members": members_with_prefs,
+        "total_members": total_members,
+        "members_with_preferences": members_with_preferences,
+        "members_without_preferences": members_without_preferences,
+        "completion_percentage": completion_percentage,
     }
     return render(request, "travel_groups/view_trip_preferences.html", context)
 

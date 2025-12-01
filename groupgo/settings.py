@@ -21,12 +21,14 @@ load_dotenv()
 # Detect if we're running tests
 # Check for test command in sys.argv, coverage test runner, or test environment variable
 TESTING = (
-    (len(sys.argv) > 1 and sys.argv[1] == 'test') or  # Direct test command
-    'test' in sys.argv or  # Test command anywhere in args
-    'pytest' in sys.argv[0] or  # Pytest runner
-    any('test' in arg.lower() for arg in sys.argv) or  # Test in any argument
-    os.environ.get('DJANGO_TESTING', '').lower() == 'true' or  # Environment variable
-    ('coverage' in sys.argv[0].lower() and 'test' in ' '.join(sys.argv).lower())  # Coverage with test
+    (len(sys.argv) > 1 and sys.argv[1] == "test")  # Direct test command
+    or "test" in sys.argv  # Test command anywhere in args
+    or "pytest" in sys.argv[0]  # Pytest runner
+    or any("test" in arg.lower() for arg in sys.argv)  # Test in any argument
+    or os.environ.get("DJANGO_TESTING", "").lower() == "true"  # Environment variable
+    or (
+        "coverage" in sys.argv[0].lower() and "test" in " ".join(sys.argv).lower()
+    )  # Coverage with test
 )
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -161,49 +163,55 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # OpenAI API Configuration
 # Supports both OPENAI_API_KEY (standard) and OPEN_AI_KEY (legacy) for compatibility
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('OPEN_AI_KEY', '')
-OPENAI_MODEL = 'gpt-4o-mini'
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or os.environ.get("OPEN_AI_KEY", "")
+OPENAI_MODEL = "gpt-4o-mini"
 
 # Travel API Configuration
 # Amadeus API (Alternative for flights)
-AMADEUS_API_KEY = os.environ.get('AMADEUS_API_KEY', '')
-AMADEUS_API_SECRET = os.environ.get('AMADEUS_API_SECRET', '')
+AMADEUS_API_KEY = os.environ.get("AMADEUS_API_KEY", "")
+AMADEUS_API_SECRET = os.environ.get("AMADEUS_API_SECRET", "")
 
 # Hotel API Configuration (if using a specific service)
-HOTEL_API_KEY = os.environ.get('HOTEL_API_KEY', '')
+HOTEL_API_KEY = os.environ.get("HOTEL_API_KEY", "")
 
 # Activity API Configuration (if using a specific service)
-ACTIVITY_API_KEY = os.environ.get('ACTIVITY_API_KEY', '')
+ACTIVITY_API_KEY = os.environ.get("ACTIVITY_API_KEY", "")
 
 # SerpApi Configuration (Google Flights)
 # Get your API key from: https://serpapi.com/
-SERP_API_KEY = os.environ.get('SERP_API_KEY', '')
+SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
 
 # Email Configuration
 # For development, use console backend. In production, configure SMTP settings.
 # For tests, use locmem backend to avoid connecting to email server
 if TESTING:
-    EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+    EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 else:
-    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@groupgo.com')
+    EMAIL_BACKEND = os.environ.get(
+        "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+    )
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@groupgo.com")
 
 # Celery Configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND", "redis://localhost:6379/0"
+)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 # For tests, always run Celery tasks synchronously (eager mode)
 if TESTING:
     CELERY_TASK_ALWAYS_EAGER = True
 else:
-    CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'  # Set to True for testing without Redis
+    CELERY_TASK_ALWAYS_EAGER = (
+        os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
+    )  # Set to True for testing without Redis
 CELERY_TASK_EAGER_PROPAGATES = True
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"

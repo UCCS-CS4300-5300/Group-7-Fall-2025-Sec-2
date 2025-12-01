@@ -19,6 +19,9 @@ from django.db import transaction
 from django.db.models.signals import post_save
 from datetime import datetime, timedelta
 import random
+import dotenv
+
+dotenv.load_dotenv()
 
 
 class Command(BaseCommand):

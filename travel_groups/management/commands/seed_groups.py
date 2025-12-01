@@ -12,7 +12,10 @@ from django.contrib.auth.models import User
 from travel_groups.models import TravelGroup, GroupMember
 from django.db import transaction
 import random
+import dotenv
 import os
+
+
 
 
 class Command(BaseCommand):

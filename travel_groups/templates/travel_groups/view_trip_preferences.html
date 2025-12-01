@@ -37,31 +37,25 @@
                     <div class="row">
                         <div class="col-md-3">
                             <div class="text-center">
-                                <h3 class="text-primary">{{ members.count }}</h3>
+                                <h3 class="text-primary">{{ total_members }}</h3>
                                 <p class="text-muted">Total Members</p>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-center">
-                                <h3 class="text-success">{{ trip_preferences.count }}</h3>
+                                <h3 class="text-success">{{ members_with_preferences }}</h3>
                                 <p class="text-muted">With Preferences</p>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-center">
-                                <h3 class="text-warning">{{ members.count|add:"-"|add:trip_preferences.count }}</h3>
+                                <h3 class="text-warning">{{ members_without_preferences }}</h3>
                                 <p class="text-muted">Missing Preferences</p>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-center">
-                                <h3 class="text-info">
-                                    {% if members.count > 0 %}
-                                        {% widthratio trip_preferences.count members.count 100 %}%
-                                    {% else %}
-                                        0%
-                                    {% endif %}
-                                </h3>
+                                <h3 class="text-info">{{ completion_percentage }}%</h3>
                                 <p class="text-muted">Completion Rate</p>
                             </div>
                         </div>
@@ -91,88 +85,84 @@
                                         {% endif %}
                                     </h6>
                                     <p class="text-muted mb-2">
-                                        {% for trip_pref in trip_preferences %}
-                                            {% if trip_pref.user == member.user %}
-                                                {% if trip_pref.is_completed %}
-                                                    <span class="badge bg-success">✓ Preferences Completed</span>
-                                                {% else %}
-                                                    <span class="badge bg-warning">Preferences Incomplete</span>
-                                                {% endif %}
+                                        {% if member.trip_preference %}
+                                            {% if member.trip_preference.is_completed %}
+                                                <span class="badge bg-success">✓ Preferences Completed</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">Preferences Incomplete</span>
                                             {% endif %}
-                                        {% empty %}
+                                        {% else %}
                                             <span class="badge bg-danger">No Preferences Set</span>
-                                        {% endfor %}
+                                        {% endif %}
                                     </p>
                                 </div>
                                 <div>
+                                    {% if member.user == request.user %}
                                     <a href="{% url 'travel_groups:add_trip_preferences' group.id %}" class="btn btn-outline-primary btn-sm">
                                         <i class="fas fa-edit"></i> 
-                                        {% for trip_pref in trip_preferences %}
-                                            {% if trip_pref.user == member.user %}
-                                                Update
-                                            {% endif %}
-                                        {% empty %}
+                                        {% if member.trip_preference %}
+                                            Update
+                                        {% else %}
                                             Add
-                                        {% endfor %}
+                                        {% endif %}
                                     </a>
+                                    {% endif %}
                                 </div>
                             </div>
                             
                             <!-- Display preferences if they exist -->
-                            {% for trip_pref in trip_preferences %}
-                                {% if trip_pref.user == member.user %}
+                            {% if member.trip_preference %}
                                 <div class="mt-3">
                                     <div class="row">
                                         <div class="col-md-6 mb-2">
-                                            <strong>Dates:</strong> {{ trip_pref.start_date|date:"M d" }} - {{ trip_pref.end_date|date:"M d, Y" }}
+                                            <strong>Dates:</strong> {{ member.trip_preference.start_date|date:"M d" }} - {{ member.trip_preference.end_date|date:"M d, Y" }}
                                         </div>
                                         <div class="col-md-6 mb-2">
-                                            <strong>Destination:</strong> {{ trip_pref.destination }}
+                                            <strong>Destination:</strong> {{ member.trip_preference.destination }}
                                         </div>
                                         <div class="col-md-6 mb-2">
-                                            <strong>Budget:</strong> {{ trip_pref.budget }}
+                                            <strong>Budget:</strong> {{ member.trip_preference.budget }}
                                         </div>
                                         <div class="col-md-6 mb-2">
-                                            <strong>Travel Method:</strong> {{ trip_pref.get_travel_method_display }}
+                                            <strong>Travel Method:</strong> {{ member.trip_preference.get_travel_method_display }}
                                         </div>
-                                        {% if trip_pref.rental_car %}
+                                        {% if member.trip_preference.rental_car %}
                                         <div class="col-md-6 mb-2">
                                             <strong>Rental Car:</strong> <span class="badge bg-info">Yes</span>
                                         </div>
                                         {% endif %}
-                                        {% if trip_pref.accommodation_preference %}
+                                        {% if member.trip_preference.accommodation_preference %}
                                         <div class="col-md-6 mb-2">
-                                            <strong>Accommodation:</strong> {{ trip_pref.accommodation_preference }}
+                                            <strong>Accommodation:</strong> {{ member.trip_preference.accommodation_preference }}
                                         </div>
                                         {% endif %}
-                                        {% if trip_pref.activity_preferences %}
+                                        {% if member.trip_preference.activity_preferences %}
                                         <div class="col-12 mb-2">
-                                            <strong>Activities:</strong> {{ trip_pref.activity_preferences|truncatewords:20 }}
+                                            <strong>Activities:</strong> {{ member.trip_preference.activity_preferences|truncatewords:20 }}
                                         </div>
                                         {% endif %}
-                                        {% if trip_pref.dietary_restrictions %}
+                                        {% if member.trip_preference.dietary_restrictions %}
                                         <div class="col-12 mb-2">
-                                            <strong>Dietary:</strong> {{ trip_pref.dietary_restrictions|truncatewords:10 }}
+                                            <strong>Dietary:</strong> {{ member.trip_preference.dietary_restrictions|truncatewords:10 }}
                                         </div>
                                         {% endif %}
-                                        {% if trip_pref.accessibility_needs %}
+                                        {% if member.trip_preference.accessibility_needs %}
                                         <div class="col-12 mb-2">
-                                            <strong>Accessibility:</strong> {{ trip_pref.accessibility_needs|truncatewords:10 }}
+                                            <strong>Accessibility:</strong> {{ member.trip_preference.accessibility_needs|truncatewords:10 }}
                                         </div>
                                         {% endif %}
-                                        {% if trip_pref.additional_notes %}
+                                        {% if member.trip_preference.additional_notes %}
                                         <div class="col-12 mb-2">
-                                            <strong>Notes:</strong> {{ trip_pref.additional_notes|truncatewords:15 }}
+                                            <strong>Notes:</strong> {{ member.trip_preference.additional_notes|truncatewords:15 }}
                                         </div>
                                         {% endif %}
                                     </div>
                                 </div>
-                                {% endif %}
-                            {% empty %}
+                            {% else %}
                                 <div class="mt-3">
                                     <p class="text-muted">This member hasn't set their trip preferences yet.</p>
                                 </div>
-                            {% endfor %}
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
