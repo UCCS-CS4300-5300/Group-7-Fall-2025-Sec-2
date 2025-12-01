@@ -16345,6 +16345,166 @@ class ManualOptionGenerationTest(TestCase):
         self.assertEqual(len(result["options"]), 0)
 
 
+class TestAcceptedTripPreventsNewGeneration(TestCase):
+    """Test that accepted trips prevent new trip generation"""
+
+    def setUp(self):
+        # Create users
+        self.user1 = User.objects.create_user(username="user1", password="pass123")
+        self.user2 = User.objects.create_user(username="user2", password="pass123")
+
+        # Create group
+        self.group = TravelGroup.objects.create(
+            name="Test Group",
+            description="Test",
+            max_members=5,
+            created_by=self.user1,
+        )
+
+        # Add members
+        GroupMember.objects.create(group=self.group, user=self.user1, role="admin")
+        GroupMember.objects.create(group=self.group, user=self.user2, role="member")
+
+        # Create preferences
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user1,
+            destination="Paris, France",
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            budget=2000,
+            is_completed=True,
+        )
+        TripPreference.objects.create(
+            group=self.group,
+            user=self.user2,
+            destination="Paris, France",
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            budget=1800,
+            is_completed=True,
+        )
+
+        # Create search and consensus
+        self.search = TravelSearch.objects.create(
+            user=self.user1,
+            group=self.group,
+            destination="Paris, France",
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=37),
+            adults=2,
+        )
+
+        self.consensus = GroupConsensus.objects.create(
+            group=self.group,
+            generated_by=self.user1,
+            consensus_preferences="{}",
+        )
+
+        # Create flight and hotel results
+        self.flight = FlightResult.objects.create(
+            search=self.search,
+            external_id="flight1",
+            airline="Test Air",
+            departure_time=timezone.now(),
+            arrival_time=timezone.now() + timedelta(hours=4),
+            duration="4h",
+            price=500,
+            searched_destination="Paris, France",
+        )
+
+        self.hotel = HotelResult.objects.create(
+            search=self.search,
+            external_id="hotel1",
+            name="Test Hotel",
+            address="123 Test St",
+            price_per_night=150,
+            total_price=1050,
+            rating=4.5,
+            searched_destination="Paris, France",
+        )
+
+        self.client = Client()
+
+    def test_cannot_generate_when_trip_accepted(self):
+        """Test that trip generation is blocked when a trip is already accepted"""
+        # Create an accepted trip
+        GroupItineraryOption.objects.create(
+            group=self.group,
+            consensus=self.consensus,
+            option_letter="A",
+            title="Paris Adventure",
+            description="Amazing trip to Paris",
+            destination="Paris, France",
+            search=self.search,
+            selected_flight=self.flight,
+            selected_hotel=self.hotel,
+            estimated_total_cost=2000,
+            cost_per_person=1000,
+            ai_reasoning="Test",
+            status="accepted",
+            is_winner=True,
+        )
+
+        # Try to generate new options
+        self.client.login(username="user1", password="pass123")
+        response = self.client.post(
+            reverse("ai_implementation:generate_voting_options", args=[self.group.id]),
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        # Should return error
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.content)
+        self.assertFalse(data["success"])
+        self.assertIn("already been accepted", data["error"])
+
+    def test_can_generate_when_no_accepted_trip(self):
+        """Test that trip generation works when no trip is accepted"""
+        self.client.login(username="user1", password="pass123")
+
+        # Mock the API calls to prevent actual API requests
+        with patch(
+            "ai_implementation.views.SerpApiFlightsConnector"
+        ) as mock_flights, patch(
+            "ai_implementation.views.SerpApiActivitiesConnector"
+        ) as mock_activities, patch(
+            "ai_implementation.views.OpenAIService"
+        ) as mock_openai:
+            # Setup mocks
+            mock_flights_instance = Mock()
+            mock_flights_instance.search_flights.return_value = {"flights": []}
+            mock_flights.return_value = mock_flights_instance
+
+            mock_activities_instance = Mock()
+            mock_activities_instance.search_activities.return_value = []
+            mock_activities.return_value = mock_activities_instance
+
+            mock_openai_instance = Mock()
+            mock_openai_instance.generate_group_consensus.return_value = {
+                "consensus_preferences": {},
+                "compromise_areas": [],
+            }
+            mock_openai_instance.generate_three_itinerary_options.return_value = {
+                "options": []
+            }
+            mock_openai.return_value = mock_openai_instance
+
+            response = self.client.post(
+                reverse(
+                    "ai_implementation:generate_voting_options", args=[self.group.id]
+                ),
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+
+            # Should succeed (or fail for different reason, not because trip is accepted)
+            data = json.loads(response.content)
+            if not data.get("success"):
+                self.assertNotIn("already been accepted", data.get("error", ""))
+
+
 if __name__ == "__main__":
     import django
 

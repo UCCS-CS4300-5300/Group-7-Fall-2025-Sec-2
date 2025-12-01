@@ -572,7 +572,15 @@
                             </div>
                             
                             <div class="mt-4">
-                                {% if prefs_count >= 2 %}
+                                {% if accepted_trips %}
+                                <div class="alert alert-success">
+                                    <strong>✅ Trip Already Accepted!</strong><br>
+                                    Your group has already agreed on a trip. No new trips can be generated.
+                                </div>
+                                <a href="#trips-tab" class="btn btn-primary btn-lg px-5" onclick="document.getElementById('trips-tab').click();">
+                                    <i class="fas fa-route"></i> View Accepted Trip
+                                </a>
+                                {% elif prefs_count >= 2 %}
                                 <button class="btn btn-success btn-lg px-5" onclick="findYourTrip()">
                                     <i class="fas fa-magic"></i> Find Your Trip
                                 </button>

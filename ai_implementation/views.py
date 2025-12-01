@@ -172,18 +172,18 @@ def _generate_options_manually(
         if dest not in combinations_by_dest:
             combinations_by_dest[dest] = []
         combinations_by_dest[dest].append(combo)
-    
+
     # Ensure at least 3 options per unique destination
     min_options_per_dest = 3
     selected_combinations = []
     used_pairs = set()
-    
+
     # First, ensure each destination gets at least 3 options
     for dest in valid_destinations:
         dest_combos = combinations_by_dest.get(dest, [])
         if not dest_combos:
             continue
-        
+
         # Select up to 3 options for this destination, spread across price range
         dest_count = min(min_options_per_dest, len(dest_combos))
         if dest_count == 1:
@@ -192,19 +192,15 @@ def _generate_options_manually(
             dest_indices = [0, len(dest_combos) - 1]
         else:
             # Spread across the range: first, middle, and last
-            dest_indices = [
-                0,
-                len(dest_combos) // 2,
-                len(dest_combos) - 1
-            ]
-        
+            dest_indices = [0, len(dest_combos) // 2, len(dest_combos) - 1]
+
         for idx in dest_indices[:dest_count]:
             combo = dest_combos[idx]
             pair_key = (combo["flight_id"], combo["hotel_id"])
             if pair_key not in used_pairs:
                 used_pairs.add(pair_key)
                 selected_combinations.append(combo)
-    
+
     # If we have room for more options (up to 8 total), add more from any destination
     max_total_options = 8
     if len(selected_combinations) < max_total_options:
@@ -213,12 +209,14 @@ def _generate_options_manually(
         for combo in selected_combinations:
             dest = combo["destination"]
             dest_counts[dest] = dest_counts.get(dest, 0) + 1
-        
+
         # Sort destinations by current count (ascending) to prioritize those with fewer
         dests_sorted = sorted(valid_destinations, key=lambda d: dest_counts.get(d, 0))
-        
+
         idx = 0
-        while len(selected_combinations) < max_total_options and idx < len(all_combinations):
+        while len(selected_combinations) < max_total_options and idx < len(
+            all_combinations
+        ):
             combo = all_combinations[idx]
             pair_key = (combo["flight_id"], combo["hotel_id"])
             if pair_key not in used_pairs:
@@ -527,6 +525,7 @@ def perform_search(request, search_id):
             error_msg = f"Error searching flights with SerpAPI: {str(e)}"
             print(f"[ERROR] {error_msg}")
             import traceback
+
             traceback.print_exc()
             api_errors.append(str(e))
             flight_results = []
@@ -582,6 +581,7 @@ def perform_search(request, search_id):
             error_msg = f"Error searching activities with SerpAPI: {str(e)}"
             print(f"[ERROR] {error_msg}")
             import traceback
+
             traceback.print_exc()
             api_errors.append(str(e))
             activity_results = []
@@ -673,7 +673,9 @@ def perform_search(request, search_id):
             # Save hotel results
             for hotel_data in api_results["hotels"]:
                 image_url_value = hotel_data.get("image_url") or None
-                print(f"[DEBUG] Saving hotel '{hotel_data.get('name', 'Unknown')[:50]}' - image_url: {image_url_value[:80] if image_url_value else '(None)'}...")
+                print(
+                    f"[DEBUG] Saving hotel '{hotel_data.get('name', 'Unknown')[:50]}' - image_url: {image_url_value[:80] if image_url_value else '(None)'}..."
+                )
                 HotelResult.objects.create(
                     search=search,
                     external_id=hotel_data.get("id", "N/A"),
@@ -699,7 +701,9 @@ def perform_search(request, search_id):
             # Save activity results
             for activity_data in api_results["activities"]:
                 image_url_value = activity_data.get("image_url") or None
-                print(f"[DEBUG] Saving activity '{activity_data.get('name', 'Unknown')[:50]}' - image_url: {image_url_value[:80] if image_url_value else '(None)'}...")
+                print(
+                    f"[DEBUG] Saving activity '{activity_data.get('name', 'Unknown')[:50]}' - image_url: {image_url_value[:80] if image_url_value else '(None)'}..."
+                )
                 ActivityResult.objects.create(
                     search=search,
                     external_id=activity_data.get("id", "N/A"),
@@ -796,17 +800,21 @@ def perform_search(request, search_id):
             error_msg = f"OpenAI API key not configured: {str(e)}"
             print(f"[ERROR] {error_msg}")
             import traceback
+
             traceback.print_exc()
             messages.error(
-                request, "OpenAI API key is not configured. AI recommendations are unavailable."
+                request,
+                "OpenAI API key is not configured. AI recommendations are unavailable.",
             )
         except Exception as e:
             error_msg = f"Error with OpenAI consolidation: {str(e)}"
             print(f"[ERROR] {error_msg}")
             import traceback
+
             traceback.print_exc()
             messages.warning(
-                request, "Search completed, but AI recommendations are unavailable. Check logs for details."
+                request,
+                "Search completed, but AI recommendations are unavailable. Check logs for details.",
             )
 
         # Mark search as completed
@@ -1079,7 +1087,7 @@ def view_itinerary(request, itinerary_id):
 def view_activity(request, activity_id):
     """View details of an activity"""
     activity = get_object_or_404(ActivityResult, id=activity_id)
-    
+
     # Check if user has access to this activity (through the search)
     # Allow if user owns the search or is a member of the group that owns the search
     has_access = False
@@ -1087,23 +1095,25 @@ def view_activity(request, activity_id):
         has_access = True
     elif activity.search.group:
         from travel_groups.models import GroupMember
+
         has_access = GroupMember.objects.filter(
             group=activity.search.group, user=request.user
         ).exists()
-    
+
     if not has_access:
         from django.contrib import messages
+
         messages.error(request, "You don't have permission to view this activity.")
-        return redirect('accounts:dashboard')
-    
+        return redirect("accounts:dashboard")
+
     # Parse languages if stored as comma-separated string
     languages = []
     if activity.languages:
         if isinstance(activity.languages, str):
-            languages = [lang.strip() for lang in activity.languages.split(',')]
+            languages = [lang.strip() for lang in activity.languages.split(",")]
         else:
             languages = activity.languages
-    
+
     context = {
         "activity": activity,
         "languages": languages,
@@ -1573,7 +1583,9 @@ def advance_to_next_option(request, group_id):
     # Filter by same consensus as current option to ensure we get the right options
     consensus = current_active.consensus
     pending_options = list(
-        GroupItineraryOption.objects.filter(group=group, consensus=consensus, status="pending")
+        GroupItineraryOption.objects.filter(
+            group=group, consensus=consensus, status="pending"
+        )
     )
 
     if not pending_options:
@@ -1608,7 +1620,12 @@ def advance_to_next_option(request, group_id):
 
 @login_required
 def generate_voting_options(request, group_id):
-    """Generate 5-8 itinerary options for group voting based on member preferences"""
+    """
+    Generate 5-8 itinerary options for group voting based on member preferences.
+
+    Note: If a trip has already been accepted by the group (status='accepted' and is_winner=True),
+    this view will prevent new trip generation to ensure group consensus is respected.
+    """
     group = get_object_or_404(TravelGroup, id=group_id)
 
     # Verify user is a member
@@ -1617,6 +1634,27 @@ def generate_voting_options(request, group_id):
     except GroupMember.DoesNotExist:
         messages.error(request, "You are not a member of this group.")
         return redirect("travel_groups:group_list")
+
+    # Check if there's already an accepted trip - prevent new generation if so
+    accepted_trip = GroupItineraryOption.objects.filter(
+        group=group, status="accepted", is_winner=True
+    ).first()
+
+    if accepted_trip:
+        if request.method == "POST":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "A trip has already been accepted by the group. No new trips can be generated.",
+                },
+                status=400,
+            )
+        else:
+            messages.error(
+                request,
+                "A trip has already been accepted by the group. No new trips can be generated.",
+            )
+            return redirect("travel_groups:group_detail", group_id=group.id)
 
     if request.method == "POST":
         # Get dates from request body (from date picker modal)
@@ -2058,7 +2096,8 @@ def generate_voting_options(request, group_id):
                             "searched_destination", search.destination
                         ),
                         link=activity_data.get("link", ""),
-                        image_url=activity_data.get("image_url") or None,  # Use None instead of empty string for URLField
+                        image_url=activity_data.get("image_url")
+                        or None,  # Use None instead of empty string for URLField
                         is_mock=activity_data.get("is_mock", False),
                     )
 
@@ -2281,6 +2320,7 @@ def generate_voting_options(request, group_id):
             # Pre-validate destination distribution BEFORE creating options
             if destinations_list and len(destinations_list) > 1:
                 from collections import defaultdict
+
                 intended_dests_by_option = []
                 for option_data in raw_options:
                     if not isinstance(option_data, dict):
@@ -2294,36 +2334,44 @@ def generate_voting_options(request, group_id):
                         elif " in " in title:
                             intended_dest = title.split(" in ")[-1].strip()
                     intended_dests_by_option.append((option_data, intended_dest))
-                
+
                 # Count how many options are going to each destination
                 dest_counts = defaultdict(int)
                 for _, intended_dest in intended_dests_by_option:
                     # Try to match to preference destinations
                     matched = False
                     for pref_dest in destinations_list:
-                        if (pref_dest.lower() in intended_dest.lower() or 
-                            intended_dest.lower() in pref_dest.lower()):
+                        if (
+                            pref_dest.lower() in intended_dest.lower()
+                            or intended_dest.lower() in pref_dest.lower()
+                        ):
                             dest_counts[pref_dest] += 1
                             matched = True
                             break
                     if not matched and intended_dest:
                         dest_counts[intended_dest] += 1
-                
+
                 print(f"[PRE-VALIDATION] Destination distribution: {dict(dest_counts)}")
-                
+
                 # Check if all options are going to the same destination
                 if len(dest_counts) == 1 and len(destinations_list) > 1:
-                    print(f"[WARNING] All options are going to the same destination! Redistributing...")
+                    print(
+                        f"[WARNING] All options are going to the same destination! Redistributing..."
+                    )
                     # Redistribute: assign options to different destinations
                     redistributed_options = []
                     dest_index = 0
-                    options_per_dest = max(3, len(raw_options) // len(destinations_list))
-                    
+                    options_per_dest = max(
+                        3, len(raw_options) // len(destinations_list)
+                    )
+
                     for i, (option_data, _) in enumerate(intended_dests_by_option):
                         # Cycle through destinations
-                        target_dest = destinations_list[dest_index % len(destinations_list)]
+                        target_dest = destinations_list[
+                            dest_index % len(destinations_list)
+                        ]
                         dest_index += 1
-                        
+
                         # Update the option to target the correct destination
                         if isinstance(option_data, dict):
                             option_data = option_data.copy()  # Don't modify original
@@ -2331,43 +2379,61 @@ def generate_voting_options(request, group_id):
                             # Update title if it contains destination
                             title = option_data.get("title", "")
                             if " to " in title:
-                                option_data["title"] = title.split(" to ")[0] + f" to {target_dest}"
+                                option_data["title"] = (
+                                    title.split(" to ")[0] + f" to {target_dest}"
+                                )
                             elif " in " in title:
-                                option_data["title"] = title.split(" in ")[0] + f" in {target_dest}"
+                                option_data["title"] = (
+                                    title.split(" in ")[0] + f" in {target_dest}"
+                                )
                             elif " at " in title:
-                                option_data["title"] = title.split(" at ")[0] + f" at {target_dest}"
+                                option_data["title"] = (
+                                    title.split(" at ")[0] + f" at {target_dest}"
+                                )
                             else:
                                 option_data["title"] = f"{title} to {target_dest}"
-                            
+
                             # Try to find a flight/hotel for this destination
                             dest_flights = FlightResult.objects.filter(
                                 search=search,
-                                searched_destination__icontains=target_dest
+                                searched_destination__icontains=target_dest,
                             )[:5]
                             dest_hotels = HotelResult.objects.filter(
                                 search=search,
-                                searched_destination__icontains=target_dest
+                                searched_destination__icontains=target_dest,
                             )[:5]
-                            
+
                             # Update flight/hotel IDs if we found matches
                             dest_flights_list = list(dest_flights)
                             dest_hotels_list = list(dest_hotels)
                             if dest_flights_list:
-                                new_flight = dest_flights_list[i % len(dest_flights_list)]
-                                option_data["selected_flight_id"] = new_flight.external_id
+                                new_flight = dest_flights_list[
+                                    i % len(dest_flights_list)
+                                ]
+                                option_data["selected_flight_id"] = (
+                                    new_flight.external_id
+                                )
                             if dest_hotels_list:
                                 new_hotel = dest_hotels_list[i % len(dest_hotels_list)]
                                 option_data["selected_hotel_id"] = new_hotel.external_id
-                        
+
                         redistributed_options.append(option_data)
-                    
+
                     raw_options = redistributed_options
-                    print(f"[PRE-VALIDATION] Redistributed {len(redistributed_options)} options across {len(destinations_list)} destinations")
+                    print(
+                        f"[PRE-VALIDATION] Redistributed {len(redistributed_options)} options across {len(destinations_list)} destinations"
+                    )
                 elif len(dest_counts) < len(destinations_list):
                     # Some destinations are missing - add options for missing destinations
-                    missing_dests = [d for d in destinations_list if d not in dest_counts or dest_counts[d] < 3]
+                    missing_dests = [
+                        d
+                        for d in destinations_list
+                        if d not in dest_counts or dest_counts[d] < 3
+                    ]
                     if missing_dests:
-                        print(f"[PRE-VALIDATION] Missing options for destinations: {missing_dests}")
+                        print(
+                            f"[PRE-VALIDATION] Missing options for destinations: {missing_dests}"
+                        )
                         # We'll handle this in post-validation
 
             # Create all options in database (5-8 options)
@@ -2717,7 +2783,7 @@ def generate_voting_options(request, group_id):
             # Validate and ensure at least 3 options per unique destination
             if all_options_created and destinations_list:
                 from collections import defaultdict
-                
+
                 # Count options per destination
                 options_by_destination = defaultdict(list)
                 for option in all_options_created:
@@ -2725,8 +2791,10 @@ def generate_voting_options(request, group_id):
                     # Try to match destination (case-insensitive, partial match)
                     matched_dest = None
                     for pref_dest in destinations_list:
-                        if (pref_dest.lower() in dest.lower() or 
-                            dest.lower() in pref_dest.lower()):
+                        if (
+                            pref_dest.lower() in dest.lower()
+                            or dest.lower() in pref_dest.lower()
+                        ):
                             matched_dest = pref_dest
                             break
                     if matched_dest:
@@ -2734,44 +2802,47 @@ def generate_voting_options(request, group_id):
                     elif dest:
                         # If destination doesn't match any preference, use it as-is
                         options_by_destination[dest].append(option)
-                
-                print(f"[VALIDATION] Options per destination: {dict((k, len(v)) for k, v in options_by_destination.items())}")
-                
+
+                print(
+                    f"[VALIDATION] Options per destination: {dict((k, len(v)) for k, v in options_by_destination.items())}"
+                )
+
                 # Check if any destination has fewer than 3 options
                 destinations_needing_more = []
                 for dest in destinations_list:
                     count = len(options_by_destination.get(dest, []))
                     if count < 3:
                         destinations_needing_more.append((dest, 3 - count))
-                        print(f"[VALIDATION] Destination '{dest}' has only {count} options, needs {3 - count} more")
-                
+                        print(
+                            f"[VALIDATION] Destination '{dest}' has only {count} options, needs {3 - count} more"
+                        )
+
                 # Generate additional options for destinations that need them
                 if destinations_needing_more:
-                    print(f"[VALIDATION] Generating additional options for {len(destinations_needing_more)} destinations")
+                    print(
+                        f"[VALIDATION] Generating additional options for {len(destinations_needing_more)} destinations"
+                    )
                     # Get available flights and hotels for these destinations
                     for dest, needed_count in destinations_needing_more:
                         # Find flights and hotels for this destination
                         dest_flights = FlightResult.objects.filter(
-                            search=search,
-                            searched_destination__icontains=dest
+                            search=search, searched_destination__icontains=dest
                         )[:10]
                         dest_hotels = HotelResult.objects.filter(
-                            search=search,
-                            searched_destination__icontains=dest
+                            search=search, searched_destination__icontains=dest
                         )[:10]
                         dest_activities = ActivityResult.objects.filter(
-                            search=search,
-                            searched_destination__icontains=dest
+                            search=search, searched_destination__icontains=dest
                         )[:15]
-                        
+
                         if dest_flights.exists() and dest_hotels.exists():
                             # Generate additional options using manual generation
                             for i in range(needed_count):
                                 # Get next available option letter
                                 existing_letters = set(
-                                    GroupItineraryOption.objects.filter(group=group).values_list(
-                                        "option_letter", flat=True
-                                    )
+                                    GroupItineraryOption.objects.filter(
+                                        group=group
+                                    ).values_list("option_letter", flat=True)
                                 )
                                 available_letters = [
                                     letter
@@ -2780,28 +2851,44 @@ def generate_voting_options(request, group_id):
                                 ]
                                 if not available_letters:
                                     break  # No more letters available
-                                
+
                                 option_letter = available_letters[0]
-                                
+
                                 # Select a flight and hotel for this destination
                                 dest_flights_list = list(dest_flights)
                                 dest_hotels_list = list(dest_hotels)
-                                flight = dest_flights_list[i % len(dest_flights_list)] if dest_flights_list else None
-                                hotel = dest_hotels_list[i % len(dest_hotels_list)] if dest_hotels_list else None
-                                
+                                flight = (
+                                    dest_flights_list[i % len(dest_flights_list)]
+                                    if dest_flights_list
+                                    else None
+                                )
+                                hotel = (
+                                    dest_hotels_list[i % len(dest_hotels_list)]
+                                    if dest_hotels_list
+                                    else None
+                                )
+
                                 if flight and hotel:
                                     # Calculate costs
-                                    total_cost = float(flight.price) + float(hotel.total_price or hotel.price_per_night * (search_end_date - search_start_date).days)
-                                    cost_per_person = total_cost / group.member_count if group.member_count > 0 else total_cost
-                                    
+                                    total_cost = float(flight.price) + float(
+                                        hotel.total_price
+                                        or hotel.price_per_night
+                                        * (search_end_date - search_start_date).days
+                                    )
+                                    cost_per_person = (
+                                        total_cost / group.member_count
+                                        if group.member_count > 0
+                                        else total_cost
+                                    )
+
                                     # Select a few activities
                                     activity_ids = []
                                     if dest_activities.exists():
                                         activity_ids = [
-                                            str(a.external_id) 
+                                            str(a.external_id)
                                             for a in dest_activities[:3]
                                         ]
-                                    
+
                                     # Create the additional option
                                     additional_option = GroupItineraryOption.objects.create(
                                         group=group,
@@ -2822,7 +2909,9 @@ def generate_voting_options(request, group_id):
                                         display_order=0,
                                     )
                                     all_options_created.append(additional_option)
-                                    print(f"[VALIDATION] Created additional option {option_letter} for destination {dest}")
+                                    print(
+                                        f"[VALIDATION] Created additional option {option_letter} for destination {dest}"
+                                    )
 
             # Randomly select one option to be active, rest stay pending
             if all_options_created:
@@ -3041,7 +3130,7 @@ def cast_vote(request, group_id, option_id):
 
     # Ensure option's vote count is updated
     option.update_vote_count()
-    
+
     # Refresh option from database to get latest state
     option.refresh_from_db()
 
@@ -3079,7 +3168,7 @@ def cast_vote(request, group_id, option_id):
     if active_option and option.id == active_option.id and all_voted:
         # Refresh active_option from database to get latest state
         active_option.refresh_from_db()
-        
+
         # Double-check that option is still active (might have been changed by another request)
         if active_option.status != "active":
             return JsonResponse(
@@ -3088,7 +3177,7 @@ def cast_vote(request, group_id, option_id):
                     "error": f"Option status changed to {active_option.status}. Please refresh the page.",
                 }
             )
-        
+
         # Check if all votes are "yes" votes (not ROLL_AGAIN) for the active option
         yes_votes_for_active = (
             ItineraryVote.objects.filter(group=group, option=active_option)
@@ -3125,7 +3214,7 @@ def cast_vote(request, group_id, option_id):
             message = (
                 "🎉 Unanimous vote! This option has been selected as the group trip!"
             )
-            
+
             # IMPORTANT: Do NOT activate any other options when we have a winner
             # Return early to prevent any further processing
             return JsonResponse(
