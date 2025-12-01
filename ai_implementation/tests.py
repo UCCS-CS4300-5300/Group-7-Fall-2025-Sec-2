@@ -5701,7 +5701,7 @@ class RollAgainTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning="Test",
         )
-        
+
         self.client.login(username="testuser", password="pass123")
         url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
@@ -5715,11 +5715,11 @@ class RollAgainTest(TestCase):
         # Check option was immediately rejected
         self.option.refresh_from_db()
         self.assertEqual(self.option.status, "rejected")
-        
+
         # Check votes were deleted after rejection
         vote = ItineraryVote.objects.filter(user=self.user, option=self.option).first()
         self.assertIsNone(vote)
-        
+
         # Check that pending option was activated
         pending_option.refresh_from_db()
         self.assertEqual(pending_option.status, "active")
@@ -5819,7 +5819,7 @@ class RollAgainTest(TestCase):
         roll_url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
         )
-        
+
         with patch(
             "ai_implementation.views._generate_single_new_option"
         ) as mock_generate:
@@ -5858,7 +5858,7 @@ class RollAgainTest(TestCase):
             cost_per_person=1000.00,
             ai_reasoning="Test",
         )
-        
+
         self.client.login(username="testuser", password="pass123")
         roll_url = reverse(
             "ai_implementation:roll_again", args=[self.group.id, self.option.id]
@@ -13287,7 +13287,7 @@ class RollAgainVoteHandlingTest(TestCase):
         ItineraryVote.objects.create(
             option=option, user=self.user, group=self.group, comment="Yes"
         )
-        
+
         # Create a pending option so roll_again can advance
         pending_option = GroupItineraryOption.objects.create(
             group=self.group,
@@ -13309,7 +13309,7 @@ class RollAgainVoteHandlingTest(TestCase):
         # Option should be rejected
         option.refresh_from_db()
         self.assertEqual(option.status, "rejected")
-        
+
         # Vote should be deleted after rejection
         vote = ItineraryVote.objects.filter(option=option, user=self.user).first()
         self.assertIsNone(vote)
@@ -13362,7 +13362,7 @@ class RollAgainVoteHandlingTest(TestCase):
             ai_reasoning="Test",
             status="active",
         )
-        
+
         # Create a third option as pending so there's something to advance to
         option3 = GroupItineraryOption.objects.create(
             group=self.group,
@@ -13390,12 +13390,12 @@ class RollAgainVoteHandlingTest(TestCase):
         # Option2 should be rejected
         option2.refresh_from_db()
         self.assertEqual(option2.status, "rejected")
-        
+
         # Since roll_again updates the vote for option1 to point to option2 before deleting,
         # all votes for option2 (including the migrated one) should be deleted
         vote = ItineraryVote.objects.filter(user=self.user, option=option2).first()
         self.assertIsNone(vote)
-        
+
         # The vote for option1 was migrated to option2, then deleted with option2's rejection
         vote1 = ItineraryVote.objects.filter(option=option1, user=self.user).first()
         self.assertIsNone(vote1)
