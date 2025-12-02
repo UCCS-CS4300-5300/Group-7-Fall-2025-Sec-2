@@ -2,6 +2,18 @@
 {% load static %}
 
 {% block content %}
+<style>
+	.alert-error,
+	.alert-danger {
+		background-color: rgba(220, 53, 69, 0.3) !important;
+		color: #721c24 !important;
+		border-color: #dc3545 !important;
+	}
+	.alert-error .btn-close,
+	.alert-danger .btn-close {
+		opacity: 0.7;
+	}
+</style>
 <div class="container py-5">
 	<div class="row justify-content-center">
 		<div class="col-md-6 col-lg-5">
