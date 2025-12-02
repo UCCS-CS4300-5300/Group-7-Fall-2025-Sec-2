@@ -10,6 +10,9 @@ from django.contrib.auth.models import User
 from .models import UserProfile, Itinerary
 from .forms import SignUpForm, ItineraryForm
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 def home_view(request):
     """Homepage view"""
@@ -274,7 +277,8 @@ def delete_itinerary(request, itinerary_id):
             'error': 'Itinerary not found or you do not have permission to delete it.'
         }, status=404)
     except Exception as e:
+        logger.exception("Error deleting itinerary")
         return JsonResponse({
             'success': False, 
-            'error': str(e)
+            'error': 'An error occurred while deleting the itinerary. Please try again.'
         }, status=500)

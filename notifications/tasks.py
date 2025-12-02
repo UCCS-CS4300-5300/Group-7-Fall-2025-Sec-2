@@ -79,6 +79,6 @@ def send_notification_email(recipient_email, recipient_name, notification_type, 
         return f"Email sent successfully to {recipient_email}"
     except Exception as e:
         # Log error but don't raise - we don't want to break the main flow
-        logger.error(f"Error sending email to {recipient_email}: {str(e)}")
-        return f"Error sending email: {str(e)}"
+        logger.exception(f"Error sending email to {recipient_email}")
+        return "Error sending email"
 

@@ -6,6 +6,7 @@ Handles travel search requests, API calls, and consolidated result display.
 import json
 import gc  # For garbage collection to free memory
 import random
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -42,6 +43,8 @@ from .makcorps_connector import MakcorpsHotelConnector
 
 from travel_groups.models import TravelGroup, GroupMember, TripPreference
 from .airport_data import search_airports
+
+logger = logging.getLogger(__name__)
 
 
 def _generate_options_manually(
@@ -826,8 +829,8 @@ def perform_search(request, search_id):
         )
 
     except Exception as e:
-        print(f"Error performing search: {str(e)}")
-        return JsonResponse({"success": False, "error": str(e)}, status=500)
+        logger.exception("Error performing search")
+        return JsonResponse({"success": False, "error": "An error occurred while performing the search. Please try again."}, status=500)
 
 
 @login_required
@@ -908,7 +911,8 @@ def generate_group_consensus(request, group_id):
                 )
 
             except Exception as e:
-                messages.error(request, f"Error generating consensus: {str(e)}")
+                logger.exception("Error generating group consensus")
+                messages.error(request, "An error occurred while generating consensus. Please try again.")
                 return redirect("travel_groups:group_detail", group_id=group.id)
     else:
         form = GroupConsensusForm()
