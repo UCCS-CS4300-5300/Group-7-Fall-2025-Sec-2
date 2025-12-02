@@ -564,8 +564,13 @@ class JoinGroupViewTest(TestCase):
         response = self.client.post(reverse('travel_groups:join_group'), {
             'group_id': group_code,
             'password': 'password123'
-        }, follow=True)
-        self.assertContains(response, 'already a member')
+        })
+        # Should redirect to group_detail
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('already a member', str(messages[0]))
     
     def test_join_full_group(self):
         """Test joining a full group"""
@@ -619,16 +624,26 @@ class LeaveGroupViewTest(TestCase):
     def test_leave_group_as_only_admin(self):
         """Test that only admin cannot leave group"""
         self.client.login(username='testuser', password='pass123')
-        response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'only admin')
+        response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]))
+        # Should redirect back to group detail
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('only admin', str(messages[0]))
         self.assertTrue(GroupMember.objects.filter(id=self.admin_member.id).exists())
     
     def test_leave_group_not_member(self):
         """Test leaving group when user is not a member"""
         user3 = User.objects.create_user(username='user3', password='pass123')
         self.client.login(username='user3', password='pass123')
-        response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:leave_group', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
 
 
 class MyGroupsViewTest(TestCase):
@@ -684,8 +699,13 @@ class UpdateTravelPreferencesViewTest(TestCase):
         """Test that updating preferences requires group membership"""
         user2 = User.objects.create_user(username='user2', password='pass123')
         self.client.login(username='user2', password='pass123')
-        response = self.client.get(reverse('travel_groups:update_preferences', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:update_preferences', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
     
     def test_update_preferences_success(self):
         """Test successful preference update"""
@@ -762,8 +782,14 @@ class GroupSettingsViewTest(TestCase):
         """Test that group settings requires admin role"""
         GroupMember.objects.create(group=self.group, user=self.user2, role='member')
         self.client.login(username='user2', password='pass123')
-        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'do not have permission')
+        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]))
+        # Should redirect to group_detail
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/groups/', response.url)
+        # Check that an error message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('do not have permission', str(messages[0]))
     
     def test_group_settings_success(self):
         """Test successful group settings update"""
@@ -790,8 +816,14 @@ class GroupSettingsViewTest(TestCase):
         """Test group settings access by non-member"""
         user3 = User.objects.create_user(username='user3', password='pass123')
         self.client.login(username='user3', password='pass123')
-        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:group_settings', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/groups/', response.url)
+        # Check that an error message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
 
 
 class AddItineraryToGroupViewTest(TestCase):
@@ -892,8 +924,13 @@ class ViewGroupTripPreferencesTest(TestCase):
         """Test that viewing preferences requires group membership"""
         user2 = User.objects.create_user(username='user2', password='pass123')
         self.client.login(username='user2', password='pass123')
-        response = self.client.get(reverse('travel_groups:view_trip_preferences', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:view_trip_preferences', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
     
     def test_view_preferences_success(self):
         """Test successful viewing of group trip preferences"""
@@ -925,8 +962,13 @@ class GroupTripManagementViewTest(TestCase):
         """Test that group trip management requires group membership"""
         user2 = User.objects.create_user(username='user2', password='pass123')
         self.client.login(username='user2', password='pass123')
-        response = self.client.get(reverse('travel_groups:group_trip_management', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:group_trip_management', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
     
     def test_group_trip_management_success(self):
         """Test successful access to group trip management"""
@@ -991,8 +1033,13 @@ class CollectGroupPreferencesViewTest(TestCase):
         """Test that collecting preferences requires group membership"""
         user3 = User.objects.create_user(username='user3', password='pass123')
         self.client.login(username='user3', password='pass123')
-        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:collect_preferences', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
     
     def test_collect_preferences_success(self):
         """Test successful collection of group preferences"""
@@ -1179,8 +1226,13 @@ class AddTripPreferencesViewExtendedTest(TestCase):
         """Test adding trip preferences when not a member"""
         user2 = User.objects.create_user(username='user2', password='pass123')
         self.client.login(username='user2', password='pass123')
-        response = self.client.get(reverse('travel_groups:add_trip_preferences', args=[self.group.id]), follow=True)
-        self.assertContains(response, 'not a member')
+        response = self.client.get(reverse('travel_groups:add_trip_preferences', args=[self.group.id]))
+        # Should redirect to group_list
+        self.assertEqual(response.status_code, 302)
+        # Check that a message was added
+        messages = list(response.wsgi_request._messages)
+        self.assertEqual(len(messages), 1)
+        self.assertIn('not a member', str(messages[0]))
 
 
 class GroupListSearchTest(TestCase):

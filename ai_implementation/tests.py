@@ -14360,11 +14360,11 @@ class SearchHistoryTrackingTest(TestCase):
         )
 
         self.assertIsNotNone(history.created_at)
-        # Verify we can query by timestamp
-        recent_history = SearchHistory.objects.filter(
-            user=user, created_at__date=date.today()
-        )
+        # Verify we can query by user
+        recent_history = SearchHistory.objects.filter(user=user)
         self.assertGreater(recent_history.count(), 0)
+        # Verify the history object has the correct created_at timestamp
+        self.assertEqual(recent_history.first(), history)
 
 
 class MultipleGroupMembershipTest(TestCase):

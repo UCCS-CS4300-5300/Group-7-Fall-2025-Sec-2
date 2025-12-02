@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from .models import UserProfile, Itinerary
 from .forms import SignUpForm, ItineraryForm
 import json
+import time
 
 
 class UserProfileModelTest(TestCase):
@@ -113,6 +114,8 @@ class ItineraryModelTest(TestCase):
             start_date=self.start_date,
             end_date=self.end_date,
         )
+        # Add a small delay to ensure different timestamps
+        time.sleep(0.01)
         itinerary2 = Itinerary.objects.create(
             user=self.user,
             title="Trip 2",
