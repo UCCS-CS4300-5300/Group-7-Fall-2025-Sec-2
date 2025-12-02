@@ -5,53 +5,33 @@ A Django-based collaborative travel planning application that helps groups organ
 ## Features
 
 ### User Management
-- **User Registration & Authentication**: Secure account creation with email and password
-- **User Profiles**: Manage personal information and preferences
-- **Dashboard**: Personalized view of active trips, saved itineraries, and group memberships
+- Secure registration and authentication
+- Personal dashboards with active trips and saved itineraries
+- Profile management
 
 ### Group Travel Planning
-- **Travel Groups**: Create and join travel groups with password protection
-- **Group Management**: Admin/member roles, max capacity settings, and member invitation
-- **Trip Preferences**: Individual members submit travel preferences including:
-  - Budget range and travel dates
-  - Destination preferences
-  - Travel method (flight, car, train, bus)
-  - Accommodation preferences
-  - Activity interests and dietary restrictions
-  - Accessibility needs
+- Create/join password-protected travel groups
+- Admin and member roles with capacity limits
+- Submit preferences: budget, dates, destination, travel method, accommodations, activities, dietary needs
 
 ### AI-Powered Recommendations
-- **Smart Search**: AI-driven travel search using OpenAI GPT-4o-mini
-- **Multi-Source Results**: Integrates multiple travel APIs:
-  - Flights via SerpAPI (Google Flights)
-  - Hotels and accommodations
-  - Local activities and tours
-- **Group Consensus Analysis**: AI analyzes all group member preferences to find optimal compromises
-- **Itinerary Generation**: Creates multiple itinerary options (A, B, C, etc.) tailored to group preferences
-- **Smart Rankings**: AI scores and ranks results based on group needs
+- Smart search using OpenAI GPT-4o-mini
+- Multi-source results: Flights (SerpAPI), Hotels (Makcorps), Activities (SerpAPI)
+- Analyzes group preferences to find optimal compromises
+- Generates multiple ranked itinerary options (A, B, C, etc.)
 
-### Democratic Voting System
-- **Option Voting**: Groups vote on AI-generated itinerary options
-- **Vote Tracking**: Real-time vote counts and status updates
-- **Consensus Building**: System tracks which options achieve unanimous approval
-- **Multiple Rounds**: New options presented if consensus isn't reached
+### Democratic Voting
+- Vote on AI-generated itinerary options
+- Real-time vote tracking and consensus detection
+- Multiple voting rounds until unanimous approval
 
-### Notifications & Communication
-- **Real-Time Notifications**: Members receive updates on:
-  - New group invitations
-  - Trip preference submissions
-  - Voting opportunities
-  - Consensus decisions
-- **Email Integration**: Configurable email backend for notifications
-- **Background Tasks**: Celery-powered async task processing with Redis
-
-### Weather Integration
-- **Current Weather**: Display current weather conditions for destinations
-- **Weather Forecasts**: Historical data-based forecasts for trip planning periods
+### Notifications & Weather
+- Real-time notifications for invitations, submissions, and voting
+- Email integration with background task processing
+- Current weather and forecasts for destinations
 
 ### Responsive Design
-- Modern, mobile-friendly interface using Bootstrap
-- Intuitive navigation and user experience
+- Mobile-friendly Bootstrap interface
 
 ## Technology Stack
 
@@ -60,95 +40,55 @@ A Django-based collaborative travel planning application that helps groups organ
 - **AI/ML**: OpenAI GPT-4o-mini
 - **Task Queue**: Celery 5.5.3 with Redis 7.0.1
 - **Web Server**: Gunicorn 23.0.0 with WhiteNoise
-- **APIs**: SerpAPI (Google Flights), Open-Meteo (Weather)
+- **APIs**: 
+  - SerpAPI (Google Flights & Activities)
+  - Makcorps API (Hotels)
+  - Open-Meteo (Weather Forecasts)
 - **Testing**: Coverage 7.12.0, Flake8 linting
 - **Deployment**: Render.com
 
 ## Setup Instructions
 
 ### Prerequisites
-
-- Python 3.12.3 or higher
-- pip (Python package installer)
-- Redis server (for Celery task queue)
-- API Keys (see Environment Variables section)
+- Python 3.12.3+, pip, Redis server
+- API Keys: OpenAI, SerpAPI, Makcorps (see Environment Variables)
 
 ### Installation
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2.git
-   cd Group-7-Fall-2025-Sec-2/
-   ```
+```bash
+# Clone and navigate
+git clone https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2.git
+cd Group-7-Fall-2025-Sec-2/
 
-2. **Create a virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-   **IMPORTANT:** Always activate the virtual environment before running Django commands. You should see `(venv)` in your terminal prompt.
+# Set up virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# Install dependencies
+pip install -r requirements.txt
 
-4. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys and configuration
-   ```
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
 
-5. **Run database migrations:**
-   ```bash
-   python manage.py makemigrations
-   python manage.py migrate
-   ```
+# Set up database
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py collectstatic --no-input
 
-6. **Create a superuser (for admin access):**
-   ```bash
-   python manage.py createsuperuser
-   ```
+# Optional: Seed test data
+python manage.py seed_users --clear
+python manage.py seed_groups --clear
+python manage.py seed_prefs --clear
 
-7. **Seed initial data (optional):**
-   ```bash
-   python manage.py seed_users --clear
-   python manage.py seed_groups --clear
-   python manage.py seed_prefs --clear
-   ```
+# Start services (in separate terminals)
+redis-server
+celery -A groupgo worker --loglevel=info
+celery -A groupgo beat --loglevel=info
+python manage.py runserver
+```
 
-8. **Collect static files:**
-   ```bash
-   python manage.py collectstatic --no-input
-   ```
-
-9. **Start Redis (required for Celery):**
-   ```bash
-   redis-server
-   ```
-
-10. **Start Celery worker (in a new terminal):**
-    ```bash
-    source venv/bin/activate
-    celery -A groupgo worker --loglevel=info
-    ```
-
-11. **Start Celery beat (in another terminal, for scheduled tasks):**
-    ```bash
-    source venv/bin/activate
-    celery -A groupgo beat --loglevel=info
-    ```
-
-12. **Start the development server:**
-    ```bash
-    source venv/bin/activate
-    python manage.py runserver
-    ```
-
-13. **Access the application:**
-    - Local: http://localhost:8000/
-    - Production: https://groupgo.me/
-    - Admin panel: http://localhost:8000/admin
+**Access:** http://localhost:8000/ | **Admin:** http://localhost:8000/admin | **Production:** https://groupgo.me/
 
 ## Environment Variables
 
@@ -162,8 +102,11 @@ DEBUG=True
 # OpenAI API Configuration
 OPEN_AI_KEY=sk-your-openai-api-key-here
 
-# SerpApi Configuration (Google Flights)
+# SerpApi Configuration (Google Flights & Activities)
 SERP_API_KEY=your-serpapi-api-key-here
+
+# Makcorps Hotel API Configuration
+HOTEL_API_KEY=your-makcorps-api-key-here
 
 # Email Configuration
 EMAIL_BACKEND=groupgo.email_backend.MinimalConsoleEmailBackend
@@ -235,35 +178,6 @@ CELERY_TASK_ALWAYS_EAGER=False
 
 ### Notifications
 - Real-time notifications handled via Django signals and Celery tasks
-
-## Database Models
-
-### Accounts App
-- **UserProfile**: Extends Django User with phone number and additional profile info
-- **Itinerary**: User's saved travel itineraries
-
-### Travel Groups App
-- **TravelGroup**: Group information, password protection, member limits
-- **GroupMember**: User-group relationships with roles (admin/member)
-- **GroupItinerary**: Links groups to shared itineraries
-- **TripPreference**: Individual member trip preferences (dates, budget, destination)
-- **TravelPreference**: General travel preferences (accommodation, activities, dietary needs)
-
-### AI Implementation App
-- **TravelSearch**: Search queries and parameters
-- **ConsolidatedResult**: AI-analyzed and consolidated search results
-- **FlightResult**: Individual flight options from APIs
-- **HotelResult**: Hotel search results with pricing and amenities
-- **ActivityResult**: Tour and activity options
-- **GroupConsensus**: AI-generated analysis of group preferences
-- **GroupItineraryOption**: Votable itinerary options (A, B, C, etc.)
-- **ItineraryVote**: Member votes on itinerary options
-- **AIGeneratedItinerary**: Complete AI-generated trip plans
-- **SearchHistory**: User interaction tracking for analytics
-
-### Notifications App
-- Uses Django signals for real-time event notifications
-- No dedicated models (handled via signals and Celery tasks)
 
 ## Testing
 
@@ -344,8 +258,9 @@ services:
 - **Contextual Understanding**: Processes member preferences to understand group dynamics
 
 ### API Integrations
-- **SerpAPI**: Google Flights data for real-time flight search
-- **Open-Meteo**: Weather forecasts based on historical data
+- **SerpAPI**: Google Flights data for real-time flight search and activities/tours
+- **Makcorps API**: Hotel search with pricing, ratings, and amenities
+- **Open-Meteo**: Weather forecasts based on historical data and current conditions
 - **Future-Ready**: Architecture supports adding more travel APIs (Amadeus, Duffel, etc.)
 
 ### Background Processing
@@ -356,25 +271,12 @@ services:
 
 ## Future Enhancements
 
-### Planned Features
 - Email verification for new accounts
 - Password reset functionality
-- Social media login (Google, Facebook)
-- Real-time chat within groups
-- Mobile application (iOS/Android)
-- Payment splitting functionality
-- Integration with booking platforms
-- Calendar synchronization
-- Export itineraries to PDF
-- Multi-language support
-
-### Technical Improvements
-- Migrate to PostgreSQL for production
-- Implement caching (Redis/Memcached)
-- Add WebSocket support for real-time updates
-- Enhanced analytics and reporting
-- Machine learning for preference prediction
-- A/B testing framework
+- Social media login integration
+- Advanced itinerary sharing features
+- Group trip planning capabilities
+- Travel API integrations (attractions, restaurants, etc.)
 
 ## Contributing
 
@@ -404,12 +306,7 @@ This project was developed with assistance from AI tools:
 
 The AI assistant helped accelerate development, identify edge cases, and implement best practices while maintaining code quality and consistency.
 
-## License
-
-This project is part of CS4300/5300 coursework at UCCS.
-
 ## Contact & Links
 
 - **Production**: https://groupgo.me/
 - **Repository**: https://github.com/UCCS-CS4300-5300/Group-7-Fall-2025-Sec-2
-- **Course**: CS4300/5300 - Software Engineering
